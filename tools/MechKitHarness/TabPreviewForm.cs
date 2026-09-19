@@ -111,7 +111,7 @@ namespace MechKit.Harness
             }
         }
 
-        /// <summary>截图上方的 MechKit 命令区；标准件设置后紧跟已配置的前缀按钮。</summary>
+        /// <summary>固定功能为大按钮；前缀和中间名为上下两行的小按钮。</summary>
         private Control BuildCommandArea()
         {
             var host = new Panel
@@ -127,7 +127,7 @@ namespace MechKit.Harness
                 }
             };
 
-            var commands = new List<CommandSpec>
+            var leading = new List<CommandSpec>
             {
                 new CommandSpec("一键生成BOM", "一键生\r\n成 BOM\r\n表", 76, 0),
                 new CommandSpec("明细汇总 / BOM 预览", "明细汇总\r\nBOM预览", 84, 1),
@@ -135,61 +135,111 @@ namespace MechKit.Harness
                 new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3)
             };
 
-            var prefixes = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomPrefixes);
-            for (var prefixIndex = 0; prefixIndex < prefixes.Length &&
-                    prefixIndex < AddinConstants.MaxPrefixCommands; prefixIndex++)
-            {
-                var prefix = prefixes[prefixIndex];
-                commands.Add(new CommandSpec("前缀:" + prefix, prefix,
-                    Math.Max(50, TextRenderer.MeasureText(prefix, Font).Width + 18), 10 + prefixIndex));
-            }
-
-            var middleNames = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomMiddleNames);
-            if (middleNames.Length > 0)
-            {
-                // 对应 SOLIDWORKS CommandManager 中两组快捷按钮之间的分隔线。
-                commands.Add(new CommandSpec("分隔", string.Empty, 8, -1));
-            }
-            for (var middleIndex = 0; middleIndex < middleNames.Length &&
-                    middleIndex < AddinConstants.MaxMiddleNameCommands; middleIndex++)
-            {
-                var middleName = middleNames[middleIndex];
-                commands.Add(new CommandSpec("中间:" + middleName, middleName,
-                    Math.Max(64, TextRenderer.MeasureText(middleName, Font).Width + 18), 10 + middleIndex));
-            }
-
-            commands.AddRange(new[]
+            var trailing = new List<CommandSpec>
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
                 new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6),
                 new CommandSpec("设置", "设置", 45, 7)
-            });
+            };
 
             var x = 0;
-            for (var i = 0; i < commands.Count; i++)
+            foreach (var command in leading)
             {
-                var command = commands[i];
-                if (command.IconIndex < 0)
+                AddCommandButton(host, command, new Point(x, 0),
+                    new Size(command.Width, 117), false);
+                x += command.Width;
+            }
+
+            var prefixes = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomPrefixes);
+            var middleNames = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomMiddleNames);
+            var prefixCount = Math.Min(prefixes.Length, AddinConstants.MaxPrefixCommands);
+            var middleCount = Math.Min(middleNames.Length, AddinConstants.MaxMiddleNameCommands);
+            var columns = Math.Max(prefixCount, middleCount);
+            if (columns > 0)
+            {
+                x += 6;
+                var prefixLabel = new Label
                 {
-                    x += command.Width;
-                    continue;
-                }
-                var capturedId = command.Id;
-                var button = new CommandButton(
-                    command.DisplayText,
-                    command.IconIndex < _icons.Count ? _icons[command.IconIndex] : null)
-                {
-                    Location = new Point(x, 0),
-                    Size = new Size(command.Width, 117),
-                    // 参考截图中鼠标停在“标准件前缀”按钮上的状态。
-                    Highlighted = string.Equals(command.Id, "标准件前缀", StringComparison.Ordinal)
+                    Text = "前缀",
+                    Location = new Point(x, 12),
+                    Size = new Size(42, 30),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font(Font.FontFamily, 8.5f),
+                    ForeColor = Color.FromArgb(90, 90, 90),
+                    BackColor = RibbonBack
                 };
-                button.Click += delegate { _onCommand(capturedId); };
-                host.Controls.Add(button);
+                var middleLabel = new Label
+                {
+                    Text = "中间",
+                    Location = new Point(x, 54),
+                    Size = new Size(42, 30),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font(Font.FontFamily, 8.5f),
+                    ForeColor = Color.FromArgb(90, 90, 90),
+                    BackColor = RibbonBack
+                };
+                host.Controls.Add(prefixLabel);
+                host.Controls.Add(middleLabel);
+                x += 44;
+            }
+
+            for (var column = 0; column < columns; column++)
+            {
+                var prefixText = column < prefixCount ? prefixes[column] : string.Empty;
+                var middleText = column < middleCount ? middleNames[column] : string.Empty;
+                var width = 58;
+                if (prefixText.Length > 0)
+                {
+                    width = Math.Max(width, TextRenderer.MeasureText(prefixText, Font).Width + 30);
+                }
+                if (middleText.Length > 0)
+                {
+                    width = Math.Max(width, TextRenderer.MeasureText(middleText, Font).Width + 30);
+                }
+
+                if (prefixText.Length > 0)
+                {
+                    AddCommandButton(host,
+                        new CommandSpec("前缀:" + prefixText, prefixText, width, 10 + column),
+                        new Point(x, 9), new Size(width, 34), true);
+                }
+                if (middleText.Length > 0)
+                {
+                    AddCommandButton(host,
+                        new CommandSpec("中间:" + middleText, middleText, width, 10 + column),
+                        new Point(x, 51), new Size(width, 34), true);
+                }
+                x += width + 2;
+            }
+
+            if (columns > 0)
+            {
+                x += 6;
+            }
+
+            foreach (var command in trailing)
+            {
+                AddCommandButton(host, command, new Point(x, 0),
+                    new Size(command.Width, 117), false);
                 x += command.Width;
             }
 
             return host;
+        }
+
+        private void AddCommandButton(Control host, CommandSpec command, Point location,
+            Size size, bool compact)
+        {
+            var capturedId = command.Id;
+            var button = new CommandButton(command.DisplayText,
+                command.IconIndex < _icons.Count ? _icons[command.IconIndex] : null, compact)
+            {
+                Location = location,
+                Size = size,
+                Highlighted = !compact && string.Equals(command.Id, "标准件前缀", StringComparison.Ordinal)
+            };
+            button.Click += delegate { _onCommand(capturedId); };
+            host.Controls.Add(button);
         }
 
         /// <summary>截图底部的 SOLIDWORKS 选项卡条，MechKit 保持选中。</summary>
@@ -274,15 +324,18 @@ namespace MechKit.Harness
         private sealed class CommandButton : Control
         {
             private readonly Bitmap _icon;
+            private readonly bool _compact;
             private bool _hovered;
             private bool _pressed;
 
-            public CommandButton(string text, Bitmap icon)
+            public CommandButton(string text, Bitmap icon, bool compact)
             {
                 Text = text;
                 _icon = icon;
+                _compact = compact;
                 Cursor = Cursors.Hand;
-                Font = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular, GraphicsUnit.Point);
+                Font = new Font("Microsoft YaHei UI", compact ? 8.5f : 10.5f,
+                    FontStyle.Regular, GraphicsUnit.Point);
                 BackColor = RibbonBack;
                 ForeColor = TextColor;
                 TabStop = true;
@@ -359,15 +412,18 @@ namespace MechKit.Harness
                 {
                     e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
                     e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                    var iconSize = 28;
-                    var iconX = (Width - iconSize) / 2;
-                    e.Graphics.DrawImage(_icon, new Rectangle(iconX, 7, iconSize, iconSize));
+                    var iconSize = _compact ? 18 : 28;
+                    var iconX = _compact ? 5 : (Width - iconSize) / 2;
+                    var iconY = _compact ? (Height - iconSize) / 2 : 7;
+                    e.Graphics.DrawImage(_icon, new Rectangle(iconX, iconY, iconSize, iconSize));
                 }
 
-                var textBounds = new Rectangle(1, 40, Width - 2, Height - 41);
+                var textBounds = _compact
+                    ? new Rectangle(26, 0, Width - 28, Height)
+                    : new Rectangle(1, 40, Width - 2, Height - 41);
                 TextRenderer.DrawText(e.Graphics, Text, Font, textBounds, ForeColor,
-                    TextFormatFlags.HorizontalCenter |
-                    TextFormatFlags.Top |
+                    (_compact ? TextFormatFlags.Left | TextFormatFlags.VerticalCenter
+                              : TextFormatFlags.HorizontalCenter | TextFormatFlags.Top) |
                     TextFormatFlags.NoPadding |
                     TextFormatFlags.NoPrefix);
             }

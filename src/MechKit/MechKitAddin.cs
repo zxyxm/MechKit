@@ -1024,20 +1024,11 @@ namespace MechKit
                                                | (int)swDocTemplateTypes_e.swDocTemplateTypeDRAWING;
             _commandGroup.Activate();
 
-            // 明确重建 MechKit 选项卡，保证动态前缀按钮出现在“标准件前缀设置”之后。
+            // 明确重建 MechKit 选项卡。固定功能使用大按钮；动态命名按钮使用
+            // “前缀在上、中间名在下”的两行小按钮，减少横向占用。
             // 仅依赖 CommandGroup 自动布局时，SOLIDWORKS 会沿用旧的五按钮布局，
             // 新增的电机/电气/淘宝等命令虽然已注册，却不会显示在选项卡中。
-            var tabIndices = new List<int>();
-            for (var i = 0; i < indices.Count; i++)
-            {
-                tabIndices.Add(indices[i]);
-                if (i == 3)
-                {
-                    tabIndices.AddRange(prefixIndices);
-                    tabIndices.AddRange(middleNameIndices);
-                }
-            }
-            CreateCommandTabs(tabIndices);
+            CreateCommandTabs(indices, prefixIndices, middleNameIndices);
 
             // 让工具栏在安装后立刻可见（装的当天就能在工具栏上看到按钮）
             try
@@ -1060,23 +1051,12 @@ namespace MechKit
         /// 在 CommandManager 里创建 MechKit 选项卡（零件 / 装配体 / 工程图各一份），
         /// 把命令按钮放进选项卡。这样无论当前打开什么文档，选项卡栏里都能找到 MechKit。
         /// </summary>
-        private void CreateCommandTabs(IList<int> itemIndices)
+        private void CreateCommandTabs(IList<int> fixedIndices, IList<int> prefixIndices,
+            IList<int> middleNameIndices)
         {
-            if (_commandManager == null || _commandGroup == null || itemIndices == null || itemIndices.Count == 0)
+            if (_commandManager == null || _commandGroup == null || fixedIndices == null || fixedIndices.Count == 0)
             {
                 return;
-            }
-
-            var commandIds = new int[itemIndices.Count];
-            for (var i = 0; i < itemIndices.Count; i++)
-            {
-                commandIds[i] = _commandGroup.get_CommandID(itemIndices[i]);
-            }
-
-            var textStyles = new int[commandIds.Length];
-            for (var i = 0; i < textStyles.Length; i++)
-            {
-                textStyles[i] = (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow;
             }
 
             foreach (var docType in new[]
@@ -1104,11 +1084,40 @@ namespace MechKit
                         continue;
                     }
 
-                    var box = tab.AddCommandTabBox();
-                    if (box != null)
+                    // 左侧四个固定功能按钮。
+                    AddCommandTabBox(tab, new List<int>
                     {
-                        box.AddCommands(commandIds, textStyles);
+                        fixedIndices[0], fixedIndices[1], fixedIndices[2], fixedIndices[3]
+                    }, (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
+
+                    // 每个小按钮盒最多放两个命令，形成严格的上下两行：
+                    // 上行对应前缀，下行对应中文中间名。
+                    var dynamicColumns = Math.Max(
+                        prefixIndices == null ? 0 : prefixIndices.Count,
+                        middleNameIndices == null ? 0 : middleNameIndices.Count);
+                    for (var column = 0; column < dynamicColumns; column++)
+                    {
+                        var pair = new List<int>();
+                        if (prefixIndices != null && column < prefixIndices.Count)
+                        {
+                            pair.Add(prefixIndices[column]);
+                        }
+                        if (middleNameIndices != null && column < middleNameIndices.Count)
+                        {
+                            pair.Add(middleNameIndices[column]);
+                        }
+                        AddCommandTabBox(tab, pair,
+                            (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
                     }
+
+                    // 批量导出、工具箱、设置、关于仍使用大按钮。
+                    var trailing = new List<int>();
+                    for (var i = 4; i < fixedIndices.Count; i++)
+                    {
+                        trailing.Add(fixedIndices[i]);
+                    }
+                    AddCommandTabBox(tab, trailing,
+                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
 
                     tab.Visible = true;
                 }
@@ -1119,6 +1128,28 @@ namespace MechKit
             }
 
             Log.Info("CommandManager 选项卡已创建。");
+        }
+
+        private void AddCommandTabBox(CommandTab tab, IList<int> itemIndices, int textStyle)
+        {
+            if (tab == null || itemIndices == null || itemIndices.Count == 0)
+            {
+                return;
+            }
+
+            var commandIds = new int[itemIndices.Count];
+            var textStyles = new int[itemIndices.Count];
+            for (var i = 0; i < itemIndices.Count; i++)
+            {
+                commandIds[i] = _commandGroup.get_CommandID(itemIndices[i]);
+                textStyles[i] = textStyle;
+            }
+
+            var box = tab.AddCommandTabBox();
+            if (box != null)
+            {
+                box.AddCommands(commandIds, textStyles);
+            }
         }
 
         /// <summary>
