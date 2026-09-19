@@ -289,6 +289,32 @@ namespace MechKit.Harness
             Log.Info("[harness] 设置窗口预览图已保存：" + target);
         }
 
+        /// <summary>把 BOM 预览窗口渲染成 PNG，用于表格与操作按钮布局回归。</summary>
+        public void SavePartListPreview(string path)
+        {
+            var target = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using (var preview = new PartListForm(_host))
+            {
+                preview.Show(this);
+                Application.DoEvents();
+                Application.DoEvents();
+                using (var bitmap = new Bitmap(preview.ClientSize.Width, preview.ClientSize.Height))
+                {
+                    preview.DrawToBitmap(bitmap, preview.ClientRectangle);
+                    bitmap.Save(target, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                preview.Close();
+            }
+
+            Log.Info("[harness] BOM 预览窗口图片已保存：" + target);
+        }
+
         /// <summary>直接打开指定窗口，便于命令行预览：--settings / --partlist / --export / --naming / --standard</summary>
         public void OpenNamed(string name)
         {
@@ -386,6 +412,15 @@ namespace MechKit.Harness
                     form.Shown += delegate
                     {
                         form.SaveSettingsPreview(imagePath);
+                        form.Close();
+                    };
+                }
+                else if (arg.StartsWith("--partlist-image=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var imagePath = arg.Substring("--partlist-image=".Length).Trim().Trim('"');
+                    form.Shown += delegate
+                    {
+                        form.SavePartListPreview(imagePath);
                         form.Close();
                     };
                 }

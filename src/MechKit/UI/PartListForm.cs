@@ -40,6 +40,7 @@ namespace MechKit.UI
         private readonly Button _runButton;
         private readonly Button _exportButton;
         private readonly Button _writeBackButton;
+        private readonly Button _renameComponentsButton;
         private readonly Button _closeButton;
 
         private List<PartListRow> _rows = new List<PartListRow>();
@@ -72,6 +73,7 @@ namespace MechKit.UI
             _runButton = Theme.CreatePrimaryButton("刷新预览");
             _exportButton = Theme.CreateSecondaryButton("导出 CSV");
             _writeBackButton = Theme.CreatePrimaryButton("应用 BOM 修改");
+            _renameComponentsButton = Theme.CreatePrimaryButton("写入并重命名");
             _closeButton = Theme.CreateSecondaryButton("关闭");
 
             BuildLayout();
@@ -404,7 +406,7 @@ namespace MechKit.UI
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 5,
+                ColumnCount = 6,
                 RowCount = 1,
                 BackColor = Theme.Canvas
             };
@@ -412,13 +414,17 @@ namespace MechKit.UI
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 122f));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
 
             _status.Dock = DockStyle.Fill;
             _status.Margin = new Padding(0);
             layout.Controls.Add(_status, 0, 0);
 
-            foreach (var button in new[] { _runButton, _exportButton, _writeBackButton, _closeButton })
+            foreach (var button in new[]
+            {
+                _runButton, _exportButton, _writeBackButton, _renameComponentsButton, _closeButton
+            })
             {
                 button.Dock = DockStyle.Fill;
                 button.Margin = new Padding(4, 8, 4, 8);
@@ -427,7 +433,8 @@ namespace MechKit.UI
             layout.Controls.Add(_runButton, 1, 0);
             layout.Controls.Add(_exportButton, 2, 0);
             layout.Controls.Add(_writeBackButton, 3, 0);
-            layout.Controls.Add(_closeButton, 4, 0);
+            layout.Controls.Add(_renameComponentsButton, 4, 0);
+            layout.Controls.Add(_closeButton, 5, 0);
 
             panel.Controls.Add(layout);
             return panel;
@@ -438,6 +445,7 @@ namespace MechKit.UI
             _runButton.Click += delegate { RunSummary(); };
             _exportButton.Click += delegate { ExportCsv(); };
             _writeBackButton.Click += delegate { ApplyBomChanges(); };
+            _renameComponentsButton.Click += delegate { ApplyBomChangesAndRename(); };
             _closeButton.Click += delegate { Close(); };
 
             _sourceDocument.CheckedChanged += delegate { UpdateSourceState(); };
@@ -483,6 +491,7 @@ namespace MechKit.UI
 
             _exportButton.Enabled = false;
             _writeBackButton.Enabled = false;
+            _renameComponentsButton.Enabled = false;
 
             UpdateSourceState();
         }
@@ -529,6 +538,7 @@ namespace MechKit.UI
             _recursive.Enabled = useFolder;
             _patternBox.Enabled = _cutRule.SelectedIndex == 4;
             _patternBox.BackColor = _patternBox.Enabled ? Color.White : Color.FromArgb(242, 243, 245);
+            _renameComponentsButton.Enabled = !useFolder && !_running && _rows.Count > 0 && _host.SwApp != null;
         }
 
         private void OnBrowseFolder(object sender, EventArgs e)
@@ -594,6 +604,7 @@ namespace MechKit.UI
                 AppendLog("离线示例：电机_MG996_伺服电机 → 标准件 / 伺服电机 / MG996 / 电机");
                 _exportButton.Enabled = true;
                 _writeBackButton.Enabled = false;
+                _renameComponentsButton.Enabled = false;
                 return;
             }
 
@@ -601,6 +612,7 @@ namespace MechKit.UI
             _runButton.Enabled = false;
             _exportButton.Enabled = false;
             _writeBackButton.Enabled = false;
+            _renameComponentsButton.Enabled = false;
             _logBox.Clear();
             _rows = new List<PartListRow>();
             _grid.Rows.Clear();
@@ -682,6 +694,7 @@ namespace MechKit.UI
                 _runButton.Enabled = true;
                 _exportButton.Enabled = _rows.Count > 0;
                 _writeBackButton.Enabled = _rows.Count > 0;
+                _renameComponentsButton.Enabled = _rows.Count > 0 && _sourceDocument.Checked;
             }
         }
 
@@ -803,6 +816,7 @@ namespace MechKit.UI
             _runButton.Enabled = false;
             _exportButton.Enabled = false;
             _writeBackButton.Enabled = false;
+            _renameComponentsButton.Enabled = false;
             _status.Text = "正在应用 BOM 修改…";
 
             try
@@ -829,6 +843,88 @@ namespace MechKit.UI
                 _runButton.Enabled = true;
                 _exportButton.Enabled = _rows.Count > 0;
                 _writeBackButton.Enabled = _rows.Count > 0;
+                _renameComponentsButton.Enabled = _rows.Count > 0 && _sourceDocument.Checked;
+            }
+        }
+
+        private void ApplyBomChangesAndRename()
+        {
+            if (_running || _rows.Count == 0)
+            {
+                return;
+            }
+
+            if (_sourceFolder.Checked)
+            {
+                MessageBox.Show(this, "重命名组件只适用于当前装配体，文件夹模式只能写入属性。",
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var active = SwUtils.ActiveDoc(_host.SwApp);
+            if (active == null || active.GetType() != SwUtils.DocAssembly)
+            {
+                MessageBox.Show(this, "请先打开装配体，再使用“写入并重命名”。",
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            PullGridEdits();
+            var changed = 0;
+            foreach (var row in _rows)
+            {
+                if (row.HasBomEdits)
+                {
+                    changed++;
+                }
+            }
+
+            var message = string.Format(
+                "将执行以下操作：\r\n" +
+                "1. 把 {0} 行修改写入零件属性“名称/材料/工艺/备注”；\r\n" +
+                "2. 按 BOM 零件名更新当前装配体中的组件实例名称；\r\n" +
+                "3. 保存零件和当前装配体。\r\n\r\n" +
+                "不会改名或移动零件文件，因此不会破坏装配引用和配合关系。是否继续？",
+                changed);
+            if (MessageBox.Show(this, message, AddinConstants.Title,
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            _running = true;
+            _runButton.Enabled = false;
+            _exportButton.Enabled = false;
+            _writeBackButton.Enabled = false;
+            _renameComponentsButton.Enabled = false;
+            _status.Text = "正在写入属性并重命名组件…";
+
+            try
+            {
+                var updated = PartListService.ApplyBomEdits(_host.SwApp, _rows, AppendLog);
+                var renamed = PartListService.RenameAssemblyComponents(
+                    _host.SwApp, _rows, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
+
+                _status.Text = string.Format("已写入 {0} 行，重命名 {1} 个组件实例。", updated, renamed);
+                Log.Info(string.Format("BOM 一键写入：属性 {0} 行，组件重命名 {1} 个。", updated, renamed));
+                MessageBox.Show(this,
+                    string.Format("处理完成。\r\n\r\n属性写入：{0} 行\r\n组件重命名：{1} 个\r\n\r\n零件文件名未改变，配合关系保持不变。",
+                        updated, renamed),
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("写入并重命名失败", ex);
+                MessageBox.Show(this, "处理失败：" + ex.Message, AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _running = false;
+                _runButton.Enabled = true;
+                _exportButton.Enabled = _rows.Count > 0;
+                _writeBackButton.Enabled = _rows.Count > 0;
+                _renameComponentsButton.Enabled = _rows.Count > 0 && _sourceDocument.Checked;
             }
         }
 

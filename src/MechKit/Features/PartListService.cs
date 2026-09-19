@@ -547,6 +547,276 @@ namespace MechKit.Features
             return updated;
         }
 
+        /// <summary>
+        /// 按 BOM 行重命名当前装配体中的组件实例。这里只修改 Component2.Name2，
+        /// 不修改零件文件名/路径，因此组件引用和配合对象保持不变。
+        /// </summary>
+        public static int RenameAssemblyComponents(ISldWorks swApp, IList<PartListRow> rows,
+            NamingOptions naming, Action<string> log)
+        {
+            var renamed = 0;
+            log = log ?? delegate { };
+            if (swApp == null || rows == null || naming == null)
+            {
+                return renamed;
+            }
+
+            var doc = SwUtils.ActiveDoc(swApp);
+            var assembly = doc as AssemblyDoc;
+            if (doc == null || assembly == null)
+            {
+                log("✗ 当前文档不是装配体，无法重命名组件实例。");
+                return renamed;
+            }
+
+            // 同一零件可能在不同装配位置形成多行。组件实例名属于同一个引用模型，
+            // 因此按“文件路径 + 配置”合并；若表格里出现冲突，以第一行设置为准并记录提示。
+            var desiredByReference = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows)
+            {
+                if (row == null || string.IsNullOrWhiteSpace(row.FilePath))
+                {
+                    continue;
+                }
+
+                var desired = BuildComponentBaseName(row, naming);
+                if (string.IsNullOrWhiteSpace(desired))
+                {
+                    continue;
+                }
+
+                var key = ComponentReferenceKey(row.FilePath, row.Configuration);
+                string existing;
+                if (desiredByReference.TryGetValue(key, out existing))
+                {
+                    if (!string.Equals(existing, desired, StringComparison.OrdinalIgnoreCase))
+                    {
+                        log(string.Format("⚠ 同一零件存在多个目标名称，保留“{0}”，忽略“{1}”：{2}",
+                            existing, desired, row.FileName));
+                    }
+                    continue;
+                }
+
+                desiredByReference[key] = desired;
+            }
+
+            var components = assembly.GetComponents(false) as object[];
+            if (components == null)
+            {
+                return renamed;
+            }
+
+            foreach (var item in components)
+            {
+                var component = item as Component2;
+                if (component == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var path = component.GetPathName() ?? string.Empty;
+                    if (path.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    string desired;
+                    if (!desiredByReference.TryGetValue(
+                            ComponentReferenceKey(path, component.ReferencedConfiguration), out desired))
+                    {
+                        continue;
+                    }
+
+                    var current = component.Name2 ?? string.Empty;
+                    var target = PreserveComponentInstancePathAndSuffix(current, path, desired);
+                    if (string.IsNullOrWhiteSpace(target) ||
+                        string.Equals(current, target, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    component.Name2 = target;
+                    renamed++;
+                    log(string.Format("✓ 组件重命名：{0} → {1}", current, target));
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("重命名组件实例失败：" + ex.Message);
+                    log("✗ 组件重命名失败：" + ex.Message);
+                }
+            }
+
+            if (renamed > 0)
+            {
+                try
+                {
+                    doc.EditRebuild3();
+                    int saveErrors = 0;
+                    int saveWarnings = 0;
+                    var saved = doc.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                        ref saveErrors, ref saveWarnings);
+                    if (!saved || saveErrors != 0)
+                    {
+                        log(string.Format("⚠ 组件名称已修改，但装配体保存失败（错误 {0}）。", saveErrors));
+                    }
+                    else
+                    {
+                        log("✓ 当前装配体已保存；零件文件路径和配合关系未改变。");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("保存重命名后的装配体失败：" + ex.Message);
+                    log("⚠ 组件名称已修改，但装配体保存失败：" + ex.Message);
+                }
+            }
+
+            return renamed;
+        }
+
+        internal static string BuildComponentBaseName(PartListRow row, NamingOptions naming)
+        {
+            if (row == null || naming == null)
+            {
+                return string.Empty;
+            }
+
+            if (string.Equals(row.Classification, "标准件", StringComparison.Ordinal))
+            {
+                var fields = new List<string>();
+                AddNameField(fields, row.Process);
+                AddNameField(fields, row.Name);
+                AddNameField(fields, row.Material);
+                return SanitizeComponentName(string.Join("_", fields.ToArray()));
+            }
+
+            if (string.Equals(row.Classification, "加工件", StringComparison.Ordinal))
+            {
+                var stem = NamingOptions.GetFileNameWithoutExtension(row.FilePath).Trim();
+                var separator = DetectMachinedSeparator(stem);
+                var parts = stem.Split(new[] { separator }, StringSplitOptions.None);
+                var nameIndex = -1;
+                for (var i = 0; i < naming.MachinedSegments.Length; i++)
+                {
+                    if (naming.MachinedSegments[i] == MachinedSegmentKind.Name)
+                    {
+                        nameIndex = i;
+                        break;
+                    }
+                }
+
+                if (nameIndex >= 0 && nameIndex < parts.Length && !string.IsNullOrWhiteSpace(row.Name))
+                {
+                    parts[nameIndex] = row.Name.Trim();
+                    return SanitizeComponentName(string.Join(separator.ToString(), parts));
+                }
+            }
+
+            return SanitizeComponentName(row.Name);
+        }
+
+        private static void AddNameField(ICollection<string> fields, string value)
+        {
+            var clean = (value ?? string.Empty).Trim().Trim('_');
+            if (clean.Length > 0)
+            {
+                fields.Add(clean);
+            }
+        }
+
+        private static char DetectMachinedSeparator(string stem)
+        {
+            var digits = 0;
+            while (digits < stem.Length && char.IsDigit(stem[digits]))
+            {
+                digits++;
+            }
+            if (digits >= 6 && digits < stem.Length && (stem[digits] == '_' || stem[digits] == '-'))
+            {
+                return stem[digits];
+            }
+            return '_';
+        }
+
+        private static string ComponentReferenceKey(string path, string configuration)
+        {
+            return (path ?? string.Empty).Trim().ToLowerInvariant() + "|" +
+                   (configuration ?? string.Empty).Trim().ToLowerInvariant();
+        }
+
+        private static string PreserveComponentInstancePathAndSuffix(string current, string filePath,
+            string desiredBase)
+        {
+            var slash = current.LastIndexOf('/');
+            var parent = slash >= 0 ? current.Substring(0, slash + 1) : string.Empty;
+            var leaf = slash >= 0 ? current.Substring(slash + 1) : current;
+            var fileStem = NamingOptions.GetFileNameWithoutExtension(filePath);
+            var suffix = string.Empty;
+
+            if (!string.IsNullOrEmpty(fileStem) && leaf.StartsWith(fileStem, StringComparison.OrdinalIgnoreCase))
+            {
+                var candidate = leaf.Substring(fileStem.Length);
+                if (IsInstanceSuffix(candidate))
+                {
+                    suffix = candidate;
+                }
+            }
+
+            if (suffix.Length == 0)
+            {
+                var open = leaf.LastIndexOf('<');
+                if (open > 0 && leaf.EndsWith(">", StringComparison.Ordinal) &&
+                    IsDigits(leaf.Substring(open + 1, leaf.Length - open - 2)))
+                {
+                    suffix = leaf.Substring(open);
+                }
+            }
+
+            return parent + desiredBase + suffix;
+        }
+
+        private static bool IsInstanceSuffix(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+            if (value[0] == '-' && IsDigits(value.Substring(1)))
+            {
+                return true;
+            }
+            return value[0] == '<' && value.EndsWith(">", StringComparison.Ordinal) &&
+                   IsDigits(value.Substring(1, value.Length - 2));
+        }
+
+        private static bool IsDigits(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+            foreach (var character in value)
+            {
+                if (!char.IsDigit(character))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static string SanitizeComponentName(string value)
+        {
+            var clean = (value ?? string.Empty).Trim();
+            foreach (var invalid in new[] { '/', '\\', '@', '<', '>' })
+            {
+                clean = clean.Replace(invalid, '-');
+            }
+            return clean.Trim(' ', '_', '-');
+        }
+
         #region 内部实现
 
         private sealed class CollectContext
@@ -659,14 +929,14 @@ namespace MechKit.Features
                 }
             }
 
-            var displayPath = isVirtual ? (component.Name2 ?? string.Empty) + ".sldprt" : path;
-
-            // 只收录符合「前缀_日期_材料_名称」的零件；其余是标准件/焊件的子零件，不进 BOM
-            var ruleName = component.Name2;
+            // BOM 优先采用装配体中的组件实例名。这样“写入并重命名”之后立即刷新，
+            // 表格仍会显示新名称；零件文件路径只负责定位和写入属性。
+            var ruleName = ComponentRuleName(component, path);
             if (string.IsNullOrEmpty(ruleName))
             {
-                ruleName = Path.GetFileName(displayPath);
+                ruleName = Path.GetFileName(path);
             }
+            var displayPath = ruleName;
 
             if (!context.Options.Naming.MatchesBomPattern(ruleName))
             {
@@ -710,6 +980,43 @@ namespace MechKit.Features
             ApplyConfiguredFields(row, displayPath, properties, context.Options);
 
             context.Rows[key] = row;
+        }
+
+        private static string ComponentRuleName(Component2 component, string path)
+        {
+            var value = component == null ? string.Empty : component.Name2 ?? string.Empty;
+            var slash = value.LastIndexOf('/');
+            if (slash >= 0 && slash < value.Length - 1)
+            {
+                value = value.Substring(slash + 1);
+            }
+
+            var fileStem = NamingOptions.GetFileNameWithoutExtension(path);
+            if (!string.IsNullOrEmpty(fileStem) && value.StartsWith(fileStem, StringComparison.OrdinalIgnoreCase))
+            {
+                var suffix = value.Substring(fileStem.Length);
+                if (IsInstanceSuffix(suffix))
+                {
+                    return fileStem;
+                }
+            }
+
+            var open = value.LastIndexOf('<');
+            if (open > 0 && value.EndsWith(">", StringComparison.Ordinal) &&
+                IsDigits(value.Substring(open + 1, value.Length - open - 2)))
+            {
+                value = value.Substring(0, open);
+            }
+            else
+            {
+                var dash = value.LastIndexOf('-');
+                if (dash > 0 && IsDigits(value.Substring(dash + 1)))
+                {
+                    value = value.Substring(0, dash);
+                }
+            }
+
+            return value.Trim();
         }
 
         private static string ResolveTopAssemblyName(ISldWorks swApp)

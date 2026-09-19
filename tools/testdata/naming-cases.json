@@ -207,6 +207,38 @@
       "expectedProcess": "追加工"
     }
   ],
+  "componentRenameCases": [
+    {
+      "name": "machined underscore preserves rule segments",
+      "classification": "加工件",
+      "layout": "date,material,name,serial,custom",
+      "file": "C:\\work\\20260919_6061_板1_A_X.sldprt",
+      "partName": "新盖板",
+      "material": "6061",
+      "process": "cnc",
+      "expected": "20260919_6061_新盖板_A_X"
+    },
+    {
+      "name": "machined hyphen preserves separator",
+      "classification": "加工件",
+      "layout": "date,material,name,serial,custom",
+      "file": "C:\\work\\20260919-5052-盖子-B-Y.sldprt",
+      "partName": "新盖子",
+      "material": "5052",
+      "process": "钣金",
+      "expected": "20260919-5052-新盖子-B-Y"
+    },
+    {
+      "name": "standard prefix middle model",
+      "classification": "标准件",
+      "layout": "date,material,name,serial,custom",
+      "file": "C:\\work\\代理_电机_MG996.sldprt",
+      "partName": "电机",
+      "material": "MG996",
+      "process": "代理",
+      "expected": "代理_电机_MG996"
+    }
+  ],
   "bomCases": [
     {
       "name": "machined part (date first)",

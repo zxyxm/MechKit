@@ -54,8 +54,11 @@ $cutEnum = $assembly.GetType('MechKit.Core.FileNameCutRule', $false)
 $materialEnum = $assembly.GetType('MechKit.Core.MaterialSource', $false)
 $segmentEnum = $assembly.GetType('MechKit.Core.MachinedSegmentKind', $false)
 $factoryType = $assembly.GetType('MechKit.Core.NamingOptionsFactory', $false)
+$partListRowType = $assembly.GetType('MechKit.Features.PartListRow', $false)
+$partListServiceType = $assembly.GetType('MechKit.Features.PartListService', $false)
 
-foreach ($type in @($namingType, $sourceEnum, $cutEnum, $materialEnum, $segmentEnum, $factoryType)) {
+foreach ($type in @($namingType, $sourceEnum, $cutEnum, $materialEnum, $segmentEnum, $factoryType,
+        $partListRowType, $partListServiceType)) {
     if (-not $type) { throw 'Unexpected assembly layout: MechKit.Core types are missing.' }
 }
 
@@ -80,6 +83,8 @@ $isMachinedName = $namingType.GetMethod('IsMachinedName')
 $presetProperty = $namingType.GetProperty('MachinedMaterialProcessPresets')
 $parsePresets = $factoryType.GetMethod('ParseMaterialProcessPresets')
 $resolvePreset = $namingType.GetMethod('TryResolveMachinedMaterialProcess')
+$buildComponentName = $partListServiceType.GetMethod('BuildComponentBaseName',
+    [System.Reflection.BindingFlags]'Static, NonPublic')
 
 $failures = New-Object System.Collections.Generic.List[string]
 $checked = 0
@@ -233,6 +238,27 @@ foreach ($case in $cases.presetCases) {
     Assert-Equal ("preset matched / " + $case.name) 'True' ([string] $matched)
     Assert-Equal ("preset material / " + $case.name) $case.expectedMaterial ([string] $arguments[1])
     Assert-Equal ("preset process / " + $case.name) $case.expectedProcess ([string] $arguments[2])
+}
+
+# A BOM name edit changes only the assembly component instance label. The
+# generated label keeps machining date/material/tail segments or uses the
+# standard-part prefix_middle_model layout.
+foreach ($case in $cases.componentRenameCases) {
+    $options = New-NamingOptions 'FileName' 'FirstSpace' ''
+    $namingType.GetProperty('UseNameSegments').SetValue($options, $true)
+    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
+    $segments = $parseMachinedSegments.Invoke($null, @((Get-Field $case 'layout')))
+    $machinedSegmentsProperty.SetValue($options, $segments)
+
+    $row = [Activator]::CreateInstance($partListRowType, $true)
+    $partListRowType.GetProperty('Classification').SetValue($row, (Get-Field $case 'classification'))
+    $partListRowType.GetProperty('FilePath').SetValue($row, (Get-Field $case 'file'))
+    $partListRowType.GetProperty('Name').SetValue($row, (Get-Field $case 'partName'))
+    $partListRowType.GetProperty('Material').SetValue($row, (Get-Field $case 'material'))
+    $partListRowType.GetProperty('Process').SetValue($row, (Get-Field $case 'process'))
+
+    $actual = $buildComponentName.Invoke($null, @($row, $options))
+    Assert-Equal ("component name / " + $case.name) $case.expected $actual
 }
 
 # BOM rule: machined parts (date first) and standard parts (prefix first) are
