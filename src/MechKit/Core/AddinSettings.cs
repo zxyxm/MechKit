@@ -180,10 +180,10 @@ namespace MechKit.Core
             set { Set("SettingsBackupFolder", value); }
         }
 
-        /// <summary>BOM 收录用的名称前缀，逗号分隔，例如：电机,电气,淘宝。</summary>
+        /// <summary>BOM 收录用的名称前缀，空格分隔，例如：电机 电气 淘宝。</summary>
         public string BomPrefixes
         {
-            get { return Get("BomPrefixes", "电机,电气,淘宝"); }
+            get { return Get("BomPrefixes", "电机 电气 淘宝"); }
             set { Set("BomPrefixes", value); }
         }
 

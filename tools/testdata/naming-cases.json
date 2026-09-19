@@ -175,7 +175,7 @@
     {
       "name": "machined part (date first)",
       "part": "20260908_6061_扫码枪安装板",
-      "prefixes": "电机,电气,淘宝",
+      "prefixes": "电机 电气 淘宝",
       "inBom": true,
       "kind": "加工件",
       "kindCode": "MACHINED"

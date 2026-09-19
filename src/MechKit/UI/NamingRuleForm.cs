@@ -666,7 +666,7 @@ namespace MechKit.UI
                 prefixes.Add(prefix);
             }
 
-            _prefixes.Text = string.Join(",", prefixes.ToArray());
+            _prefixes.Text = NamingOptionsFactory.SerializePrefixes(prefixes);
         }
 
         private void AddTypedPrefix()
@@ -695,7 +695,7 @@ namespace MechKit.UI
         {
             var prefixes = new List<string>(NamingOptionsFactory.ParsePrefixes(_prefixes.Text));
             prefixes.Remove(prefix);
-            _prefixes.Text = string.Join(",", prefixes.ToArray());
+            _prefixes.Text = NamingOptionsFactory.SerializePrefixes(prefixes);
         }
 
         private void LoadFromSettings()
@@ -705,7 +705,8 @@ namespace MechKit.UI
             _machinedSegments.Clear();
             _machinedSegments.AddRange(NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments));
             RebuildSegmentRows();
-            _prefixes.Text = s.BomPrefixes;
+            _prefixes.Text = NamingOptionsFactory.SerializePrefixes(
+                NamingOptionsFactory.ParsePrefixes(s.BomPrefixes));
             _partNumberSource.SelectedIndex = Math.Max(0, Math.Min(2, s.PartNumberSource));
             _cutRule.SelectedIndex = Math.Max(0, Math.Min(4, s.PartNumberCutRule));
             _pattern.Text = s.PartNumberPattern;
@@ -724,7 +725,7 @@ namespace MechKit.UI
                 MachinedSegmentKind.Serial
             });
             RebuildSegmentRows();
-            _prefixes.Text = "电机,电气,淘宝";
+            _prefixes.Text = "电机 电气 淘宝";
             _partNumberSource.SelectedIndex = 0;
             _cutRule.SelectedIndex = 0;
             _pattern.Text = string.Empty;
@@ -744,7 +745,8 @@ namespace MechKit.UI
             s.MachinedSegments = NamingOptionsFactory.SerializeMachinedSegments(_machinedSegments);
             s.MaterialSegment = SegmentPosition(MachinedSegmentKind.Material);
             s.NameSegment = SegmentPosition(MachinedSegmentKind.Name);
-            s.BomPrefixes = _prefixes.Text.Trim();
+            s.BomPrefixes = NamingOptionsFactory.SerializePrefixes(
+                NamingOptionsFactory.ParsePrefixes(_prefixes.Text));
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();

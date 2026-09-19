@@ -655,7 +655,7 @@ namespace MechKit
                 if (!configured.Contains(prefix))
                 {
                     configured.Add(prefix);
-                    _settings.BomPrefixes = string.Join(",", configured.ToArray());
+                    _settings.BomPrefixes = NamingOptionsFactory.SerializePrefixes(configured);
                     _settings.Save();
                 }
 
@@ -848,7 +848,7 @@ namespace MechKit
                 }
 
                 Log.Info(string.Format("前缀快捷按钮已创建：{0} 个（{1}）",
-                    prefixButtons.Count, string.Join(",", prefixButtons.ToArray())));
+                    prefixButtons.Count, NamingOptionsFactory.SerializePrefixes(prefixButtons)));
             }
 
             // 让工具栏在安装后立刻可见（装的当天就能在工具栏上看到按钮）
