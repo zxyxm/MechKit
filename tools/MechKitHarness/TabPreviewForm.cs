@@ -111,7 +111,7 @@ namespace MechKit.Harness
             }
         }
 
-        /// <summary>截图上方的 MechKit 命令区：7 个按钮，位置与换行均固定。</summary>
+        /// <summary>截图上方的 MechKit 命令区；标准件设置后紧跟已配置的前缀按钮。</summary>
         private Control BuildCommandArea()
         {
             var host = new Panel
@@ -127,19 +127,32 @@ namespace MechKit.Harness
                 }
             };
 
-            var commands = new[]
+            var commands = new List<CommandSpec>
             {
                 new CommandSpec("一键生成BOM", "一键生\r\n成 BOM\r\n表", 76, 0),
                 new CommandSpec("明细汇总（图号/材料/数量）", "明细汇总（\r\n图号/材料\r\n/数量）", 84, 1),
                 new CommandSpec("加工件命名规则", "加工件\r\n命名规\r\n则设置", 69, 2),
-                new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3),
+                new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3)
+            };
+
+            var prefixes = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomPrefixes);
+            for (var prefixIndex = 0; prefixIndex < prefixes.Length &&
+                    prefixIndex < AddinConstants.MaxPrefixCommands; prefixIndex++)
+            {
+                var prefix = prefixes[prefixIndex];
+                commands.Add(new CommandSpec("前缀:" + prefix, prefix,
+                    Math.Max(50, TextRenderer.MeasureText(prefix, Font).Width + 18), 10 + prefixIndex));
+            }
+
+            commands.AddRange(new[]
+            {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
                 new CommandSpec("属性工具", "属性\r\n工具", 45, 5),
                 new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6)
-            };
+            });
 
             var x = 0;
-            for (var i = 0; i < commands.Length; i++)
+            for (var i = 0; i < commands.Count; i++)
             {
                 var command = commands[i];
                 var capturedId = command.Id;

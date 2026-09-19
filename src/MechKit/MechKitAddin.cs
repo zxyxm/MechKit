@@ -790,6 +790,7 @@ namespace MechKit
 
             // 图标索引对应 tools\Generate-Icons.ps1 中图标条的顺序，必须保持一致
             var indices = new List<int>();
+            var prefixIndices = new List<int>();
 
             indices.Add(_commandGroup.AddCommandItem2("生成BOM", -1,
                 "一键汇总当前装配体，生成材料明细表 BOM（CSV，可用 Excel 打开）",
@@ -844,12 +845,12 @@ namespace MechKit
 
                 for (var i = 0; i < prefixButtons.Count; i++)
                 {
-                    _commandGroup.AddCommandItem2(prefixButtons[i], -1,
+                    prefixIndices.Add(_commandGroup.AddCommandItem2(prefixButtons[i], -1,
                         "给选中的零件 / 子装配体加前缀：" + prefixButtons[i],
                         prefixButtons[i], 10 + i,   // 图标条：第 10 格是分隔线，前缀从第 11 格起
                         string.Format("OnPrefixCommand({0})", i),
                         "OnAlwaysEnable",
-                        AddinConstants.PrefixCommandUserIdBase + i, menuAndToolbar);
+                        AddinConstants.PrefixCommandUserIdBase + i, menuAndToolbar));
                 }
 
                 Log.Info(string.Format("前缀快捷按钮已创建：{0} 个（{1}）",
@@ -866,9 +867,19 @@ namespace MechKit
                                                | (int)swDocTemplateTypes_e.swDocTemplateTypeDRAWING;
             _commandGroup.Activate();
 
-            // 说明：不需要手工调用 AddCommandTab —— SOLIDWORKS 会为已激活的
-            // CommandGroup 自动创建 MechKit 选项卡；手工再建一个同名选项卡
-            // 反而会盖住自动生成的那个（表现为选项卡内容空白）。
+            // 明确重建 MechKit 选项卡，保证动态前缀按钮出现在“标准件前缀设置”之后。
+            // 仅依赖 CommandGroup 自动布局时，SOLIDWORKS 会沿用旧的五按钮布局，
+            // 新增的电机/电气/淘宝等命令虽然已注册，却不会显示在选项卡中。
+            var tabIndices = new List<int>();
+            for (var i = 0; i < indices.Count; i++)
+            {
+                tabIndices.Add(indices[i]);
+                if (i == 3)
+                {
+                    tabIndices.AddRange(prefixIndices);
+                }
+            }
+            CreateCommandTabs(tabIndices);
 
             // 让工具栏在安装后立刻可见（装的当天就能在工具栏上看到按钮）
             try
@@ -921,11 +932,13 @@ namespace MechKit
             {
                 try
                 {
-                    var tab = _commandManager.GetCommandTab(docType, AddinConstants.Title);
-                    if (tab == null)
+                    var existingTab = _commandManager.GetCommandTab(docType, AddinConstants.Title);
+                    if (existingTab != null)
                     {
-                        tab = _commandManager.AddCommandTab(docType, AddinConstants.Title);
+                        _commandManager.RemoveCommandTab(existingTab);
                     }
+
+                    var tab = _commandManager.AddCommandTab(docType, AddinConstants.Title);
 
                     if (tab == null)
                     {
