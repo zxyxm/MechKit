@@ -20,7 +20,7 @@ namespace MechKit.Core
             naming.Material = (MaterialSource)settings.MaterialSource;
             naming.UseNameSegments = true;
             // 加工件允许使用下划线或短横线；标准件仍固定使用下划线。
-            naming.SegmentSeparator = "_-";
+            naming.SegmentSeparator = "-_";
             naming.NameSegment = -1;
             naming.MaterialSegment = settings.MaterialSegment;
             naming.MachinedSegments = ParseMachinedSegments(settings.MachinedSegments);
@@ -48,6 +48,20 @@ namespace MechKit.Core
 
                 var key = line.Substring(0, equal).Trim();
                 var payload = line.Substring(equal + 1).Trim();
+                if (payload.IndexOf('|') >= 0)
+                {
+                    var fields = payload.Split('|');
+                    if (key.Length > 0 && fields.Length >= 2)
+                    {
+                        result[key] = new MaterialProcessPreset
+                        {
+                            Material = fields[0].Trim(),
+                            Process = fields[1].Trim(),
+                            SurfaceTreatment = fields.Length > 2 ? fields[2].Trim() : string.Empty
+                        };
+                    }
+                    continue;
+                }
                 var separator = payload.LastIndexOf('-');
 
                 // 仅用于兼容升级前的配置；界面保存时一律规范成短横线。
@@ -67,7 +81,8 @@ namespace MechKit.Core
                 result[key] = new MaterialProcessPreset
                 {
                     Material = payload.Substring(0, separator).Trim(),
-                    Process = payload.Substring(separator + 1).Trim()
+                    Process = payload.Substring(separator + 1).Trim(),
+                    SurfaceTreatment = string.Empty
                 };
             }
             return result;
@@ -149,7 +164,7 @@ namespace MechKit.Core
                 result.Add(MachinedSegmentKind.Material);
                 result.Add(MachinedSegmentKind.Name);
                 result.Add(MachinedSegmentKind.Serial);
-                result.Add(MachinedSegmentKind.Extension);
+                result.Add(MachinedSegmentKind.Custom);
             }
 
             // 时间段是加工件规则的固定锚点：无论旧配置里位于何处、重复几次或缺失，
@@ -195,7 +210,7 @@ namespace MechKit.Core
                         case MachinedSegmentKind.Date: result.Add("时间"); break;
                         case MachinedSegmentKind.Material: result.Add("材料"); break;
                         case MachinedSegmentKind.Name: result.Add("零件名称"); break;
-                        case MachinedSegmentKind.Serial: result.Add("变更序号"); break;
+                        case MachinedSegmentKind.Serial: result.Add("版本号"); break;
                         case MachinedSegmentKind.Extension: result.Add("拓展代号"); break;
                         default:
                             var label = labels != null && index < labels.Count
@@ -210,6 +225,33 @@ namespace MechKit.Core
             }
 
             return string.Join(" → ", result.ToArray());
+        }
+
+        /// <summary>
+        /// BOM 字段来源使用语义键而不是固定段号。命名规则调整顺序后，
+        /// BOM 设置仍会跟随同一个字段含义。
+        /// </summary>
+        public static string MachinedSegmentFieldCode(MachinedSegmentKind kind, string customLabel)
+        {
+            switch (kind)
+            {
+                case MachinedSegmentKind.Date: return "rule:date";
+                case MachinedSegmentKind.Material: return "rule:material";
+                case MachinedSegmentKind.Name: return "rule:name";
+                case MachinedSegmentKind.Serial: return "rule:version";
+                case MachinedSegmentKind.Extension: return "rule:extension";
+                default:
+                    var label = (customLabel ?? string.Empty).Trim();
+                    if (label == "安装说明" || label == "装配说明" || label == "装配备注")
+                    {
+                        return "rule:assemblynote";
+                    }
+                    if (label == "表面处理" || label == "表面工艺" || label == "表面")
+                    {
+                        return "rule:surface";
+                    }
+                    return label.Length == 0 ? "empty" : "rule:label:" + label;
+            }
         }
 
         public static string[] ParseMachinedSegmentLabels(string text, int count)
@@ -302,7 +344,7 @@ namespace MechKit.Core
                 ' ', '\t', '\r', '\n', '　', ',', '，', ';', '；', '、'
             }, StringSplitOptions.RemoveEmptyEntries))
             {
-                var value = part.Trim().TrimEnd('_', '*', '＊');
+                var value = part.Trim().TrimEnd('_', '-', '*', '＊');
                 if (value.Length > 0 && !result.Contains(value))
                 {
                     result.Add(value);

@@ -19,14 +19,31 @@ namespace MechKit.Features
             ExcludeSuppressed = true;
             ReadCustomProperties = true;
             AssemblyLevel = -1;
-            StandardNameField = "segment:2";
-            StandardMaterialField = "tail:3";
-            StandardProcessField = "segment:1";
-            StandardRemarkField = "property:remark";
-            MachinedNameField = "segment:3";
+            StandardNameField = "tail:3";
+            StandardMaterialField = "empty";
+            StandardProcessField = "segment:2";
+            StandardRemarkField = "auto";
+            MachinedNameField = "auto";
             MachinedMaterialField = "auto";
             MachinedProcessField = "auto";
             MachinedRemarkField = "property:remark";
+            SequenceHeader = "序号";
+            LocationHeader = "位置";
+            FullNameHeader = "完整名称";
+            DrawingHeader = "二维工程图";
+            ClassificationHeader = "属性";
+            NameHeader = "零件名称/标准件名称";
+            MaterialHeader = "材料/型号";
+            ProcessHeader = "工艺/渠道";
+            SurfaceHeader = "表面处理";
+            QuantityHeader = "数量";
+            AssemblyNoteHeader = "安装说明";
+            RemarkHeader = "备注";
+            ColumnOrder = PartListService.DefaultColumnOrder;
+            StandardAssemblyNoteField = "auto";
+            MachinedAssemblyNoteField = "rule:assemblynote";
+            StandardSurfaceField = "empty";
+            MachinedSurfaceField = "rule:surface";
         }
 
         public NamingOptions Naming { get; set; }
@@ -56,12 +73,37 @@ namespace MechKit.Features
         public string MachinedMaterialField { get; set; }
         public string MachinedProcessField { get; set; }
         public string MachinedRemarkField { get; set; }
+        public string SequenceHeader { get; set; }
+        public string LocationHeader { get; set; }
+        public string FullNameHeader { get; set; }
+        public string DrawingHeader { get; set; }
+        public string ClassificationHeader { get; set; }
+        public string NameHeader { get; set; }
+        public string MaterialHeader { get; set; }
+        public string ProcessHeader { get; set; }
+        public string SurfaceHeader { get; set; }
+        public string QuantityHeader { get; set; }
+        public string AssemblyNoteHeader { get; set; }
+        public string RemarkHeader { get; set; }
+        public string ColumnOrder { get; set; }
+        public string StandardAssemblyNoteField { get; set; }
+        public string MachinedAssemblyNoteField { get; set; }
+        public string StandardSurfaceField { get; set; }
+        public string MachinedSurfaceField { get; set; }
     }
 
     /// <summary>明细表中的一行（同一零件 + 同一配置合并计数）。</summary>
     internal sealed class PartListRow
     {
+        public string AssemblyNote { get; set; }
+
         public string Location { get; set; }
+
+        /// <summary>不拆分、不改写的完整零部件名称（不含文件扩展名和实例序号）。</summary>
+        public string FullName { get; set; }
+
+        /// <summary>对应的二维工程图文件（同目录同名 .slddrw）；没有工程图时为空。</summary>
+        public string DrawingPath { get; set; }
 
         public string PartNumber { get; set; }
 
@@ -72,6 +114,8 @@ namespace MechKit.Features
         /// <summary>零件自定义属性中的加工工艺，例如车、铣、焊接、表面处理。</summary>
         public string Process { get; set; }
 
+        public string SurfaceTreatment { get; set; }
+
         public string Remark { get; set; }
 
         public int Quantity { get; set; }
@@ -79,11 +123,20 @@ namespace MechKit.Features
         /// <summary>BOM 属性：加工件 / 标准件。</summary>
         public string Classification { get; set; }
 
+        /// <summary>
+        /// 不符合「加工件 / 标准件 / 参考件」命名的组件（含被忽略的子装配体）：
+        /// 排在表格最后并标红，提醒补齐命名规则。
+        /// </summary>
+        public bool IsUnmatched { get; set; }
+
         public string FilePath { get; set; }
 
         public string Configuration { get; set; }
 
         public string OriginalName { get; private set; }
+
+        /// <summary>“三维名称”的原始值，用来判断用户是否直接改过名字。</summary>
+        public string OriginalFullName { get; private set; }
 
         public string OriginalMaterial { get; private set; }
 
@@ -95,19 +148,43 @@ namespace MechKit.Features
         {
             get
             {
+                return HasNamingEdits ||
+                       !string.Equals(Remark ?? string.Empty, OriginalRemark ?? string.Empty, StringComparison.Ordinal);
+            }
+        }
+
+        public bool HasNamingEdits
+        {
+            get
+            {
                 return !string.Equals(Name ?? string.Empty, OriginalName ?? string.Empty, StringComparison.Ordinal) ||
                        !string.Equals(Material ?? string.Empty, OriginalMaterial ?? string.Empty, StringComparison.Ordinal) ||
-                       !string.Equals(Process ?? string.Empty, OriginalProcess ?? string.Empty, StringComparison.Ordinal) ||
-                       !string.Equals(Remark ?? string.Empty, OriginalRemark ?? string.Empty, StringComparison.Ordinal);
+                       !string.Equals(Process ?? string.Empty, OriginalProcess ?? string.Empty, StringComparison.Ordinal);
+            }
+        }
+
+        /// <summary>用户是否直接改了「三维名称」列（改完按这个名字重命名文件）。</summary>
+        public bool HasFullNameEdit
+        {
+            get
+            {
+                return !string.Equals(FullName ?? string.Empty, OriginalFullName ?? string.Empty,
+                    StringComparison.Ordinal);
             }
         }
 
         public void MarkBomClean()
         {
+            MarkNamingClean();
+            OriginalRemark = Remark ?? string.Empty;
+        }
+
+        public void MarkNamingClean()
+        {
             OriginalName = Name ?? string.Empty;
+            OriginalFullName = FullName ?? string.Empty;
             OriginalMaterial = Material ?? string.Empty;
             OriginalProcess = Process ?? string.Empty;
-            OriginalRemark = Remark ?? string.Empty;
         }
 
         public string FileName
@@ -131,14 +208,127 @@ namespace MechKit.Features
         }
     }
 
+    /// <summary>当前装配体中可作为独立 BOM 范围的子装配体。</summary>
+    internal sealed class SubassemblyScope
+    {
+        public Component2 Component { get; set; }
+
+        public string DisplayName { get; set; }
+
+        public override string ToString()
+        {
+            return DisplayName ?? string.Empty;
+        }
+    }
+
+    /// <summary>子装配体在 BOM 中的处理方式。</summary>
+    internal enum SubassemblyAction
+    {
+        /// <summary>按加工件命名（日期开头）的子装配体：继续往下读取子零件。</summary>
+        Expand,
+
+        /// <summary>以标准件前缀开头的子装配体：整机外购，作为一条标准件计入。</summary>
+        TreatAsStandard,
+
+        /// <summary>不符合命名规则的子装配体：整层忽略。</summary>
+        Ignore
+    }
+
+    /// <summary>单个组件在 BOM 表格里的处理方式。</summary>
+    internal enum RowDisposition
+    {
+        /// <summary>符合加工件 / 标准件命名：正常进表。</summary>
+        Matched,
+
+        /// <summary>参考件（参考- 开头）：明确不进 BOM，也不提示。</summary>
+        Reference,
+
+        /// <summary>不符合任何命名规则：排到表格最后一行区并标红。</summary>
+        Unmatched
+    }
+
     /// <summary>
     /// 从装配体统计加工件数量，并解析每个零件的图号与材料。
     /// 遍历逻辑：子装配体递归展开，因此每个实例都会被计入数量。
     /// </summary>
-    internal static class PartListService
+        internal static class PartListService
     {
+        public const string DefaultColumnOrder =
+            "sequence,location,fullname,drawing,classification,name,material,process,surface,quantity,assemblynote,remark";
+
+        /// <summary>不符合命名规则的组件在“属性”列里的显示名（表格最后一行区、标红）。</summary>
+        internal const string UnmatchedClassification = "未匹配";
+
+        private static readonly string[] AllColumnKeys = DefaultColumnOrder.Split(',');
         private const int DocPart = 1;
         private const int DocAssembly = 2;
+
+        public static string[] ParseColumnOrder(string value)
+        {
+            var result = new List<string>();
+            foreach (var token in (value ?? string.Empty).Split(','))
+            {
+                var key = token.Trim().ToLowerInvariant();
+                if (Array.IndexOf(AllColumnKeys, key) >= 0 && !result.Contains(key))
+                {
+                    result.Add(key);
+                }
+            }
+            foreach (var key in AllColumnKeys)
+            {
+                if (!result.Contains(key))
+                {
+                    result.Add(key);
+                }
+            }
+            return result.ToArray();
+        }
+
+        public static string SerializeColumnOrder(IEnumerable<string> columns)
+        {
+            return string.Join(",", ParseColumnOrder(columns == null
+                ? string.Empty
+                : string.Join(",", new List<string>(columns).ToArray())));
+        }
+
+        /// <summary>从同一份持久化设置创建 BOM 解析、表头和导出配置。</summary>
+        public static PartListOptions CreateOptions(AddinSettings settings)
+        {
+            settings = settings ?? new AddinSettings();
+            return new PartListOptions
+            {
+                Naming = NamingOptionsFactory.FromSettings(settings),
+                OnlyMachined = settings.PartListOnlyMachined,
+                DetectVendorParts = settings.DetectVendorParts,
+                ReadCustomProperties = settings.PartListReadProperties,
+                AssemblyLevel = settings.BomAssemblyLevel,
+                StandardNameField = settings.BomStandardNameField,
+                StandardMaterialField = settings.BomStandardMaterialField,
+                StandardProcessField = settings.BomStandardProcessField,
+                StandardRemarkField = settings.BomStandardRemarkField,
+                MachinedNameField = settings.BomMachinedNameField,
+                MachinedMaterialField = settings.BomMachinedMaterialField,
+                MachinedProcessField = settings.BomMachinedProcessField,
+                MachinedRemarkField = settings.BomMachinedRemarkField,
+                SequenceHeader = settings.BomSequenceHeader,
+                LocationHeader = settings.BomLocationHeader,
+                FullNameHeader = settings.BomFullNameHeader,
+                DrawingHeader = settings.BomDrawingHeader,
+                ClassificationHeader = settings.BomClassificationHeader,
+                NameHeader = settings.BomNameHeader,
+                MaterialHeader = settings.BomMaterialHeader,
+                ProcessHeader = settings.BomProcessHeader,
+                SurfaceHeader = settings.BomSurfaceHeader,
+                QuantityHeader = settings.BomQuantityHeader,
+                AssemblyNoteHeader = settings.BomAssemblyNoteHeader,
+                RemarkHeader = settings.BomRemarkHeader,
+                ColumnOrder = settings.BomColumnOrder,
+                StandardAssemblyNoteField = settings.BomStandardAssemblyNoteField,
+                MachinedAssemblyNoteField = settings.BomMachinedAssemblyNoteField,
+                StandardSurfaceField = settings.BomStandardSurfaceField,
+                MachinedSurfaceField = settings.BomMachinedSurfaceField
+            };
+        }
 
         public static List<PartListRow> FromAssembly(ISldWorks swApp, AssemblyDoc assembly,
             PartListOptions options, Action<string> log)
@@ -166,6 +356,36 @@ namespace MechKit.Features
             }
 
             return FinalizeRows(context, options);
+        }
+
+        /// <summary>递归读取当前装配体下的全部子装配体，保留实例层级供用户选择。</summary>
+        public static List<SubassemblyScope> GetSubassemblies(AssemblyDoc assembly)
+        {
+            var result = new List<SubassemblyScope>();
+            if (assembly == null)
+            {
+                return result;
+            }
+
+            try
+            {
+                var components = assembly.GetComponents(true) as object[];
+                if (components == null)
+                {
+                    return result;
+                }
+
+                foreach (var item in components)
+                {
+                    CollectSubassemblies(item as Component2, new List<string>(), result);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("读取子装配体失败：" + ex.Message);
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -227,6 +447,52 @@ namespace MechKit.Features
             }
         }
 
+        private static void CollectSubassemblies(Component2 component, IList<string> parents,
+            ICollection<SubassemblyScope> result)
+        {
+            if (component == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (component.GetType() != DocAssembly)
+                {
+                    return;
+                }
+
+                var displayName = DisplayNameForComponent(component);
+                if (string.IsNullOrWhiteSpace(displayName))
+                {
+                    displayName = component.Name2 ?? "子装配体";
+                }
+
+                var hierarchy = new List<string>(parents ?? new string[0]);
+                hierarchy.Add(displayName);
+                result.Add(new SubassemblyScope
+                {
+                    Component = component,
+                    DisplayName = string.Join(" > ", hierarchy.ToArray())
+                });
+
+                var children = component.GetChildren() as object[];
+                if (children == null)
+                {
+                    return;
+                }
+
+                foreach (var child in children)
+                {
+                    CollectSubassemblies(child as Component2, hierarchy, result);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("读取子装配体节点失败：" + ex.Message);
+            }
+        }
+
         private static List<PartListRow> FinalizeRows(CollectContext context,
             PartListOptions options)
         {
@@ -245,8 +511,16 @@ namespace MechKit.Features
             SortRows(rows);
             if (context.SkippedByPattern > 0)
             {
-                context.Log(string.Format("按命名规则排除了 {0} 个组件（视为标准件/焊件的子零件）。",
+                context.Log(string.Format(
+                    "{0} 个组件不符合命名规则，已排在表格末尾并标红（属性列显示“未匹配”）。",
                     context.SkippedByPattern));
+            }
+
+            if (context.SkippedAssemblies > 0)
+            {
+                context.Log(string.Format(
+                    "{0} 个子装配体未按「日期-装配」命名：内部零件不参与统计，装配体本身排在表格末尾并标红。",
+                    context.SkippedAssemblies));
             }
 
             return rows;
@@ -277,6 +551,8 @@ namespace MechKit.Features
             var row = new PartListRow
             {
                 Location = string.Empty,
+                FullName = ResolveFullName(path),
+                DrawingPath = FindDrawingFor(path),
                 PartNumber = options.Naming.ResolvePartNumber(path, name => Lookup(properties, name)),
                 Name = options.Naming.ResolveNameFromSegments(path),
                 Material = !string.IsNullOrEmpty(segmentMaterial)
@@ -324,6 +600,8 @@ namespace MechKit.Features
                 var row = new PartListRow
                 {
                     Location = new DirectoryInfo(folder).Name,
+                    FullName = ResolveFullName(path),
+                    DrawingPath = FindDrawingFor(path),
                     PartNumber = options.Naming.ResolvePartNumber(path, name => Lookup(properties, name)),
                     Name = options.Naming.ResolveNameFromSegments(path),
                     Material = !string.IsNullOrEmpty(segmentMaterial)
@@ -357,6 +635,8 @@ namespace MechKit.Features
             var machinedKinds = 0;
             var machinedTotal = 0;
             var standardTotal = 0;
+            var referenceTotal = 0;
+            var unmatchedTotal = 0;
 
             foreach (var row in rows)
             {
@@ -365,37 +645,58 @@ namespace MechKit.Features
                     machinedKinds++;
                     machinedTotal += row.Quantity;
                 }
+                else if (string.Equals(row.Classification, "参考件", StringComparison.Ordinal))
+                {
+                    referenceTotal += row.Quantity;
+                }
+                else if (string.Equals(row.Classification, UnmatchedClassification, StringComparison.Ordinal))
+                {
+                    unmatchedTotal += row.Quantity;
+                }
                 else
                 {
                     standardTotal += row.Quantity;
                 }
             }
 
-            return string.Format("加工件 {0} 种 / {1} 件；标准件 {2} 件。", machinedKinds, machinedTotal, standardTotal);
+            var summary = string.Format("加工件 {0} 种 / {1} 件；标准件 {2} 件；参考件 {3} 件。",
+                machinedKinds, machinedTotal, standardTotal, referenceTotal);
+            if (unmatchedTotal > 0)
+            {
+                summary += string.Format("未匹配命名规则 {0} 件（见表格末尾标红行）。", unmatchedTotal);
+            }
+
+            return summary;
         }
 
         /// <summary>导出 CSV（带 BOM，Excel 直接打开不乱码）。</summary>
-        public static string ExportCsv(IList<PartListRow> rows, string folder, string title)
+        public static string ExportCsv(IList<PartListRow> rows, string folder, string title,
+            PartListOptions options)
         {
+            options = options ?? new PartListOptions();
             AppPaths.Ensure(folder);
-            var fileName = string.Format("{0}_{1:yyyyMMdd_HHmmss}.csv",
+            var fileName = string.Format("{0}-{1:yyyyMMdd-HHmmss}.csv",
                 string.IsNullOrEmpty(title) ? "明细汇总" : title, DateTime.Now);
             var path = Path.Combine(folder, fileName);
 
             var builder = new StringBuilder();
-            builder.AppendLine("序号,位置,属性,零件名,材料,工艺,数量,备注");
+            var columns = ParseColumnOrder(options.ColumnOrder);
+            for (var columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+            {
+                if (columnIndex > 0) builder.Append(',');
+                builder.Append(Csv(ColumnHeader(options, columns[columnIndex])));
+            }
+            builder.AppendLine();
 
             for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
-                builder.Append(i + 1).Append(',')
-                       .Append(Csv(row.Location)).Append(',')
-                       .Append(Csv(row.Classification)).Append(',')
-                       .Append(Csv(row.Name)).Append(',')
-                       .Append(Csv(row.Material)).Append(',')
-                       .Append(Csv(row.Process)).Append(',')
-                       .Append(row.Quantity).Append(',')
-                       .Append(Csv(row.Remark)).AppendLine();
+                for (var columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+                {
+                    if (columnIndex > 0) builder.Append(',');
+                    builder.Append(Csv(ColumnValue(row, i + 1, columns[columnIndex])));
+                }
+                builder.AppendLine();
             }
 
             builder.AppendLine();
@@ -403,6 +704,221 @@ namespace MechKit.Features
 
             File.WriteAllText(path, builder.ToString(), new UTF8Encoding(true));
             return path;
+        }
+
+        private static string Header(string value, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        }
+
+        public static string ColumnHeader(PartListOptions options, string key)
+        {
+            options = options ?? new PartListOptions();
+            switch ((key ?? string.Empty).ToLowerInvariant())
+            {
+                case "sequence": return Header(options.SequenceHeader, "序号");
+                case "location": return Header(options.LocationHeader, "位置");
+                case "fullname": return Header(options.FullNameHeader, "完整名称");
+                case "drawing": return Header(options.DrawingHeader, "二维工程图");
+                case "classification": return Header(options.ClassificationHeader, "属性");
+                case "name": return Header(options.NameHeader, "零件名称/标准件名称");
+                case "material": return Header(options.MaterialHeader, "材料/型号");
+                case "process": return Header(options.ProcessHeader, "工艺/渠道");
+                case "surface": return Header(options.SurfaceHeader, "表面处理");
+                case "quantity": return Header(options.QuantityHeader, "数量");
+                case "assemblynote": return Header(options.AssemblyNoteHeader, "安装说明");
+                case "remark": return Header(options.RemarkHeader, "备注");
+                default: return key ?? string.Empty;
+            }
+        }
+
+        private static string ColumnValue(PartListRow row, int sequence, string key)
+        {
+            if (row == null) return string.Empty;
+            switch ((key ?? string.Empty).ToLowerInvariant())
+            {
+                case "sequence": return sequence.ToString();
+                case "location": return row.Location;
+                case "fullname": return row.FullName;
+                case "drawing":
+                    return string.IsNullOrEmpty(row.DrawingPath)
+                        ? string.Empty
+                        : Path.GetFileName(row.DrawingPath);
+                case "classification": return row.Classification;
+                case "name": return row.Name;
+                case "material": return row.Material;
+                case "process": return row.Process;
+                case "surface": return row.SurfaceTreatment;
+                case "quantity": return row.Quantity.ToString();
+                case "assemblynote": return row.AssemblyNote;
+                case "remark": return row.Remark;
+                default: return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 双击 BOM 行时打开对应文档：优先同目录同名的工程图（零件图），
+        /// 没有工程图时打开零件 / 装配体模型。返回实际打开的路径，失败返回空字符串。
+        /// </summary>
+        public static string OpenRowDocument(ISldWorks swApp, PartListRow row, Action<string> log)
+        {
+            log = log ?? delegate { };
+            if (swApp == null || row == null)
+            {
+                return string.Empty;
+            }
+
+            var modelPath = row.FilePath;
+            if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
+            {
+                log("✗ 这一行没有对应的零件文件（虚拟件或未保存的零件打不开）。");
+                return string.Empty;
+            }
+
+            var drawingPath = FindDrawingFor(modelPath);
+            var target = string.IsNullOrEmpty(drawingPath) ? modelPath : drawingPath;
+
+            try
+            {
+                var opened = SwUtils.FindOpenDocument(swApp, target);
+                if (opened != null)
+                {
+                    ActivateDocument(swApp, opened);
+                    log("已切换到：" + Path.GetFileName(target));
+                    return target;
+                }
+
+                int errors = 0;
+                int warnings = 0;
+                var doc = swApp.OpenDoc6(target, SwUtils.DocTypeFromPath(target),
+                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent, string.Empty, ref errors, ref warnings);
+                if (doc == null)
+                {
+                    log(string.Format("✗ 打开失败（错误码 {0}）：{1}", errors, Path.GetFileName(target)));
+                    return string.Empty;
+                }
+
+                log(string.Format("已打开{0}：{1}",
+                    SwUtils.DocTypeName(SwUtils.DocTypeFromPath(target)), Path.GetFileName(target)));
+                return target;
+            }
+            catch (Exception ex)
+            {
+                log("✗ 打开文档失败：" + ex.Message);
+                Log.Warn("双击打开零件图失败：" + ex.Message);
+                return string.Empty;
+            }
+        }
+
+        /// <summary>同目录下与零件 / 装配体同名的工程图（.slddrw）；没有则返回空字符串。</summary>
+        /// <summary>
+        /// 打开这一行对应的三维模型（.sldprt / .sldasm）：优先用当前文档里已打开的，
+        /// 否则按路径打开。返回实际打开的路径，失败返回空字符串。
+        /// </summary>
+        public static string OpenRowModelDocument(ISldWorks swApp, PartListRow row, Action<string> log)
+        {
+            log = log ?? delegate { };
+            if (swApp == null || row == null || string.IsNullOrEmpty(row.FilePath) ||
+                !File.Exists(row.FilePath))
+            {
+                log("✗ 这一行没有对应的零件 / 装配体文件（虚拟件或未保存的零件打不开）。");
+                return string.Empty;
+            }
+
+            var target = row.FilePath;
+            try
+            {
+                var opened = SwUtils.FindOpenDocument(swApp, target);
+                if (opened != null)
+                {
+                    ActivateDocument(swApp, opened);
+                    log("已切换到：" + Path.GetFileName(target));
+                    return target;
+                }
+
+                int errors = 0;
+                int warnings = 0;
+                var doc = swApp.OpenDoc6(target, SwUtils.DocTypeFromPath(target),
+                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent, string.Empty, ref errors, ref warnings);
+                if (doc == null)
+                {
+                    log(string.Format("✗ 打开失败（错误码 {0}）：{1}", errors, Path.GetFileName(target)));
+                    return string.Empty;
+                }
+
+                log(string.Format("已打开{0}：{1}",
+                    SwUtils.DocTypeName(SwUtils.DocTypeFromPath(target)), Path.GetFileName(target)));
+                return target;
+            }
+            catch (Exception ex)
+            {
+                log("✗ 打开零件 / 装配体失败：" + ex.Message);
+                Log.Warn("双击打开三维模型失败：" + ex.Message);
+                return string.Empty;
+            }
+        }
+
+        /// <summary>同目录下与零件 / 装配体同名的工程图（.slddrw）；没有则返回空字符串。</summary>
+        internal static string FindDrawingFor(string modelPath)
+        {
+            try
+            {
+                var directory = Path.GetDirectoryName(modelPath);
+                var stem = Path.GetFileNameWithoutExtension(modelPath);
+                if (string.IsNullOrEmpty(directory) || string.IsNullOrEmpty(stem) ||
+                    !Directory.Exists(directory))
+                {
+                    return string.Empty;
+                }
+
+                foreach (var candidate in Directory.GetFiles(directory, stem + ".slddrw"))
+                {
+                    return candidate;
+                }
+
+                // 兜底：有些项目把工程图放在零件的子文件夹里，再找一层。
+                foreach (var sub in Directory.GetDirectories(directory))
+                {
+                    try
+                    {
+                        foreach (var candidate in Directory.GetFiles(sub, stem + ".slddrw"))
+                        {
+                            return candidate;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn("在子文件夹查找工程图失败：" + ex.Message);
+                    }
+                }
+
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("查找工程图失败：" + ex.Message);
+                return string.Empty;
+            }
+        }
+
+        private static void ActivateDocument(ISldWorks swApp, ModelDoc2 doc)
+        {
+            try
+            {
+                var title = doc.GetTitle();
+                if (string.IsNullOrEmpty(title))
+                {
+                    return;
+                }
+
+                int errors = 0;
+                swApp.ActivateDoc3(title, false,
+                    (int)swRebuildOnActivation_e.swDontRebuildActiveDoc, ref errors);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("切换到已打开的文档失败：" + ex.Message);
+            }
         }
 
         /// <summary>把解析出的图号 / 材料写回零件的自定义属性。</summary>
@@ -614,10 +1130,10 @@ namespace MechKit.Features
         }
 
         /// <summary>
-        /// 按 BOM 行重命名当前装配体中的组件实例。这里只修改 Component2.Name2，
-        /// 不修改零件文件名/路径，因此组件引用和配合对象保持不变。
+        /// 按 BOM 编辑值和当前命名规则反推零件文件名，再通过 RenameDocument
+        /// 重命名文件并同步装配引用。不会写入名称、材料、工艺或备注属性。
         /// </summary>
-        public static int RenameAssemblyComponents(ISldWorks swApp, IList<PartListRow> rows,
+        public static int RenameAssemblyFilesByBomRules(ISldWorks swApp, IList<PartListRow> rows,
             NamingOptions naming, Action<string> log)
         {
             var renamed = 0;
@@ -631,13 +1147,12 @@ namespace MechKit.Features
             var assembly = doc as AssemblyDoc;
             if (doc == null || assembly == null)
             {
-                log("✗ 当前文档不是装配体，无法重命名组件实例。");
+                log("✗ 当前文档不是装配体，无法重命名零件文件。");
                 return renamed;
             }
 
-            // 同一零件可能在不同装配位置形成多行。组件实例名属于同一个引用模型，
-            // 因此按“文件路径 + 配置”合并；若表格里出现冲突，以第一行设置为准并记录提示。
-            var desiredByReference = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            // 文件重命名对同一路径的所有实例同时生效，因此只按文件路径合并。
+            var desiredByPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in rows)
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.FilePath))
@@ -645,25 +1160,29 @@ namespace MechKit.Features
                     continue;
                 }
 
-                var desired = BuildComponentBaseName(row, naming);
+                // 直接改了「三维名称」的行按这个名字改名；其余按命名规则反推。
+                var desired = row.HasFullNameEdit
+                    ? NamingOptions.GetFileNameWithoutExtension(row.FullName).Trim().Trim('_', '-')
+                    : row.HasNamingEdits
+                        ? BuildComponentBaseName(row, naming)
+                        : string.Empty;
                 if (string.IsNullOrWhiteSpace(desired))
                 {
                     continue;
                 }
 
-                var key = ComponentReferenceKey(row.FilePath, row.Configuration);
                 string existing;
-                if (desiredByReference.TryGetValue(key, out existing))
+                if (desiredByPath.TryGetValue(row.FilePath, out existing))
                 {
                     if (!string.Equals(existing, desired, StringComparison.OrdinalIgnoreCase))
                     {
-                        log(string.Format("⚠ 同一零件存在多个目标名称，保留“{0}”，忽略“{1}”：{2}",
+                        log(string.Format("⚠ 同一零件文件存在多个目标名称，保留“{0}”，忽略“{1}”：{2}",
                             existing, desired, row.FileName));
                     }
                     continue;
                 }
 
-                desiredByReference[key] = desired;
+                desiredByPath[row.FilePath] = desired;
             }
 
             var components = assembly.GetComponents(false) as object[];
@@ -672,45 +1191,105 @@ namespace MechKit.Features
                 return renamed;
             }
 
-            foreach (var item in components)
+            foreach (var target in desiredByPath)
             {
-                var component = item as Component2;
+                Component2 component = null;
+                foreach (var item in components)
+                {
+                    var candidate = item as Component2;
+                    if (candidate == null)
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        if (string.Equals(candidate.GetPathName(), target.Key,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            component = candidate;
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // 继续查找同一路径的其他实例。
+                    }
+                }
+
                 if (component == null)
                 {
+                    log("✗ 当前装配体中找不到零件引用：" + target.Key);
                     continue;
                 }
 
                 try
                 {
-                    var path = component.GetPathName() ?? string.Empty;
-                    if (path.Length == 0)
+                    var sourcePath = target.Key;
+                    var desired = target.Value;
+                    var currentBase = NamingOptions.GetFileNameWithoutExtension(sourcePath);
+                    if (string.Equals(currentBase, desired, StringComparison.OrdinalIgnoreCase))
                     {
+                        foreach (var row in rows)
+                        {
+                            if (row != null && string.Equals(row.FilePath, sourcePath,
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                row.MarkNamingClean();
+                            }
+                        }
                         continue;
                     }
 
-                    string desired;
-                    if (!desiredByReference.TryGetValue(
-                            ComponentReferenceKey(path, component.ReferencedConfiguration), out desired))
+                    var targetPath = Path.Combine(Path.GetDirectoryName(sourcePath) ?? string.Empty,
+                        desired + Path.GetExtension(sourcePath));
+                    if (File.Exists(targetPath))
                     {
+                        log("✗ 目标文件已存在：" + targetPath);
                         continue;
                     }
 
-                    var current = component.Name2 ?? string.Empty;
-                    var target = PreserveComponentInstancePathAndSuffix(current, path, desired);
-                    if (string.IsNullOrWhiteSpace(target) ||
-                        string.Equals(current, target, StringComparison.Ordinal))
+                    var suppression = component.GetSuppression();
+                    if (suppression == (int)swComponentSuppressionState_e.swComponentLightweight ||
+                        suppression == (int)swComponentSuppressionState_e.swComponentFullyLightweight)
                     {
+                        component.SetSuppression2((int)swComponentSuppressionState_e.swComponentResolved);
+                    }
+
+                    doc.ClearSelection2(true);
+                    if (!component.Select4(false, null, false))
+                    {
+                        log("✗ 无法选择组件：" + currentBase);
                         continue;
                     }
 
-                    component.Name2 = target;
+                    var error = doc.Extension.RenameDocument(desired);
+                    if (error != (int)swRenameDocumentError_e.swRenameDocumentError_None)
+                    {
+                        log(string.Format("✗ 文件重命名失败：{0} → {1}（错误 {2}：{3}）",
+                            currentBase, desired, error, DescribeRenameError(error)));
+                        continue;
+                    }
+
                     renamed++;
-                    log(string.Format("✓ 组件重命名：{0} → {1}", current, target));
+                    log(string.Format("✓ 零件文件重命名：{0} → {1}",
+                        Path.GetFileName(sourcePath), Path.GetFileName(targetPath)));
+
+                    foreach (var row in rows)
+                    {
+                        if (row != null && string.Equals(row.FilePath, sourcePath,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            row.FilePath = targetPath;
+                            row.PartNumber = desired;
+                            row.FullName = desired;
+                            row.MarkNamingClean();
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("重命名组件实例失败：" + ex.Message);
-                    log("✗ 组件重命名失败：" + ex.Message);
+                    Log.Warn("重命名零件文件失败：" + ex.Message);
+                    log("✗ 零件文件重命名失败：" + ex.Message);
                 }
             }
 
@@ -725,17 +1304,17 @@ namespace MechKit.Features
                         ref saveErrors, ref saveWarnings);
                     if (!saved || saveErrors != 0)
                     {
-                        log(string.Format("⚠ 组件名称已修改，但装配体保存失败（错误 {0}）。", saveErrors));
+                        log(string.Format("⚠ 文件已重命名，但装配体保存失败（错误 {0}）。", saveErrors));
                     }
                     else
                     {
-                        log("✓ 当前装配体已保存；零件文件路径和配合关系未改变。");
+                        log("✓ 当前装配体已保存，装配引用已同步到新文件名。");
                     }
                 }
                 catch (Exception ex)
                 {
                     Log.Warn("保存重命名后的装配体失败：" + ex.Message);
-                    log("⚠ 组件名称已修改，但装配体保存失败：" + ex.Message);
+                    log("⚠ 文件已重命名，但装配体保存失败：" + ex.Message);
                 }
             }
 
@@ -755,7 +1334,7 @@ namespace MechKit.Features
                 AddNameField(fields, row.Process);
                 AddNameField(fields, row.Name);
                 AddNameField(fields, row.Material);
-                return SanitizeComponentName(string.Join("_", fields.ToArray()));
+                return SanitizeComponentName(string.Join("-", fields.ToArray()));
             }
 
             if (string.Equals(row.Classification, "加工件", StringComparison.Ordinal))
@@ -764,12 +1343,31 @@ namespace MechKit.Features
                 var separator = DetectMachinedSeparator(stem);
                 var parts = stem.Split(new[] { separator }, StringSplitOptions.None);
                 var nameIndex = -1;
+                var materialIndex = -1;
                 for (var i = 0; i < naming.MachinedSegments.Length; i++)
                 {
                     if (naming.MachinedSegments[i] == MachinedSegmentKind.Name)
                     {
                         nameIndex = i;
-                        break;
+                    }
+                    if (naming.MachinedSegments[i] == MachinedSegmentKind.Material)
+                    {
+                        materialIndex = i;
+                    }
+                }
+
+                if (parts.Length < naming.MachinedSegments.Length)
+                {
+                    Array.Resize(ref parts, naming.MachinedSegments.Length);
+                }
+
+                if (materialIndex >= 0 && materialIndex < parts.Length)
+                {
+                    var materialToken = ResolveMachinedMaterialToken(
+                        row, naming, parts[materialIndex]);
+                    if (!string.IsNullOrWhiteSpace(materialToken))
+                    {
+                        parts[materialIndex] = materialToken;
                     }
                 }
 
@@ -788,7 +1386,7 @@ namespace MechKit.Features
                         }
                     }
 
-                    var editedValues = row.Name.Trim().Split(new[] { '_' }, StringSplitOptions.None);
+                    var editedValues = row.Name.Trim().Split(new[] { '_', '-' }, StringSplitOptions.None);
                     if (selectedIndexes.Count > 1 && editedValues.Length == selectedIndexes.Count)
                     {
                         for (var i = 0; i < selectedIndexes.Count; i++)
@@ -800,16 +1398,88 @@ namespace MechKit.Features
                     {
                         parts[nameIndex] = row.Name.Trim();
                     }
-                    return SanitizeComponentName(string.Join(separator.ToString(), parts));
                 }
+
+                return SanitizeComponentName(string.Join("-", parts));
             }
 
             return SanitizeComponentName(row.Name);
         }
 
+        private static string ResolveMachinedMaterialToken(PartListRow row, NamingOptions naming,
+            string currentToken)
+        {
+            var material = (row.Material ?? string.Empty).Trim();
+            var process = (row.Process ?? string.Empty).Trim();
+            var presets = naming.MachinedMaterialProcessPresets;
+            if (presets != null)
+            {
+                MaterialProcessPreset currentPreset;
+                if (!string.IsNullOrWhiteSpace(currentToken) &&
+                    presets.TryGetValue(currentToken.Trim(), out currentPreset) &&
+                    MatchesMaterialProcess(currentPreset, material, process))
+                {
+                    return currentToken.Trim();
+                }
+
+                string matched = null;
+                foreach (var preset in presets)
+                {
+                    if (!MatchesMaterialProcess(preset.Value, material, process))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(preset.Key, material, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return preset.Key;
+                    }
+                    if (matched == null || string.Compare(preset.Key, matched,
+                            StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        matched = preset.Key;
+                    }
+                }
+
+                if (matched != null)
+                {
+                    return matched;
+                }
+            }
+
+            return SanitizeComponentName(material);
+        }
+
+        private static bool MatchesMaterialProcess(MaterialProcessPreset preset,
+            string material, string process)
+        {
+            return preset != null &&
+                   string.Equals((preset.Material ?? string.Empty).Trim(), material,
+                       StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals((preset.Process ?? string.Empty).Trim(), process,
+                       StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string DescribeRenameError(int error)
+        {
+            switch ((swRenameDocumentError_e)error)
+            {
+                case swRenameDocumentError_e.swRenameDocumentError_ComponentNotResolved: return "组件未解析";
+                case swRenameDocumentError_e.swRenameDocumentError_LightWeightComponent: return "轻化组件尚未完全解析";
+                case swRenameDocumentError_e.swRenameDocumentError_NoModelLoaded: return "组件模型尚未载入";
+                case swRenameDocumentError_e.swRenameDocumentError_FileAlreadyExists: return "目标文件已存在";
+                case swRenameDocumentError_e.swRenameDocumentError_InvalidCharactersInName: return "名称含无效字符";
+                case swRenameDocumentError_e.swRenameDocumentError_ReadOnlyDocument: return "文件或引用为只读";
+                case swRenameDocumentError_e.swRenameDocumentError_DocumentNameInUse: return "目标名称正在使用";
+                case swRenameDocumentError_e.swRenameDocumentError_ToolboxComponent: return "Toolbox 组件不能这样重命名";
+                case swRenameDocumentError_e.swRenameDocumentError_PatternedComponent: return "阵列组件不能这样重命名";
+                default: return "请确认组件已解析，且允许从 FeatureManager 树重命名组件文件";
+            }
+        }
+
         private static void AddNameField(ICollection<string> fields, string value)
         {
-            var clean = (value ?? string.Empty).Trim().Trim('_');
+            var clean = (value ?? string.Empty).Trim().Trim('_', '-');
             if (clean.Length > 0)
             {
                 fields.Add(clean);
@@ -827,7 +1497,7 @@ namespace MechKit.Features
             {
                 return stem[digits];
             }
-            return '_';
+            return '-';
         }
 
         private static string ComponentReferenceKey(string path, string configuration)
@@ -930,8 +1600,63 @@ namespace MechKit.Features
 
             public Dictionary<string, Dictionary<string, string>> Properties { get; private set; }
 
-            /// <summary>因不符合「前缀_日期_材料_名称」被排除的组件数。</summary>
+            /// <summary>因不符合「日期-材料-名称」或「前缀-中间名-型号」被排除的组件数。</summary>
             public int SkippedByPattern { get; set; }
+
+            /// <summary>因不符合「日期-装配」命名被整层忽略的子装配体数。</summary>
+            public int SkippedAssemblies { get; set; }
+        }
+
+        /// <summary>
+        /// 子装配体的读取策略：
+        /// ① 以标准件前缀开头（淘宝 / 代理 / 整机…）= 整机外购件，整体作为标准件计入；
+        /// ② 符合加工件命名规则（日期开头，如 20260425-装配-水箱总装）= 继续往下读取子零件；
+        /// ③ 其它未按规则命名的装配体 = 整层忽略，不统计它内部的零件。
+        /// </summary>
+        internal static SubassemblyAction ResolveSubassemblyAction(NamingOptions naming, string name)
+        {
+            var ruleName = NamingOptions.GetFileNameWithoutExtension(name ?? string.Empty).Trim();
+            if (ruleName.Length == 0 || naming == null)
+            {
+                return SubassemblyAction.Ignore;
+            }
+
+            // 关闭「按命名规则过滤」时保持旧行为：所有子装配体一律往下读取。
+            if (!naming.RequireBomPattern)
+            {
+                return SubassemblyAction.Expand;
+            }
+
+            if (naming.HasKnownPrefix(NamingOptions.FirstSegment(ruleName)))
+            {
+                return SubassemblyAction.TreatAsStandard;
+            }
+
+            return naming.IsMachinedName(ruleName)
+                ? SubassemblyAction.Expand
+                : SubassemblyAction.Ignore;
+        }
+
+        /// <summary>
+        /// 单个组件的归类：参考件不进 BOM；不符合「加工件 / 标准件」命名的记为未匹配，
+        /// 由调用方排到表格最后并标红。
+        /// </summary>
+        internal static RowDisposition ResolveRowDisposition(NamingOptions naming, string name)
+        {
+            if (naming == null)
+            {
+                return RowDisposition.Matched;
+            }
+
+            var ruleName = NamingOptions.GetFileNameWithoutExtension(name ?? string.Empty).Trim();
+            if (NamingOptions.IsReferenceName(ruleName))
+            {
+                return RowDisposition.Reference;
+            }
+
+            return naming.MatchesBomPattern(ruleName)
+                ? RowDisposition.Matched
+                : RowDisposition.Unmatched;
         }
 
         private static void VisitComponent(CollectContext context, Component2 component, IList<string> hierarchy)
@@ -953,6 +1678,34 @@ namespace MechKit.Features
 
                 if (docType == DocAssembly)
                 {
+                    var assemblyName = ComponentRuleName(component, path);
+                    if (string.IsNullOrEmpty(assemblyName))
+                    {
+                        assemblyName = ComponentDisplayName(component, path);
+                    }
+
+                    var action = ResolveSubassemblyAction(context.Options.Naming, assemblyName);
+
+                    // 以标准件前缀开头（淘宝 / 代理 / 整机…）的装配体属于整机外购件：
+                    // 作为一条标准件计入，不再往下读取它的子零件。
+                    if (action == SubassemblyAction.TreatAsStandard)
+                    {
+                        Accumulate(context, component, path, hierarchy);
+                        return;
+                    }
+
+                    // 只有按加工件命名规则（日期开头，例如 20260425-装配-水箱总装）命名的
+                    // 子装配体才继续往下读取；其它装配体整层忽略，避免把未按规则命名的
+                    // 装配体内部零件混进 BOM。
+                    if (action == SubassemblyAction.Ignore)
+                    {
+                        context.SkippedAssemblies++;
+                        // 不展开它内部的零件，但把这个子装配体记成一行“未匹配”，
+                        // 排到表格最后并标红，用户一眼能看到哪个装配体没按规则命名。
+                        Accumulate(context, component, path, hierarchy, true);
+                        return;
+                    }
+
                     // 子装配体：把它加入位置路径，再递归其直接子组件。
                     var childHierarchy = new List<string>(hierarchy ?? new string[0]);
                     childHierarchy.Add(ComponentDisplayName(component, path));
@@ -977,14 +1730,40 @@ namespace MechKit.Features
         }
 
         private static void Accumulate(CollectContext context, Component2 component, string path,
-            IList<string> hierarchy)
+            IList<string> hierarchy, bool unmatched = false)
         {
             var configuration = component.ReferencedConfiguration ?? string.Empty;
             var isVirtual = string.IsNullOrEmpty(path);
             var location = FormatLocation(hierarchy, context.Options.AssemblyLevel);
-            var key = isVirtual
+
+            // BOM 优先采用装配体中的组件实例名。这样“写入并重命名”之后立即刷新，
+            // 表格仍会显示新名称；零件文件路径只负责定位和写入属性。
+            var ruleName = ComponentRuleName(component, path);
+            if (string.IsNullOrEmpty(ruleName))
+            {
+                ruleName = Path.GetFileName(path);
+            }
+
+            if (!unmatched)
+            {
+                // 参考件是明确规则：不进 BOM，也不需要标红提示。
+                // 不符合加工件 / 标准件命名的组件不丢弃：改记成一行“未匹配”，
+                // 排在表格最后并标红，提醒补齐命名规则。
+                switch (ResolveRowDisposition(context.Options.Naming, ruleName))
+                {
+                    case RowDisposition.Reference:
+                        return;
+
+                    case RowDisposition.Unmatched:
+                        context.SkippedByPattern++;
+                        Accumulate(context, component, path, hierarchy, true);
+                        return;
+                }
+            }
+
+            var key = (unmatched ? "#unmatched|" : string.Empty) + (isVirtual
                 ? "#virtual|" + (component.Name2 ?? string.Empty) + "|" + location
-                : path.ToLowerInvariant() + "|" + configuration.ToLowerInvariant() + "|" + location;
+                : path.ToLowerInvariant() + "|" + configuration.ToLowerInvariant() + "|" + location);
 
             PartListRow row;
             if (context.Rows.TryGetValue(key, out row))
@@ -1019,20 +1798,7 @@ namespace MechKit.Features
                 }
             }
 
-            // BOM 优先采用装配体中的组件实例名。这样“写入并重命名”之后立即刷新，
-            // 表格仍会显示新名称；零件文件路径只负责定位和写入属性。
-            var ruleName = ComponentRuleName(component, path);
-            if (string.IsNullOrEmpty(ruleName))
-            {
-                ruleName = Path.GetFileName(path);
-            }
             var displayPath = ruleName;
-
-            if (!context.Options.Naming.MatchesBomPattern(ruleName))
-            {
-                context.SkippedByPattern++;
-                return;
-            }
 
             if (NamingOptions.IsPlaceholder(modelMaterial))
             {
@@ -1041,11 +1807,15 @@ namespace MechKit.Features
 
             var segmentMaterial = context.Options.Naming.ResolveMaterialFromSegments(displayPath);
             var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
-            var classification = Classify(context, path, ruleName, properties);
+            var classification = unmatched
+                ? UnmatchedClassification
+                : Classify(context, path, ruleName, properties);
 
             row = new PartListRow
             {
                 Location = location,
+                FullName = ResolveFullName(displayPath),
+                DrawingPath = FindDrawingFor(path),
                 PartNumber = context.Options.Naming.ResolvePartNumber(displayPath, name => Lookup(properties, name)),
                 Name = context.Options.Naming.ResolveNameFromSegments(displayPath),
                 Material = !string.IsNullOrEmpty(segmentMaterial)
@@ -1057,6 +1827,7 @@ namespace MechKit.Features
                 Remark = First(properties, "备注", "说明", "Remark", "Notes"),
                 Quantity = 1,
                 Classification = classification,
+                IsUnmatched = unmatched,
                 FilePath = path,
                 Configuration = configuration
             };
@@ -1070,6 +1841,11 @@ namespace MechKit.Features
             ApplyConfiguredFields(row, displayPath, properties, context.Options);
 
             context.Rows[key] = row;
+        }
+
+        private static string ResolveFullName(string value)
+        {
+            return (NamingOptions.GetFileNameWithoutExtension(value) ?? string.Empty).Trim();
         }
 
         private static string ComponentRuleName(Component2 component, string path)
@@ -1175,9 +1951,9 @@ namespace MechKit.Features
         }
 
         /// <summary>
-        /// 标准件统一按“前缀_中文中间名_原始名称或型号”解释：
+        /// 标准件统一按“前缀-中文中间名-原始名称或型号”解释，同时兼容旧下划线：
         /// 工艺=前缀，零件名=中文中间名，材料/型号=第 3 段及以后。
-        /// 例如电气_接近开关_LJ12A3_ZBX 会得到：标准件 / 接近开关 / LJ12A3_ZBX / 电气。
+        /// 例如电气-接近开关-LJ12A3-ZBX 会得到：标准件 / 接近开关 / LJ12A3-ZBX / 电气。
         /// </summary>
         private static void ApplyStandardFields(PartListRow row, string sourceName, NamingOptions naming)
         {
@@ -1188,9 +1964,7 @@ namespace MechKit.Features
             }
 
             var stem = NamingOptions.GetFileNameWithoutExtension(sourceName).Trim();
-            // 标准件格式固定为“前缀_中间名_原始名称”。加工件可选的短横线
-            // 不应影响标准件型号（型号本身经常包含短横线）。
-            const string separator = "_";
+            var separator = DetectStandardSeparator(stem);
             var parts = stem.Split(new[] { separator }, StringSplitOptions.None);
             if (parts.Length == 0 || !naming.HasKnownPrefix(parts[0]))
             {
@@ -1203,7 +1977,7 @@ namespace MechKit.Features
             {
                 var originalName = new string[parts.Length - 2];
                 Array.Copy(parts, 2, originalName, 0, originalName.Length);
-                row.Material = string.Join(separator, originalName).Trim();
+                row.Material = string.Join(separator.ToString(), originalName).Trim();
             }
             else
             {
@@ -1221,10 +1995,13 @@ namespace MechKit.Features
 
             string material;
             string process;
-            if (naming.TryResolveMachinedMaterialProcess(sourceName, out material, out process))
+            string surfaceTreatment;
+            if (naming.TryResolveMachinedMaterialProcessSurface(sourceName, out material, out process,
+                    out surfaceTreatment))
             {
                 row.Material = material;
                 row.Process = process;
+                row.SurfaceTreatment = surfaceTreatment;
             }
         }
 
@@ -1238,28 +2015,44 @@ namespace MechKit.Features
             }
 
             var standard = string.Equals(row.Classification, "标准件", StringComparison.Ordinal);
-            var nameField = standard ? options.StandardNameField : options.MachinedNameField;
-            if (!standard && options.Naming != null && options.Naming.UsesCompositeMachinedBomName())
-            {
-                // 勾选“并入 BOM 名称”后，命名规则的组合结果优先于单段字段映射。
-                nameField = "auto";
-            }
-            row.Name = ResolveConfiguredField(
+            var assemblyNoteField = standard
+                ? options.StandardAssemblyNoteField
+                : ResolveRuleField(options.MachinedAssemblyNoteField, options.Naming);
+            row.AssemblyNote = ResolveConfiguredFieldWithNaming(
+                assemblyNoteField,
+                string.Empty, sourceName, properties, standard, options.Naming);
+            var nameField = standard
+                ? options.StandardNameField
+                : ResolveRuleField(options.MachinedNameField, options.Naming);
+            row.Name = ResolveConfiguredFieldWithNaming(
                 nameField,
-                row.Name, sourceName, properties, standard);
-            row.Material = ResolveConfiguredField(
+                row.Name, sourceName, properties, standard, options.Naming);
+            row.Material = ResolveConfiguredFieldWithNaming(
                 standard ? options.StandardMaterialField : options.MachinedMaterialField,
-                row.Material, sourceName, properties, standard);
-            row.Process = ResolveConfiguredField(
+                row.Material, sourceName, properties, standard, options.Naming);
+            row.Process = ResolveConfiguredFieldWithNaming(
                 standard ? options.StandardProcessField : options.MachinedProcessField,
-                row.Process, sourceName, properties, standard);
-            row.Remark = ResolveConfiguredField(
+                row.Process, sourceName, properties, standard, options.Naming);
+            var surfaceField = standard
+                ? options.StandardSurfaceField
+                : ResolveRuleField(options.MachinedSurfaceField, options.Naming);
+            row.SurfaceTreatment = ResolveConfiguredFieldWithNaming(
+                surfaceField, row.SurfaceTreatment, sourceName, properties, standard, options.Naming);
+            row.Remark = ResolveConfiguredFieldWithNaming(
                 standard ? options.StandardRemarkField : options.MachinedRemarkField,
-                row.Remark, sourceName, properties, standard);
+                row.Remark, sourceName, properties, standard, options.Naming);
         }
 
         private static string ResolveConfiguredField(string setting, string automaticValue,
             string sourceName, Dictionary<string, string> properties, bool standard)
+        {
+            return ResolveConfiguredFieldWithNaming(setting, automaticValue, sourceName,
+                properties, standard, null);
+        }
+
+        private static string ResolveConfiguredFieldWithNaming(string setting, string automaticValue,
+            string sourceName, Dictionary<string, string> properties, bool standard,
+            NamingOptions naming)
         {
             var source = string.IsNullOrWhiteSpace(setting) ? "auto" : setting.Trim().ToLowerInvariant();
             if (source == "auto")
@@ -1276,6 +2069,26 @@ namespace MechKit.Features
             if (source == "whole")
             {
                 return stem;
+            }
+
+            if (!standard && source.StartsWith("machined2:", StringComparison.Ordinal) &&
+                naming != null)
+            {
+                string material;
+                string process;
+                string surface;
+                if (!naming.TryResolveMachinedMaterialProcessSurface(sourceName,
+                        out material, out process, out surface))
+                {
+                    return string.Empty;
+                }
+
+                switch (source)
+                {
+                    case "machined2:material": return material ?? string.Empty;
+                    case "machined2:process": return process ?? string.Empty;
+                    case "machined2:surface": return surface ?? string.Empty;
+                }
             }
 
             if (source.StartsWith("segment:", StringComparison.Ordinal))
@@ -1300,7 +2113,8 @@ namespace MechKit.Features
                     {
                         var tail = new string[parts.Length - number + 1];
                         Array.Copy(parts, number - 1, tail, 0, tail.Length);
-                        return string.Join("_", tail).Trim();
+                        var separator = standard ? DetectStandardSeparator(stem) : DetectMachinedSeparator(stem);
+                        return string.Join(separator.ToString(), tail).Trim();
                     }
                 }
 
@@ -1317,14 +2131,61 @@ namespace MechKit.Features
                     return First(properties, "工艺", "加工工艺", "制造工艺", "Process");
                 case "property:remark":
                     return First(properties, "备注", "说明", "Remark", "Notes");
+                case "property:assemblynote":
+                    return First(properties, "安装说明", "装配说明", "装配备注", "AssemblyNote", "Assembly Note");
+                case "property:surface":
+                    return First(properties, "表面处理", "表面", "表面工艺", "SurfaceTreatment", "Surface Treatment", "Finish");
                 default:
                     return automaticValue ?? string.Empty;
             }
         }
 
+        private static string ResolveRuleField(string setting, NamingOptions naming)
+        {
+            var rawValue = (setting ?? string.Empty).Trim();
+            var value = rawValue.ToLowerInvariant();
+            if (!value.StartsWith("rule:", StringComparison.Ordinal) || naming == null ||
+                naming.MachinedSegments == null)
+            {
+                return setting;
+            }
+
+            var labels = naming.MachinedSegmentLabels ?? new string[0];
+            for (var index = 0; index < naming.MachinedSegments.Length; index++)
+            {
+                var label = index < labels.Length ? (labels[index] ?? string.Empty).Trim() : string.Empty;
+                var kind = naming.MachinedSegments[index];
+                if ((value == "rule:date" && kind == MachinedSegmentKind.Date) ||
+                    (value == "rule:material" && kind == MachinedSegmentKind.Material) ||
+                    (value == "rule:name" && kind == MachinedSegmentKind.Name) ||
+                    (value == "rule:version" && kind == MachinedSegmentKind.Serial) ||
+                    (value == "rule:extension" && kind == MachinedSegmentKind.Extension))
+                {
+                    return "segment:" + (index + 1);
+                }
+                if (value == "rule:surface" &&
+                    (label == "表面处理" || label == "表面工艺" || label == "表面"))
+                {
+                    return "segment:" + (index + 1);
+                }
+                if (value == "rule:assemblynote" &&
+                    (label == "安装说明" || label == "装配说明" || label == "装配备注"))
+                {
+                    return "segment:" + (index + 1);
+                }
+                if (value.StartsWith("rule:label:", StringComparison.Ordinal) &&
+                    string.Equals(label, rawValue.Substring("rule:label:".Length),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return "segment:" + (index + 1);
+                }
+            }
+
+            return value == "rule:surface" ? "auto" : "empty";
+        }
+
         /// <summary>
-        /// 标准件始终用下划线；加工件允许整份名称使用下划线或短横线。
-        /// 以日期后的第一个分隔符为准，避免零件名中的短横线被误拆。
+        /// 标准件和加工件均兼容下划线或短横线；新名称统一输出短横线。
         /// </summary>
         private static string[] SplitConfiguredSegments(string stem, bool standard)
         {
@@ -1335,10 +2196,10 @@ namespace MechKit.Features
 
             if (standard)
             {
-                return stem.Split(new[] { '_' }, StringSplitOptions.None);
+                return stem.Split(new[] { DetectStandardSeparator(stem) }, StringSplitOptions.None);
             }
 
-            var separator = '_';
+            var separator = '-';
             var digits = 0;
             while (digits < stem.Length && char.IsDigit(stem[digits]))
             {
@@ -1354,11 +2215,29 @@ namespace MechKit.Features
             return stem.Split(new[] { separator }, StringSplitOptions.None);
         }
 
+        private static char DetectStandardSeparator(string stem)
+        {
+            if (string.IsNullOrEmpty(stem))
+            {
+                return '-';
+            }
+            var underscore = stem.IndexOf('_');
+            var hyphen = stem.IndexOf('-');
+            if (underscore < 0) return '-';
+            if (hyphen < 0) return '_';
+            return underscore < hyphen ? '_' : '-';
+        }
+
         private static string Classify(CollectContext context, string path, string name, Dictionary<string, string> properties)
         {
-            // 命名规则优先：日期开头 = 加工件；已知前缀开头 = 标准件
+            // 命名规则优先：参考- = 参考件；日期开头 = 加工件；已知前缀开头 = 标准件
             var ruleName = NamingOptions.GetFileNameWithoutExtension(
                 string.IsNullOrEmpty(name) ? path : name).Trim();
+
+            if (NamingOptions.IsReferenceName(ruleName))
+            {
+                return "参考件";
+            }
 
             if (context.Options.Naming.IsMachinedName(ruleName))
             {
@@ -1513,6 +2392,12 @@ namespace MechKit.Features
         {
             rows.Sort(delegate(PartListRow left, PartListRow right)
             {
+                // 不符合命名规则的组件统一排到最后，方便一眼看到需要补规则的部分。
+                if (left.IsUnmatched != right.IsUnmatched)
+                {
+                    return left.IsUnmatched ? 1 : -1;
+                }
+
                 var byLocation = string.Compare(left.Location, right.Location, StringComparison.OrdinalIgnoreCase);
                 if (byLocation != 0)
                 {

@@ -25,6 +25,13 @@ namespace MechKit.Harness
         private readonly List<Bitmap> _icons = new List<Bitmap>();
         private readonly Action<string> _onCommand;
         private readonly Panel _canvas;
+        private readonly Control _commandArea;
+        private readonly Control _tabStrip;
+        private readonly int _contentWidth;
+
+        private const int CommandAreaHeight = 117;
+        private const int TabStripHeight = 33;
+        private const int ContentHeight = CommandAreaHeight + TabStripHeight;
 
         public TabPreviewForm(Action<string> onCommand)
         {
@@ -33,33 +40,51 @@ namespace MechKit.Harness
             Text = "MechKit 选项卡离线测试";
             Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Regular, GraphicsUnit.Point);
             AutoScaleMode = AutoScaleMode.None;
-            ClientSize = new Size(1050, 150);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
+            FormBorderStyle = FormBorderStyle.Sizable;
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = RibbonBack;
-            MaximizeBox = false;
+            MaximizeBox = true;
 
             LoadIcons();
 
             _canvas = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = RibbonBack
+                BackColor = RibbonBack,
+                AutoScroll = true
             };
-            _canvas.Controls.Add(BuildCommandArea());
-            _canvas.Controls.Add(BuildTabStrip());
+            _commandArea = BuildCommandArea();
+            _tabStrip = BuildTabStrip();
+            _contentWidth = Math.Max(_commandArea.Width, _tabStrip.Width);
+            _canvas.AutoScrollMinSize = new Size(_contentWidth, ContentHeight);
+            _canvas.Controls.Add(_commandArea);
+            _canvas.Controls.Add(_tabStrip);
             Controls.Add(_canvas);
+
+            var workingWidth = Screen.PrimaryScreen == null
+                ? 1600
+                : Screen.PrimaryScreen.WorkingArea.Width;
+            ClientSize = new Size(Math.Min(_contentWidth, Math.Max(900, workingWidth - 80)),
+                ContentHeight + SystemInformation.HorizontalScrollBarHeight + 2);
 
             MechKit.UI.WindowLayout.EnableEscapeToClose(this);
         }
 
-        /// <summary>只保存 CommandManager 客户区，不包含 Windows 标题栏和边框。</summary>
+        /// <summary>保存完整 CommandManager 内容，不受当前窗口宽度或滚动位置影响。</summary>
         public void SaveClientImage(string path)
         {
-            _canvas.PerformLayout();
-            using (var bitmap = new Bitmap(_canvas.ClientSize.Width, _canvas.ClientSize.Height))
+            _commandArea.PerformLayout();
+            _tabStrip.PerformLayout();
+            using (var bitmap = new Bitmap(_contentWidth, ContentHeight))
             {
-                _canvas.DrawToBitmap(bitmap, new Rectangle(Point.Empty, _canvas.ClientSize));
+                using (var graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.Clear(RibbonBack);
+                }
+                _commandArea.DrawToBitmap(bitmap,
+                    new Rectangle(0, 0, _commandArea.Width, _commandArea.Height));
+                _tabStrip.DrawToBitmap(bitmap,
+                    new Rectangle(0, CommandAreaHeight, _tabStrip.Width, _tabStrip.Height));
                 bitmap.Save(path, ImageFormat.Png);
             }
         }
@@ -116,7 +141,8 @@ namespace MechKit.Harness
         {
             var host = new Panel
             {
-                Dock = DockStyle.Fill,
+                Location = Point.Empty,
+                Height = CommandAreaHeight,
                 BackColor = RibbonBack
             };
             host.Paint += delegate(object sender, PaintEventArgs e)
@@ -131,14 +157,14 @@ namespace MechKit.Harness
             {
                 new CommandSpec("一键生成BOM", "一键生\r\n成 BOM\r\n表", 76, 0),
                 new CommandSpec("明细汇总 / BOM 预览", "明细汇总\r\nBOM预览", 84, 1),
-                new CommandSpec("加工件命名规则", "加工件\r\n命名规\r\n则设置", 69, 2),
-                new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3)
+                new CommandSpec("加工件命名规则", "加工件\r\n命名规\r\n则设置", 69, 2)
             };
 
             var trailing = new List<CommandSpec>
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
                 new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6),
+                new CommandSpec("导出配置", "导出\r\n配置", 52, 4),
                 new CommandSpec("设置", "设置", 45, 7)
             };
 
@@ -150,72 +176,118 @@ namespace MechKit.Harness
                 x += command.Width;
             }
 
-            var prefixes = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomPrefixes);
-            var middleNames = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomMiddleNames);
-            var prefixCount = Math.Min(prefixes.Length, AddinConstants.MaxPrefixCommands);
-            var middleCount = Math.Min(middleNames.Length, AddinConstants.MaxMiddleNameCommands);
-            var columns = Math.Max(prefixCount, middleCount);
-            if (columns > 0)
+            // 加工件快捷区固定保留：时间、_→-、装配。
+            foreach (var command in new[]
             {
-                x += 6;
-                var prefixLabel = new Label
-                {
-                    Text = "前缀",
-                    Location = new Point(x, 12),
-                    Size = new Size(42, 30),
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Font = new Font(Font.FontFamily, 8.5f),
-                    ForeColor = Color.FromArgb(90, 90, 90),
-                    BackColor = RibbonBack
-                };
-                var middleLabel = new Label
-                {
-                    Text = "中间",
-                    Location = new Point(x, 54),
-                    Size = new Size(42, 30),
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Font = new Font(Font.FontFamily, 8.5f),
-                    ForeColor = Color.FromArgb(90, 90, 90),
-                    BackColor = RibbonBack
-                };
-                host.Controls.Add(prefixLabel);
-                host.Controls.Add(middleLabel);
-                x += 44;
+                new CommandSpec("加工件:时间", "时间", 58, 2),
+                new CommandSpec("加工件:下划线转换", "_ → -", 66, 3),
+                new CommandSpec("装配:装配", "装配", 58, 3)
+            })
+            {
+                AddCommandButton(host, command, new Point(x, 9),
+                    new Size(command.Width, 34), true);
+                x += command.Width + 2;
             }
 
-            for (var column = 0; column < columns; column++)
+            var settings = AddinSettings.Load();
+            var visibleLevel2 = new HashSet<string>(
+                NamingOptionsFactory.ParsePrefixes(settings.MachinedTabLevel2Values),
+                StringComparer.OrdinalIgnoreCase);
+            var visibleLevel3 = new HashSet<string>(
+                NamingOptionsFactory.ParsePrefixes(settings.MachinedTabLevel3Values),
+                StringComparer.OrdinalIgnoreCase);
+            var level2 = new List<string>();
+            foreach (var value in NamingOptionsFactory.ParsePrefixes(settings.MachinedLevel2Values))
+                if (visibleLevel2.Contains(value)) level2.Add(value);
+            var level3 = new List<string>();
+            foreach (var value in NamingOptionsFactory.ParsePrefixes(settings.MachinedLevel3Values))
+                if (visibleLevel3.Contains(value)) level3.Add(value);
+            var machinedColumns = Math.Max(
+                Math.Min(level2.Count, AddinConstants.MaxMachinedLevel2Commands),
+                Math.Min(level3.Count, AddinConstants.MaxMachinedLevel3Commands));
+            if (machinedColumns > 0)
             {
-                var prefixText = column < prefixCount ? prefixes[column] : string.Empty;
-                var middleText = column < middleCount ? middleNames[column] : string.Empty;
-                var width = 58;
-                if (prefixText.Length > 0)
-                {
-                    width = Math.Max(width, TextRenderer.MeasureText(prefixText, Font).Width + 30);
-                }
-                if (middleText.Length > 0)
-                {
-                    width = Math.Max(width, TextRenderer.MeasureText(middleText, Font).Width + 30);
-                }
-
-                if (prefixText.Length > 0)
+                AddLevelLabel(host, "二级", new Point(x, 12));
+                AddLevelLabel(host, "三级", new Point(x, 54));
+                x += 44;
+            }
+            for (var column = 0; column < machinedColumns; column++)
+            {
+                var level2Text = column < level2.Count ? level2[column] : string.Empty;
+                var level3Text = column < level3.Count ? level3[column] : string.Empty;
+                var width = MeasureLevelColumn(level2Text, level3Text);
+                if (level2Text.Length > 0)
                 {
                     AddCommandButton(host,
-                        new CommandSpec("前缀:" + prefixText, prefixText, width, 10 + column),
+                        new CommandSpec("加工二级:" + level2Text, level2Text, width, 10 + column),
                         new Point(x, 9), new Size(width, 34), true);
                 }
-                if (middleText.Length > 0)
+                if (level3Text.Length > 0)
                 {
                     AddCommandButton(host,
-                        new CommandSpec("中间:" + middleText, middleText, width, 10 + column),
+                        new CommandSpec("加工三级:" + level3Text, level3Text, width, 10 + column),
                         new Point(x, 51), new Size(width, 34), true);
                 }
                 x += width + 2;
             }
 
-            if (columns > 0)
+            var standardSettings = new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3);
+            AddCommandButton(host, standardSettings, new Point(x, 0),
+                new Size(standardSettings.Width, 117), false);
+            x += standardSettings.Width;
+
+            var visiblePrefixes = new HashSet<string>(
+                NamingOptionsFactory.ParsePrefixes(settings.StandardTabPrefixes),
+                StringComparer.OrdinalIgnoreCase);
+            var visibleMiddleNames = new HashSet<string>(
+                NamingOptionsFactory.ParsePrefixes(settings.StandardTabMiddleNames),
+                StringComparer.OrdinalIgnoreCase);
+            var prefixes = new List<string>();
+            foreach (var value in NamingOptionsFactory.ParsePrefixes(settings.BomPrefixes))
+                if (visiblePrefixes.Contains(value)) prefixes.Add(value);
+            var middleNames = new List<string>();
+            foreach (var value in NamingOptionsFactory.ParsePrefixes(settings.BomMiddleNames))
+                if (visibleMiddleNames.Contains(value)) middleNames.Add(value);
+            var prefixCount = Math.Min(prefixes.Count, AddinConstants.MaxPrefixCommands);
+            var middleCount = Math.Min(middleNames.Count, AddinConstants.MaxMiddleNameCommands);
+            if (prefixCount > 0 || middleCount > 0)
             {
-                x += 6;
+                AddLevelLabel(host, "一级", new Point(x, 12));
+                AddLevelLabel(host, "二级", new Point(x, 54));
+                x += 44;
             }
+
+            // 一级字段（前缀）排上面一行。
+            var standardRowStart = x;
+            for (var index = 0; index < prefixCount; index++)
+            {
+                var width = MeasureLevelColumn(prefixes[index], string.Empty);
+                AddCommandButton(host,
+                    new CommandSpec("前缀:" + prefixes[index], prefixes[index], width, 10 + index),
+                    new Point(x, 9), new Size(width, 34), true);
+                x += width + 2;
+            }
+
+            // 二级字段（中间名）另起一行排在下面。
+            x = standardRowStart;
+            for (var index = 0; index < middleCount; index++)
+            {
+                var width = MeasureLevelColumn(middleNames[index], string.Empty);
+                AddCommandButton(host,
+                    new CommandSpec("中间:" + middleNames[index], middleNames[index], width, 10 + index),
+                    new Point(x, 51), new Size(width, 34), true);
+                x += width + 2;
+            }
+
+            if (prefixCount > 0 || middleCount > 0)
+            {
+                x += 2;
+            }
+
+            var reference = new CommandSpec("参考件:参考", "参考件", 58, 10);
+            AddCommandButton(host, reference, new Point(x, 0),
+                new Size(reference.Width, 117), false);
+            x += reference.Width;
 
             foreach (var command in trailing)
             {
@@ -224,7 +296,37 @@ namespace MechKit.Harness
                 x += command.Width;
             }
 
+            host.Width = Math.Max(1, x);
+
             return host;
+        }
+
+        private void AddLevelLabel(Control host, string text, Point location)
+        {
+            host.Controls.Add(new Label
+            {
+                Text = text,
+                Location = location,
+                Size = new Size(42, 30),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font(Font.FontFamily, 8.5f),
+                ForeColor = Color.FromArgb(90, 90, 90),
+                BackColor = RibbonBack
+            });
+        }
+
+        private int MeasureLevelColumn(string first, string second)
+        {
+            var width = 58;
+            if (!string.IsNullOrEmpty(first))
+            {
+                width = Math.Max(width, TextRenderer.MeasureText(first, Font).Width + 30);
+            }
+            if (!string.IsNullOrEmpty(second))
+            {
+                width = Math.Max(width, TextRenderer.MeasureText(second, Font).Width + 30);
+            }
+            return width;
         }
 
         private void AddCommandButton(Control host, CommandSpec command, Point location,
@@ -236,7 +338,7 @@ namespace MechKit.Harness
             {
                 Location = location,
                 Size = size,
-                Highlighted = !compact && string.Equals(command.Id, "标准件前缀", StringComparison.Ordinal)
+                Highlighted = false
             };
             button.Click += delegate { _onCommand(capturedId); };
             host.Controls.Add(button);
@@ -247,8 +349,8 @@ namespace MechKit.Harness
         {
             var panel = new Panel
             {
-                Dock = DockStyle.Bottom,
-                Height = 33,
+                Location = new Point(0, CommandAreaHeight),
+                Height = TabStripHeight,
                 BackColor = RibbonBack
             };
 
@@ -288,6 +390,8 @@ namespace MechKit.Harness
                 // 相邻标签共享一条边框，避免出现双线。
                 x += tab.Width;
             }
+
+            panel.Width = Math.Max(1, x);
 
             return panel;
         }

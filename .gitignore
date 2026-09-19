@@ -4,4 +4,7 @@ obj/
 *.suo
 .vs/
 /dist/
+/dist-latest/
+/dist-next/
+/artifacts/
 *.log

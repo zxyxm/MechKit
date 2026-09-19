@@ -30,6 +30,15 @@ namespace MechKit.UI
         private bool _cancelRequested;
 
         public BatchExportForm(IAddinHost host)
+            : this(host, null)
+        {
+        }
+
+        /// <summary>
+        /// initialFiles 不为空时（BOM 表勾选的行）直接放进待导出列表，
+        /// 打开后只需选择导出格式与输出目录。
+        /// </summary>
+        public BatchExportForm(IAddinHost host, IList<string> initialFiles)
         {
             _host = host;
             _fileList = new ListBox();
@@ -47,6 +56,47 @@ namespace MechKit.UI
             BuildLayout();
             WireEvents();
             LoadDefaults();
+            AddInitialFiles(initialFiles);
+        }
+
+        private void AddInitialFiles(IList<string> files)
+        {
+            if (files == null)
+            {
+                return;
+            }
+
+            foreach (var file in files)
+            {
+                if (string.IsNullOrWhiteSpace(file) || !File.Exists(file))
+                {
+                    continue;
+                }
+                if (_fileList.Items.Contains(file))
+                {
+                    continue;
+                }
+
+                _fileList.Items.Add(file);
+            }
+
+            if (_fileList.Items.Count == 0)
+            {
+                return;
+            }
+
+            // 以带入文件的目录作为“保持目录结构”的相对根。
+            try
+            {
+                _sourceRoot = Path.GetDirectoryName((string)_fileList.Items[0]) ?? string.Empty;
+            }
+            catch
+            {
+                _sourceRoot = string.Empty;
+            }
+
+            _status.Text = string.Format("已从 BOM 带入 {0} 个文件，选好格式后点“开始导出”。",
+                _fileList.Items.Count);
         }
 
         private void BuildLayout()

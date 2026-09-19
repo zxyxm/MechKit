@@ -309,6 +309,29 @@ function Draw-PropertyIcon {
     }
 }
 
+# Command 5: undo (left-turning arrow)
+function Draw-UndoIcon {
+    param([System.Drawing.Graphics] $Graphics, [int] $Size)
+
+    $pen = New-Object System.Drawing.Pen($script:AccentColor, ([single]([Math]::Max(1.4, $Size * 0.09))))
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+    try {
+        $points = New-Object 'System.Drawing.PointF[]' 3
+        $points[0] = New-Object System.Drawing.PointF([single]($Size * 0.38), [single]($Size * 0.22))
+        $points[1] = New-Object System.Drawing.PointF([single]($Size * 0.18), [single]($Size * 0.42))
+        $points[2] = New-Object System.Drawing.PointF([single]($Size * 0.38), [single]($Size * 0.62))
+        $Graphics.DrawLines($pen, $points)
+        $Graphics.DrawLine($pen, $Size * 0.19, $Size * 0.42, $Size * 0.58, $Size * 0.42)
+        $rect = New-Object System.Drawing.RectangleF([single]($Size * 0.35), [single]($Size * 0.30), [single]($Size * 0.46), [single]($Size * 0.46))
+        $Graphics.DrawArc($pen, $rect, 250, 205)
+    }
+    finally {
+        $pen.Dispose()
+    }
+}
+
 # Command 2: task pane (window with a highlighted side bar)
 function Draw-TaskPaneIcon {
     param([System.Drawing.Graphics] $Graphics, [int] $Size)
@@ -383,7 +406,7 @@ function Draw-MainIcon {
     }
 }
 
-$commandNames = @('Bom', 'PartList', 'PartRule', 'TagRule', 'Export', 'Properties', 'TaskPane', 'Settings', 'About')
+$commandNames = @('Bom', 'PartList', 'PartRule', 'TagRule', 'Export', 'Undo', 'TaskPane', 'Settings', 'About')
 $sizes = @(20, 32, 40, 64, 96, 128)
 
 # 命令图标之后还要留两段：
@@ -410,7 +433,7 @@ foreach ($size in $sizes) {
                         'Bom' { Draw-BomIcon $cellGraphics $size }
                         'PartList' { Draw-PartListIcon $cellGraphics $size }
                         'Export' { Draw-ExportIcon $cellGraphics $size }
-                        'Properties' { Draw-PropertyIcon $cellGraphics $size }
+                        'Undo' { Draw-UndoIcon $cellGraphics $size }
                         'TaskPane' { Draw-TaskPaneIcon $cellGraphics $size }
                         'Settings' { Draw-SettingsIcon $cellGraphics $size }
                         'PartRule' { Draw-CalendarIcon $cellGraphics $size }

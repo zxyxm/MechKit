@@ -74,7 +74,7 @@ namespace MechKit.UI
                 Font = Theme.Body,
                 ForeColor = Theme.Muted,
                 Text = "使用提示：" + Environment.NewLine +
-                       "· 命令位于 CommandManager 的「MechKit」选项卡，同时出现在「工具」菜单下。" + Environment.NewLine +
+                       "· 命令仅位于 CommandManager 的「MechKit」选项卡。" + Environment.NewLine +
                        "· 批量导出支持工程图（PDF / DWG / DXF）与模型（STEP / IGES / STL）。" + Environment.NewLine +
                        "· 属性写入默认只处理文档级自定义属性，不修改配置特定属性。"
             };

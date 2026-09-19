@@ -45,6 +45,18 @@ namespace MechKit.Harness
             Log.Info("[harness] 批量导出 被点击");
         }
 
+        public void ShowBatchExportDialog(IList<string> files)
+        {
+            Log.Info(string.Format("[harness] 批量导出 被点击（从 BOM 带入 {0} 个文件）",
+                files == null ? 0 : files.Count));
+        }
+
+        public void SetBomSelectedFiles(IList<string> filePaths)
+        {
+            Log.Info(string.Format("[harness] BOM 选中 {0} 个文件",
+                filePaths == null ? 0 : filePaths.Count));
+        }
+
         public void ShowPartListDialog()
         {
             Log.Info("[harness] 明细汇总 被点击");
@@ -53,6 +65,11 @@ namespace MechKit.Harness
         public void ShowSettingsDialog()
         {
             Log.Info("[harness] 设置 被点击");
+        }
+
+        public void ShowSettingsDialog(int tabIndex)
+        {
+            Log.Info("[harness] 设置 被点击（页 " + tabIndex + "，0 = BOM 格式）");
         }
 
         public void ShowNamingRuleDialog(int tabIndex)

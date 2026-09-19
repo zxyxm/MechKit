@@ -85,7 +85,7 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 BackColor = Theme.Canvas
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
@@ -97,7 +97,7 @@ namespace MechKit.UI
             layout.Controls.Add(BuildFolderRow(), 0, 0);
             layout.Controls.Add(BuildOptionRow(), 0, 1);
             layout.Controls.Add(Theme.CreateLabel("要写入的属性（属性名为空的行会被忽略）", Theme.BodyBold, Theme.Text), 0, 2);
-            layout.Controls.Add(BuildGrid(), 0, 3);
+            layout.Controls.Add(BuildGrid(), 0, 4);
 
             panel.Controls.Add(layout);
             return panel;

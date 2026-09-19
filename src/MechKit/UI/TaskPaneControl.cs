@@ -27,6 +27,7 @@ namespace MechKit.UI
         private readonly Button _refreshButton;
         private readonly Button _addButton;
         private readonly Button _removeButton;
+        private TableLayoutPanel _actionLayout;
         private readonly Dictionary<string, CustomProperty> _original =
             new Dictionary<string, CustomProperty>(StringComparer.OrdinalIgnoreCase);
 
@@ -53,6 +54,7 @@ namespace MechKit.UI
             AutoScaleDimensions = new SizeF(96f, 96f);
 
             BuildLayout();
+            WindowLayout.AttachTextSafety(this);
             WireEvents();
             Log.Message += OnLogMessage;
             RefreshDocument(true);
@@ -149,7 +151,7 @@ namespace MechKit.UI
                 ExcludeToolbox = true,
                 DetectVendorParts = settings.DetectVendorParts,
                 ExcludeSuppressed = true,
-                ReadCustomProperties = settings.PartListReadProperties
+                ReadCustomProperties = settings.BomUsePropertyFields && settings.PartListReadProperties
             };
 
             options.Naming = NamingOptionsFactory.FromSettings(settings);
@@ -377,6 +379,7 @@ namespace MechKit.UI
                 RowCount = 6,
                 BackColor = Theme.Canvas
             };
+            _actionLayout = layout;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
@@ -414,6 +417,41 @@ namespace MechKit.UI
 
             panel.Controls.Add(layout);
             return panel;
+        }
+
+        /// <summary>
+        /// 命名规则保存后重建“前缀 / 中间名”快捷按钮，
+        /// 让任务面板与 MechKit 选项卡保持一致。
+        /// </summary>
+        public void RefreshNamingShortcuts()
+        {
+            if (IsDisposed || _actionLayout == null || _actionLayout.IsDisposed)
+            {
+                return;
+            }
+
+            _actionLayout.SuspendLayout();
+            try
+            {
+                ReplaceActionRow(3, BuildPrefixRow());
+                ReplaceActionRow(4, BuildMiddleNameRow());
+            }
+            finally
+            {
+                _actionLayout.ResumeLayout(true);
+            }
+        }
+
+        private void ReplaceActionRow(int row, Control replacement)
+        {
+            var existing = _actionLayout.GetControlFromPosition(0, row);
+            if (existing != null)
+            {
+                _actionLayout.Controls.Remove(existing);
+                existing.Dispose();
+            }
+
+            _actionLayout.Controls.Add(replacement, 0, row);
         }
 
         /// <summary>

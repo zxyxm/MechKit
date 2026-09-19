@@ -455,7 +455,7 @@ namespace MechKit.Features
         private static string WriteReport(BatchExportReport report, string outputFolder)
         {
             var path = Path.Combine(outputFolder,
-                string.Format("导出报告_{0:yyyyMMdd_HHmmss}.csv", DateTime.Now));
+                string.Format("导出报告-{0:yyyyMMdd-HHmmss}.csv", DateTime.Now));
 
             var builder = new StringBuilder();
             builder.AppendLine("源文件,目标文件,结果,说明");

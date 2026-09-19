@@ -57,6 +57,7 @@ namespace MechKit.Harness
             buttons.Controls.Add(CreateButton("加工件命名规则", delegate { Execute("加工件命名规则"); }));
             buttons.Controls.Add(CreateButton("标准件前缀", delegate { Execute("标准件前缀"); }));
             buttons.Controls.Add(CreateButton("批量导出", delegate { Execute("批量导出"); }));
+            buttons.Controls.Add(CreateButton("导出配置", delegate { Execute("导出配置"); }));
             buttons.Controls.Add(CreateButton("设置", delegate { Execute("设置"); }));
             buttons.Controls.Add(CreateButton("关于", delegate { Execute("关于"); }));
             buttons.Controls.Add(CreateButton("任务面板", delegate { ShowTaskPane(); }));
@@ -152,6 +153,19 @@ namespace MechKit.Harness
                 return;
             }
 
+            if (command.StartsWith("加工二级:", StringComparison.Ordinal) ||
+                command.StartsWith("加工三级:", StringComparison.Ordinal))
+            {
+                Log.Info("[harness] 加工件分级命名需要在 SOLIDWORKS 装配体中选择组件后执行。");
+                return;
+            }
+
+            if (command.StartsWith("参考件:", StringComparison.Ordinal))
+            {
+                _host.ApplyPrefix("参考", false);
+                return;
+            }
+
             switch (command)
             {
                 case "生成BOM":
@@ -175,6 +189,9 @@ namespace MechKit.Harness
                 case "工具箱面板":
                     ShowTaskPane();
                     break;
+                case "导出配置":
+                    ExportConfigurationToDesktop();
+                    break;
                 case "设置":
                     Show(new SettingsForm(_host));
                     break;
@@ -182,6 +199,17 @@ namespace MechKit.Harness
                     Show(new AboutForm(_host));
                     break;
             }
+        }
+
+        private void ExportConfigurationToDesktop()
+        {
+            _host.Settings.Save();
+            string targetFile;
+            string message;
+            var ok = _host.Settings.ExportPortableToDesktop(out targetFile, out message);
+            Log.Info("[harness] " + message);
+            MessageBox.Show(this, message, AddinConstants.Title,
+                MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
         }
 
         private void ShowTaskPane()
@@ -315,6 +343,37 @@ namespace MechKit.Harness
             Log.Info("[harness] BOM 预览窗口图片已保存：" + target);
         }
 
+        public void SaveAuxiliaryPreview(string path, string kind)
+        {
+            Form preview;
+            switch ((kind ?? string.Empty).ToLowerInvariant())
+            {
+                case "export": preview = new BatchExportForm(_host); break;
+                case "property": preview = new PropertyToolForm(_host); break;
+                case "about": preview = new AboutForm(_host); break;
+                default: throw new ArgumentException("未知的窗口预览类型：" + kind);
+            }
+
+            var target = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using (preview)
+            {
+                preview.Show(this);
+                Application.DoEvents();
+                using (var bitmap = new Bitmap(preview.ClientSize.Width, preview.ClientSize.Height))
+                {
+                    preview.DrawToBitmap(bitmap, preview.ClientRectangle);
+                    bitmap.Save(target, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                preview.Close();
+            }
+        }
+
         /// <summary>直接打开指定窗口，便于命令行预览：--settings / --partlist / --export / --naming / --standard</summary>
         public void OpenNamed(string name)
         {
@@ -421,6 +480,19 @@ namespace MechKit.Harness
                     form.Shown += delegate
                     {
                         form.SavePartListPreview(imagePath);
+                        form.Close();
+                    };
+                }
+                else if (arg.StartsWith("--export-image=", StringComparison.OrdinalIgnoreCase) ||
+                         arg.StartsWith("--property-image=", StringComparison.OrdinalIgnoreCase) ||
+                         arg.StartsWith("--about-image=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var separator = arg.IndexOf("-image=", StringComparison.OrdinalIgnoreCase);
+                    var kind = arg.Substring(2, separator - 2);
+                    var imagePath = arg.Substring(separator + 7).Trim().Trim('"');
+                    form.Shown += delegate
+                    {
+                        form.SaveAuxiliaryPreview(imagePath, kind);
                         form.Close();
                     };
                 }

@@ -15,6 +15,9 @@ param(
 
     [string] $OutputRoot,
 
+    [ValidateSet('Auto', 'None', 'Patch', 'Minor', 'Major')]
+    [string] $VersionLevel = 'Auto',
+
     # Also refresh the source folder from this working copy
     [switch] $IncludeSource
 )
@@ -25,6 +28,12 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
 $manifestPath = Join-Path $repoRoot 'installer\dist-manifest.json'
 $manifest = (Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8) | ConvertFrom-Json
+
+# Determine the release version before compiling. The state snapshot is only
+# committed after the complete package succeeds, so a failed build cannot bump twice.
+$versionTool = Join-Path $repoRoot 'tools\Update-Version.ps1'
+$versionResult = & $versionTool -Level $VersionLevel -RepoRoot $repoRoot
+$versionResult | ForEach-Object { Write-Host $_ }
 
 $msbuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
 if (-not (Test-Path $msbuild)) {
@@ -43,22 +52,34 @@ Write-Host '=== build add-in ==='
 
 $addinDll = Join-Path $repoRoot "src\MechKit\bin\$Configuration\MechKit.dll"
 if (-not (Test-Path $addinDll)) { throw "Missing $addinDll" }
+$version = [System.Reflection.AssemblyName]::GetAssemblyName($addinDll).Version
+$versionText = '{0}.{1}.{2}' -f $version.Major, $version.Minor, $version.Build
 
 $setupProject = Join-Path $repoRoot 'installer\MechKitSetup\MechKitSetup.csproj'
 $swFolder = (Get-ItemProperty 'HKLM:\SOFTWARE\SolidWorks\SOLIDWORKS 2024\Setup').'SolidWorks Folder'
 if ($SolidWorksPath) { $swFolder = $SolidWorksPath }
 
 Write-Host ''
-Write-Host '=== build installer ==='
-& $msbuild $setupProject /nologo /restore /v:minimal "/p:Configuration=$Configuration" "/p:SwDir=$swFolder"
+Write-Host "=== build installer v$versionText ==="
+$setupArguments = @(
+    $setupProject,
+    '/nologo', '/restore', '/t:Rebuild', '/v:minimal',
+    "/p:Configuration=$Configuration",
+    "/p:SwDir=$swFolder"
+)
+& $msbuild @setupArguments
 if ($LASTEXITCODE -ne 0) { throw "Installer build failed ($LASTEXITCODE)." }
 
 $setupExe = Join-Path $repoRoot "installer\MechKitSetup\bin\$Configuration\MechKitSetup.exe"
 if (-not (Test-Path $setupExe)) { throw "Missing $setupExe" }
+$setupVersion = [System.Reflection.AssemblyName]::GetAssemblyName($setupExe).Version
+if ($setupVersion.Major -ne $version.Major -or $setupVersion.Minor -ne $version.Minor -or
+    $setupVersion.Build -ne $version.Build) {
+    throw "Installer version $setupVersion does not match add-in version $version."
+}
 
 # ------------------------------------------------------------- 2. assemble
-$version = [System.Reflection.AssemblyName]::GetAssemblyName($addinDll).Version
-$folderName = '{0} V{1}.{2}' -f $manifest.folderPrefix, $version.Major, $version.Minor
+$folderName = '{0} V{1}.{2}.{3}' -f $manifest.folderPrefix, $version.Major, $version.Minor, $version.Build
 
 if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'dist' }
 $target = Join-Path $OutputRoot $folderName
@@ -209,3 +230,6 @@ Get-ChildItem -LiteralPath $target -Recurse | ForEach-Object {
 
 Write-Host ''
 Write-Host "Output: $target"
+
+# Successful package: this becomes the comparison baseline for the next release.
+& $versionTool -Level None -CommitState -RepoRoot $repoRoot | ForEach-Object { Write-Host $_ }

@@ -181,7 +181,7 @@
       "layout": "date,material,name,serial,extension",
       "bomNameFlags": "0|0|1|1|1",
       "file": "C:\\work\\20260919_6061_板1_A_X.sldprt",
-      "expectedName": "板1_A_X",
+      "expectedName": "板1-A-X",
       "expectedMaterial": "6061",
       "expectedLayout": "date,material,name,serial,extension",
       "isMachined": true
@@ -191,7 +191,7 @@
       "layout": "date,material,name,version,assemblynote",
       "bomNameFlags": "0|0|1|1|1",
       "file": "C:\\work\\20260919_6061_板1_A_X.sldprt",
-      "expectedName": "板1_A_X",
+      "expectedName": "板1-A-X",
       "expectedMaterial": "6061",
       "expectedLayout": "date,material,name,serial,extension",
       "isMachined": true
@@ -201,30 +201,34 @@
     {
       "name": "aluminum cnc underscore",
       "file": "C:\\work\\20260919_6061_板1.sldprt",
-      "rules": "6061=6061-cnc\n5052=5052-钣金\n304=304-cnc\n轴304=304-车铣\n淘宝=--追加工",
+      "rules": "6061=6061|cnc|本色氧化\n5052=5052|钣金|白色细砂纹烤漆\n304=304|cnc|\n轴304=304|车铣|\n淘宝=-|追加工|",
       "expectedMaterial": "6061",
-      "expectedProcess": "cnc"
+      "expectedProcess": "cnc",
+      "expectedSurface": "本色氧化"
     },
     {
       "name": "sheet metal hyphen",
       "file": "C:\\work\\20260919-5052-盖子.sldprt",
-      "rules": "6061=6061-cnc\n5052=5052-钣金\n304=304-cnc\n轴304=304-车铣\n淘宝=--追加工",
+      "rules": "6061=6061|cnc|本色氧化\n5052=5052|钣金|白色细砂纹烤漆\n304=304|cnc|\n轴304=304|车铣|\n淘宝=-|追加工|",
       "expectedMaterial": "5052",
-      "expectedProcess": "钣金"
+      "expectedProcess": "钣金",
+      "expectedSurface": "白色细砂纹烤漆"
     },
     {
       "name": "shaft 304",
       "file": "C:\\work\\20260919_轴304_传动轴.sldprt",
       "rules": "6061=6061-cnc\n5052=5052-钣金\n304=304-cnc\n轴304=304-车铣\n淘宝=--追加工",
       "expectedMaterial": "304",
-      "expectedProcess": "车铣"
+      "expectedProcess": "车铣",
+      "expectedSurface": ""
     },
     {
       "name": "purchased rework",
       "file": "C:\\work\\20260919_淘宝_支架.sldprt",
       "rules": "6061=6061-cnc\n5052=5052-钣金\n304=304-cnc\n轴304=304-车铣\n淘宝=--追加工",
       "expectedMaterial": "-",
-      "expectedProcess": "追加工"
+      "expectedProcess": "追加工",
+      "expectedSurface": ""
     }
   ],
   "componentRenameCases": [
@@ -236,7 +240,7 @@
       "partName": "新盖板",
       "material": "6061",
       "process": "cnc",
-      "expected": "20260919_6061_新盖板_A_X"
+      "expected": "20260919-6061-新盖板-A-X"
     },
     {
       "name": "machined hyphen preserves separator",
@@ -257,7 +261,18 @@
       "partName": "新板_B_Y",
       "material": "6061",
       "process": "cnc",
-      "expected": "20260919_6061_新板_B_Y"
+      "expected": "20260919-6061-新板-B-Y"
+    },
+    {
+      "name": "machined material and process reverse to preset token",
+      "classification": "加工件",
+      "layout": "date,material,name,serial,extension",
+      "file": "C:\\work\\20260919-6061-轴套.sldprt",
+      "partName": "轴套",
+      "material": "304",
+      "process": "车铣",
+      "rules": "6061=6061-cnc\n304=304-cnc\n轴304=304-车铣",
+      "expected": "20260919-轴304-轴套"
     },
     {
       "name": "standard prefix middle model",
@@ -267,7 +282,7 @@
       "partName": "电机",
       "material": "MG996",
       "process": "代理",
-      "expected": "代理_电机_MG996"
+      "expected": "代理-电机-MG996"
     }
   ],
   "bomCases": [
@@ -307,6 +322,14 @@
       "name": "standard part (electric)",
       "part": "电气_接近开关",
       "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "标准件",
+      "kindCode": "STANDARD"
+    },
+    {
+      "name": "standard part (new hyphen format)",
+      "part": "代理-电机-MG996",
+      "prefixes": "代理,电机,电气,淘宝",
       "inBom": true,
       "kind": "标准件",
       "kindCode": "STANDARD"
@@ -358,6 +381,48 @@
       "inBom": true,
       "kind": "标准件",
       "kindCode": "STANDARD"
+    },
+    {
+      "name": "reference part is excluded even if prefix was configured",
+      "part": "参考-上盖板",
+      "prefixes": "电机,电气,淘宝,参考",
+      "inBom": false,
+      "kind": "参考件",
+      "kindCode": ""
+    }
+  ],
+  "descriptionRoundTrip": {
+    "names": [ "五金", "气动", "传动" ],
+    "values": [ "", "气管接头等", "直线导轨和直线模组和滚珠丝杆等" ]
+  },
+  "materialPresetTableCases": [
+    {
+      "name": "pipe format rows",
+      "rules": "6061=6061|cnc|本色氧化\n5052=5052|钣金|白色细砂纹烤漆\n304=304|cnc|\n淘宝=-|追加工|",
+      "expectedRows": [
+        "6061|6061|cnc|本色氧化",
+        "5052|5052|钣金|白色细砂纹烤漆",
+        "304|304|cnc|",
+        "淘宝|-|追加工|"
+      ],
+      "expectedLines": "6061=6061|cnc|本色氧化\n5052=5052|钣金|白色细砂纹烤漆\n304=304|cnc|\n淘宝=-|追加工|"
+    },
+    {
+      "name": "legacy dash format rows",
+      "rules": "pmma=pmma-激光切割",
+      "expectedRows": [
+        "pmma|pmma|激光切割|"
+      ],
+      "expectedLines": "pmma=pmma|激光切割|"
+    },
+    {
+      "name": "material segment filled from material column",
+      "rules": "6061=6061||\n淘宝=-|追加工|",
+      "expectedRows": [
+        "6061|6061||",
+        "淘宝|-|追加工|"
+      ],
+      "expectedLines": "6061=6061||\n淘宝=-|追加工|"
     }
   ]
 }

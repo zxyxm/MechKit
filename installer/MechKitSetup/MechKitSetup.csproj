@@ -16,7 +16,10 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <Product>MechKit 安装程序</Product>
     <AssemblyTitle>MechKit 安装程序</AssemblyTitle>
-    <Version>0.1.0</Version>
+    <MechKitVersion Condition="'$(MechKitVersion)' == ''">0.21.0</MechKitVersion>
+    <Version>$(MechKitVersion)</Version>
+    <AssemblyVersion>$(MechKitVersion).0</AssemblyVersion>
+    <FileVersion>$(MechKitVersion).0</FileVersion>
   </PropertyGroup>
 
 </Project>

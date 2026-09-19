@@ -73,6 +73,10 @@ $resolveMaterial = $namingType.GetMethod('ResolveMaterial')
 $resolveSegmentMaterial = $namingType.GetMethod('ResolveMaterialFromSegments')
 $matchesBomPattern = $namingType.GetMethod('MatchesBomPattern')
 $startsWithDate = $namingType.GetMethod('StartsWithDate')
+$setLeadingDate = $namingType.GetMethod('SetLeadingDate')
+$insertTokenAfterDateOrStart = $namingType.GetMethod('InsertTokenAfterDateOrStart')
+$insertReferenceMaterial = $namingType.GetMethod('InsertReferenceMaterialAfterDate')
+$setReferenceMaterial = $namingType.GetMethod('SetReferenceMaterialAfterDate')
 $prefixProperty = $namingType.GetProperty('BomPrefixes')
 $requirePatternProperty = $namingType.GetProperty('RequireBomPattern')
 $machinedSegmentsProperty = $namingType.GetProperty('MachinedSegments')
@@ -85,6 +89,7 @@ $isMachinedName = $namingType.GetMethod('IsMachinedName')
 $presetProperty = $namingType.GetProperty('MachinedMaterialProcessPresets')
 $parsePresets = $factoryType.GetMethod('ParseMaterialProcessPresets')
 $resolvePreset = $namingType.GetMethod('TryResolveMachinedMaterialProcess')
+$resolvePresetSurface = $namingType.GetMethod('TryResolveMachinedMaterialProcessSurface')
 $buildComponentName = $partListServiceType.GetMethod('BuildComponentBaseName',
     [System.Reflection.BindingFlags]'Static, NonPublic')
 
@@ -237,14 +242,60 @@ foreach ($case in $cases.presetCases) {
     $presets = $parsePresets.Invoke($null, @((Get-Field $case 'rules')))
     $presetProperty.SetValue($options, $presets)
 
-    $arguments = New-Object 'object[]' 3
+    $arguments = New-Object 'object[]' 4
     $arguments[0] = Get-Field $case 'file'
     $arguments[1] = ''
     $arguments[2] = ''
-    $matched = [bool] $resolvePreset.Invoke($options, $arguments)
+    $arguments[3] = ''
+    $matched = [bool] $resolvePresetSurface.Invoke($options, $arguments)
     Assert-Equal ("preset matched / " + $case.name) 'True' ([string] $matched)
     Assert-Equal ("preset material / " + $case.name) $case.expectedMaterial ([string] $arguments[1])
     Assert-Equal ("preset process / " + $case.name) $case.expectedProcess ([string] $arguments[2])
+    Assert-Equal ("preset surface / " + $case.name) ([string](Get-Field $case 'expectedSurface')) ([string] $arguments[3])
+}
+
+# Remarks (prefix / second-level field notes) must survive the key=value round trip
+$serializeDescriptions = $factoryType.GetMethod('SerializePrefixDescriptions')
+$parseDescriptions = $factoryType.GetMethod('ParsePrefixDescriptions')
+$remark = $cases.descriptionRoundTrip
+$remarkNames = [string[]] $remark.names
+$remarkValues = [string[]] $remark.values
+$remarkBag = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+for ($remarkIndex = 0; $remarkIndex -lt $remarkNames.Count; $remarkIndex++) {
+    $remarkBag[$remarkNames[$remarkIndex]] = $remarkValues[$remarkIndex]
+}
+$serializeArguments = New-Object 'object[]' 2
+$serializeArguments.SetValue($remarkNames, 0)
+$serializeArguments.SetValue($remarkBag, 1)
+$remarkText = $serializeDescriptions.Invoke($null, $serializeArguments)
+$remarkParsed = $parseDescriptions.Invoke($null, @($remarkText))
+for ($remarkIndex = 0; $remarkIndex -lt $remarkNames.Count; $remarkIndex++) {
+    Assert-Equal ("remark round trip / " + $remarkNames[$remarkIndex]) `
+        $remarkValues[$remarkIndex] ([string] $remarkParsed[$remarkNames[$remarkIndex]])
+}
+
+# Material preset editor: the stored text must parse into the table rows
+# (material segment + material + process + surface) without losing anything.
+$namingFormType = $assembly.GetType('MechKit.UI.NamingRuleForm', $false)
+if (-not $namingFormType) { throw 'Unexpected assembly layout: NamingRuleForm is missing.' }
+$parsePresetRows = $namingFormType.GetMethod('ParseMaterialPresetLines',
+    [System.Reflection.BindingFlags]'Static, NonPublic')
+foreach ($tableCase in $cases.materialPresetTableCases) {
+    $rows = $parsePresetRows.Invoke($null, @((Get-Field $tableCase 'rules')))
+    $actualRows = @()
+    foreach ($row in $rows) { $actualRows += ($row -join '|') }
+    Assert-Equal ("material preset rows / " + $tableCase.name) `
+        (($tableCase.expectedRows) -join "`n") ($actualRows -join "`n")
+
+    # The editor writes the rows back with the same text format, so a table edit
+    # round-trips through the stored text without losing the material segment.
+    $buildPresetLines = $namingFormType.GetMethod('BuildMaterialPresetLines',
+        [System.Reflection.BindingFlags]'Static, NonPublic')
+    $buildArguments = New-Object 'object[]' 1
+    $buildArguments[0] = $rows
+    $lines = $buildPresetLines.Invoke($null, $buildArguments)
+    Assert-Equal ("material preset lines / " + $tableCase.name) `
+        ([string](Get-Field $tableCase 'expectedLines')) (@($lines) -join "`n")
 }
 
 # A BOM name edit changes only the assembly component instance label. The
@@ -256,6 +307,10 @@ foreach ($case in $cases.componentRenameCases) {
     $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
     $segments = $parseMachinedSegments.Invoke($null, @((Get-Field $case 'layout')))
     $machinedSegmentsProperty.SetValue($options, $segments)
+    $componentRules = Get-Field $case 'rules'
+    if ($componentRules) {
+        $presetProperty.SetValue($options, $parsePresets.Invoke($null, @($componentRules)))
+    }
     $flagArguments = New-Object 'object[]' 2
     $flagArguments[0] = [string](Get-Field $case 'bomNameFlags')
     $flagArguments[1] = $segments
@@ -271,6 +326,54 @@ foreach ($case in $cases.componentRenameCases) {
 
     $actual = $buildComponentName.Invoke($null, @($row, $options))
     Assert-Equal ("component name / " + $case.name) $case.expected $actual
+}
+
+# Quick command: insert the 6061 reference material immediately after a valid
+# leading date, normalize legacy underscores, and never duplicate the material.
+foreach ($case in @(
+    @('date and name', '20260919-panel', '20260919-6061-panel'),
+    @('legacy underscore', '20260919_panel', '20260919-6061-panel'),
+    @('already inserted', '20260919-6061-panel', '20260919-6061-panel'),
+    @('date only', '20260919', '20260919-6061-'),
+    @('no date', 'panel', 'panel')
+)) {
+    $actual = $insertReferenceMaterial.Invoke($null, @($case[1], '6061'))
+    Assert-Equal ("reference material / " + $case[0]) $case[2] $actual
+}
+
+$knownMaterials = [string[]]@('6061', '5052', '304')
+$setArguments = New-Object 'object[]' 3
+$setArguments[0] = '20260919-uppercover'
+$setArguments[1] = '6061'
+$setArguments[2] = $knownMaterials
+Assert-Equal 'material shortcut inserts after date' '20260919-6061-uppercover' `
+    ($setReferenceMaterial.Invoke($null, $setArguments))
+$setArguments[0] = '20260919-5052-uppercover'
+Assert-Equal 'material shortcut replaces known material' '20260919-6061-uppercover' `
+    ($setReferenceMaterial.Invoke($null, $setArguments))
+
+# Time is always the first segment. Assembly follows a leading date, or becomes
+# the first segment when no date exists. Repeated clicks never duplicate tokens.
+foreach ($case in @(
+    @('time inserts first', 'uppercover-A', '20260919-uppercover-A'),
+    @('time keeps assembly behind it', 'assembly-uppercover-A', '20260919-assembly-uppercover-A'),
+    @('time repairs old reversed order', 'assembly-20260801-uppercover-A', '20260919-assembly-uppercover-A'),
+    @('time replaces old leading date', '20260801-uppercover-A', '20260919-uppercover-A'),
+    @('time replaces date-only name', '20260801', '20260919')
+)) {
+    $actual = $setLeadingDate.Invoke($null, @($case[1], '20260919'))
+    Assert-Equal ("time shortcut / " + $case[0]) $case[2] $actual
+}
+
+foreach ($case in @(
+    @('assembly follows date', '20260919-uppercover-A', '20260919-assembly-uppercover-A'),
+    @('assembly inserts first without date', 'uppercover-A', 'assembly-uppercover-A'),
+    @('assembly remains single', '20260919-assembly-uppercover-A', '20260919-assembly-uppercover-A'),
+    @('assembly moves behind date', '20260919-uppercover-assembly-A', '20260919-assembly-uppercover-A'),
+    @('assembly normalizes underscores', '20260919_uppercover_A', '20260919-assembly-uppercover-A')
+)) {
+    $actual = $insertTokenAfterDateOrStart.Invoke($null, @($case[1], 'assembly'))
+    Assert-Equal ("assembly shortcut / " + $case[0]) $case[2] $actual
 }
 
 # BOM rule: machined parts (date first) and standard parts (prefix first) are

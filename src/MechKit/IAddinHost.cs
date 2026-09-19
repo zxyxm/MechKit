@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using SolidWorks.Interop.sldworks;
 using MechKit.Core;
 
@@ -18,11 +19,24 @@ namespace MechKit
 
         void ShowBatchExportDialog();
 
+        /// <summary>打开批量导出，并把指定文件预先放进待导出列表（BOM 里勾选的行）。</summary>
+        void ShowBatchExportDialog(IList<string> files);
+
+        /// <summary>
+        /// 告诉插件：BOM 表格里当前选中的是哪些零件文件。
+        /// 之后点选项卡上的快捷按钮（前缀 / 中间名 / 材料…）会直接改这些零件；
+        /// 传空列表表示回到“用 SOLIDWORKS 里的选择”。
+        /// </summary>
+        void SetBomSelectedFiles(IList<string> filePaths);
+
         void GenerateBom();
 
         void ShowPartListDialog();
 
         void ShowSettingsDialog();
+
+        /// <summary>打开设置；tabIndex 0 = BOM 格式，1 = 个人配置。</summary>
+        void ShowSettingsDialog(int tabIndex);
 
         /// <summary>打开命名规则设置（tabIndex 0 = 加工件，1 = 标准件）。</summary>
         void ShowNamingRuleDialog(int tabIndex);

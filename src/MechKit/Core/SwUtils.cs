@@ -113,11 +113,11 @@ namespace MechKit.Core
                 var path = doc.GetPathName();
                 if (!string.IsNullOrEmpty(path))
                 {
-                    return Path.GetFileNameWithoutExtension(path) + "_BOM";
+                    return Path.GetFileNameWithoutExtension(path) + "-BOM";
                 }
 
                 var title = doc.GetTitle();
-                return string.IsNullOrEmpty(title) ? "BOM" : title + "_BOM";
+                return string.IsNullOrEmpty(title) ? "BOM" : title + "-BOM";
             }
             catch
             {

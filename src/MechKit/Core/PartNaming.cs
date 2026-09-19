@@ -65,6 +65,7 @@ namespace MechKit.Core
     {
         public string Material { get; set; }
         public string Process { get; set; }
+        public string SurfaceTreatment { get; set; }
     }
 
     /// <summary>
@@ -80,7 +81,7 @@ namespace MechKit.Core
             Pattern = string.Empty;
             Material = MaterialSource.Model;
             UseNameSegments = false;
-            SegmentSeparator = "_-";
+            SegmentSeparator = "-_";
             NameSegment = -1;
             MaterialSegment = -2;
             MachinedSegments = new[]
@@ -89,10 +90,10 @@ namespace MechKit.Core
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
                 MachinedSegmentKind.Serial,
-                MachinedSegmentKind.Extension
+                MachinedSegmentKind.Custom
             };
-            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty, string.Empty };
-            MachinedSegmentBomNameFlags = new[] { false, false, true, false, false };
+            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty, "安装说明" };
+            MachinedSegmentBomNameFlags = new[] { false, false, true, true, true };
             MachinedMaterialProcessPresets = new Dictionary<string, MaterialProcessPreset>(StringComparer.OrdinalIgnoreCase);
             PartNumberProperties = new[] { "图号", "零件号", "零件代号", "代号", "PartNumber", "Part Number", "Number", "DrawingNo" };
             NameProperties = new[] { "名称", "零件名称", "Description", "Title", "Name" };
@@ -109,7 +110,7 @@ namespace MechKit.Core
 
         /// <summary>
         /// 按分隔符把文件名分段解析名称与材料，例如「20260908_6061_扫码枪安装板」
-        /// 得到 材料 = 6061、名称 = 扫码枪安装板。适合「日期_材料_名称」这类命名习惯。
+        /// 得到 材料 = 6061、名称 = 扫码枪安装板。适合「日期-材料-名称」这类命名习惯。
         /// </summary>
         public bool UseNameSegments { get; set; }
 
@@ -133,13 +134,13 @@ namespace MechKit.Core
         /// <summary>加工件材料段到材料/工艺的映射。</summary>
         public Dictionary<string, MaterialProcessPreset> MachinedMaterialProcessPresets { get; set; }
 
-        /// <summary>BOM 收录用的名称前缀，例如 电机 / 电气 / 淘宝。用下划线分隔各段。</summary>
+        /// <summary>BOM 收录用的名称前缀，例如 电机 / 电气 / 淘宝。新名称用短横线分段。</summary>
         public string[] BomPrefixes { get; set; }
 
         /// <summary>
         /// true = 只收录两类零件：
-        ///   加工件：名称以日期开头，例如 20260908_6061_扫码枪安装板
-        ///   标准件：名称以已知前缀开头，例如 电机_、电气_、淘宝_
+        ///   加工件：名称以日期开头，例如 20260908-6061-扫码枪安装板
+        ///   标准件：名称以已知前缀开头，例如 电机-、电气-、淘宝-
         /// 其余（标准件/焊件的子零件）不进入 BOM。
         /// </summary>
         public bool RequireBomPattern { get; set; }
@@ -158,7 +159,19 @@ namespace MechKit.Core
             }
 
             var fileName = GetFileNameWithoutExtension(name).Trim();
+            if (IsReferenceName(fileName))
+            {
+                return false;
+            }
             return IsMachinedName(fileName) || HasKnownPrefix(FirstSegment(fileName));
+        }
+
+        /// <summary>参考件使用固定“参考-”前缀，并默认排除在正式 BOM 之外。</summary>
+        public static bool IsReferenceName(string fileName)
+        {
+            var cleanName = GetFileNameWithoutExtension(fileName ?? string.Empty).Trim();
+            return string.Equals(FirstSegment(cleanName), "参考",
+                StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>按当前段顺序找到时间段，并用它判断是否为加工件。</summary>
@@ -208,6 +221,135 @@ namespace MechKit.Core
             return separator == '_' || separator == '-' || separator == ' ';
         }
 
+        /// <summary>
+        /// 把指定日期写到文件名最前面。已有首段日期时替换，不重复叠加；
+        /// 旧下划线统一为短横线。
+        /// </summary>
+        public static string SetLeadingDate(string fileName, string date)
+        {
+            var normalized = (fileName ?? string.Empty).Trim().Replace('_', '-').Trim('-');
+            var dateToken = (date ?? string.Empty).Trim().Trim('-', '_');
+            if (normalized.Length == 0 || dateToken.Length == 0)
+            {
+                return normalized;
+            }
+
+            var source = normalized.Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
+            var parts = new List<string>();
+            foreach (var part in source)
+            {
+                // 旧版可能生成“装配-日期-名称”。无论旧日期在什么位置，
+                // 都先移除，再把今天日期唯一地放回最前面。
+                if (!IsDateSegment(part))
+                {
+                    parts.Add(part);
+                }
+            }
+            parts.Insert(0, dateToken);
+            return string.Join("-", parts.ToArray());
+        }
+
+        /// <summary>
+        /// 把“装配”等快捷标记放到首段日期之后；没有首段日期时放到最前面。
+        /// 已存在相同标记时先移除再放到正确位置，避免重复。
+        /// </summary>
+        public static string InsertTokenAfterDateOrStart(string fileName, string token)
+        {
+            var normalized = (fileName ?? string.Empty).Trim().Replace('_', '-').Trim('-');
+            var tokenValue = (token ?? string.Empty).Trim().Trim('-', '_');
+            if (normalized.Length == 0 || tokenValue.Length == 0)
+            {
+                return normalized;
+            }
+
+            var source = normalized.Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
+            var parts = new List<string>();
+            foreach (var part in source)
+            {
+                if (!string.Equals(part, tokenValue, StringComparison.OrdinalIgnoreCase))
+                {
+                    parts.Add(part);
+                }
+            }
+
+            var insertIndex = parts.Count > 0 && IsDateSegment(parts[0]) ? 1 : 0;
+            parts.Insert(insertIndex, tokenValue);
+            return string.Join("-", parts.ToArray());
+        }
+
+        /// <summary>
+        /// 在合法日期首段之后插入参考材料，例如
+        /// 20260919-安装板 → 20260919-6061-安装板。
+        /// 已存在相同材料段时保持不变；旧下划线会统一为短横线。
+        /// </summary>
+        public static string InsertReferenceMaterialAfterDate(string fileName, string material)
+        {
+            return SetReferenceMaterialAfterDate(fileName, material, new[] { material });
+        }
+
+        /// <summary>
+        /// 加工件材料快捷按钮专用：材料始终位于日期后的第一段。
+        /// 第二段是已知材料时进行替换；否则把材料插入日期与原名称之间。
+        /// </summary>
+        public static string SetReferenceMaterialAfterDate(string fileName, string material,
+            IEnumerable<string> knownMaterials)
+        {
+            var normalized = (fileName ?? string.Empty).Trim().Replace('_', '-');
+            var materialToken = (material ?? string.Empty).Trim().Trim('-', '_');
+            if (normalized.Length == 0 || materialToken.Length == 0)
+            {
+                return normalized;
+            }
+
+            var separatorIndex = normalized.IndexOf('-');
+            var dateToken = separatorIndex < 0
+                ? normalized
+                : normalized.Substring(0, separatorIndex);
+
+            DateTime parsed;
+            if (!DateTime.TryParseExact(dateToken,
+                    new[] { "yyyyMMdd", "yyyyMM", "yyMMdd" },
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out parsed))
+            {
+                return normalized;
+            }
+
+            var parts = new List<string>(normalized.Split(new[] { '-' },
+                StringSplitOptions.RemoveEmptyEntries));
+            if (parts.Count == 0)
+            {
+                return normalized;
+            }
+
+            var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (knownMaterials != null)
+            {
+                foreach (var candidate in knownMaterials)
+                {
+                    var token = (candidate ?? string.Empty).Trim().Trim('-', '_');
+                    if (token.Length > 0)
+                    {
+                        known.Add(token);
+                    }
+                }
+            }
+            known.Add(materialToken);
+
+            if (parts.Count > 1 && known.Contains(parts[1]))
+            {
+                parts[1] = materialToken;
+            }
+            else
+            {
+                parts.Insert(1, materialToken);
+            }
+
+            // 保持旧接口“只有日期时末尾带分隔符”的兼容行为。
+            var result = string.Join("-", parts.ToArray());
+            return separatorIndex < 0 ? result + "-" : result;
+        }
+
         private static bool IsDateSegment(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -232,7 +374,7 @@ namespace MechKit.Core
             return true;
         }
 
-        /// <summary>取名称的第一段（下划线分隔）。</summary>
+        /// <summary>取名称的第一段（兼容短横线和旧下划线）。</summary>
         public static string FirstSegment(string fileName)
         {
             if (string.IsNullOrEmpty(fileName))
@@ -240,7 +382,9 @@ namespace MechKit.Core
                 return string.Empty;
             }
 
-            var index = fileName.IndexOf('_');
+            var underscore = fileName.IndexOf('_');
+            var hyphen = fileName.IndexOf('-');
+            var index = underscore < 0 ? hyphen : (hyphen < 0 ? underscore : Math.Min(underscore, hyphen));
             return (index < 0 ? fileName : fileName.Substring(0, index)).Trim();
         }
 
@@ -415,7 +559,7 @@ namespace MechKit.Core
 
             if (values.Count > 0)
             {
-                return string.Join("_", values.ToArray());
+                return string.Join("-", values.ToArray());
             }
 
             var nameIndex = IndexOfSegment(MachinedSegmentKind.Name);
@@ -425,8 +569,18 @@ namespace MechKit.Core
         /// <summary>按加工件第2段预设同时解析材料和工艺。</summary>
         public bool TryResolveMachinedMaterialProcess(string filePath, out string material, out string process)
         {
+            string surfaceTreatment;
+            return TryResolveMachinedMaterialProcessSurface(filePath, out material, out process,
+                out surfaceTreatment);
+        }
+
+        /// <summary>按加工件材料段预设同时解析材料、工艺和表面处理。</summary>
+        public bool TryResolveMachinedMaterialProcessSurface(string filePath, out string material,
+            out string process, out string surfaceTreatment)
+        {
             material = string.Empty;
             process = string.Empty;
+            surfaceTreatment = string.Empty;
             if (!UseNameSegments || MachinedMaterialProcessPresets == null)
             {
                 return false;
@@ -448,7 +602,107 @@ namespace MechKit.Core
 
             material = preset.Material ?? string.Empty;
             process = preset.Process ?? string.Empty;
+            surfaceTreatment = preset.SurfaceTreatment ?? string.Empty;
             return true;
+        }
+
+        public string ResolveMachinedSegment(string filePath, MachinedSegmentKind kind)
+        {
+            var index = IndexOfSegment(kind);
+            return index < 0 ? string.Empty : PickSegment(GetFileNameWithoutExtension(filePath), index + 1);
+        }
+
+        public string ResolveMachinedNamedSegment(string filePath, params string[] candidateLabels)
+        {
+            if (MachinedSegments == null || MachinedSegmentLabels == null || candidateLabels == null)
+            {
+                return string.Empty;
+            }
+
+            for (var index = 0; index < MachinedSegments.Length && index < MachinedSegmentLabels.Length; index++)
+            {
+                var label = (MachinedSegmentLabels[index] ?? string.Empty).Trim();
+                foreach (var candidate in candidateLabels)
+                {
+                    if (string.Equals(label, (candidate ?? string.Empty).Trim(),
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return PickSegment(GetFileNameWithoutExtension(filePath), index + 1);
+                    }
+                }
+            }
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// 按当前加工件分段规则写入某一级字段。未按日期规则命名的旧文件会先转换成
+        /// “当天日期-材料-原名称…”结构，供选项卡二级/三级快捷按钮安全使用。
+        /// </summary>
+        public string SetMachinedSegmentValue(string sourceName, MachinedSegmentKind kind,
+            string newValue)
+        {
+            var value = (newValue ?? string.Empty).Trim().Trim('-', '_');
+            var normalized = GetFileNameWithoutExtension(sourceName).Trim().Replace('_', '-');
+            if (value.Length == 0 || MachinedSegments == null || MachinedSegments.Length == 0)
+            {
+                return normalized;
+            }
+
+            var targetIndex = IndexOfSegment(kind);
+            if (targetIndex < 0)
+            {
+                return normalized;
+            }
+
+            string[] parts;
+            if (IsMachinedName(normalized))
+            {
+                parts = SplitSegments(normalized);
+
+                // 兼容尚未填写材料的简写名称：日期-零件名。
+                // 当前规则通常是“日期-材料-零件名…”，此时第二段实际是零件名，
+                // 写材料必须在日期后插入新段，不能把原零件名覆盖掉。
+                var nameIndex = IndexOfSegment(MachinedSegmentKind.Name);
+                if (kind == MachinedSegmentKind.Material && nameIndex > targetIndex &&
+                    parts.Length > targetIndex && parts.Length <= nameIndex)
+                {
+                    var expanded = new List<string>(parts);
+                    expanded.Insert(targetIndex, string.Empty);
+                    parts = expanded.ToArray();
+                }
+            }
+            else
+            {
+                parts = new string[MachinedSegments.Length];
+                var dateIndex = IndexOfSegment(MachinedSegmentKind.Date);
+                if (dateIndex >= 0)
+                {
+                    parts[dateIndex] = DateTime.Now.ToString("yyyyMMdd");
+                }
+                var nameIndex = IndexOfSegment(MachinedSegmentKind.Name);
+                if (nameIndex >= 0 && normalized.Length > 0)
+                {
+                    parts[nameIndex] = normalized.Trim('-');
+                }
+            }
+
+            if (parts.Length < MachinedSegments.Length)
+            {
+                Array.Resize(ref parts, MachinedSegments.Length);
+            }
+            parts[targetIndex] = value;
+
+            var last = parts.Length - 1;
+            while (last > 0 && string.IsNullOrWhiteSpace(parts[last]))
+            {
+                last--;
+            }
+            var result = new string[last + 1];
+            for (var index = 0; index <= last; index++)
+            {
+                result[index] = (parts[index] ?? string.Empty).Trim();
+            }
+            return string.Join("-", result);
         }
 
         private int IndexOfSegment(MachinedSegmentKind kind)
@@ -529,7 +783,7 @@ namespace MechKit.Core
                 return new string[0];
             }
 
-            var separator = string.IsNullOrEmpty(SegmentSeparator) ? '_' : SegmentSeparator[0];
+            var separator = string.IsNullOrEmpty(SegmentSeparator) ? '-' : SegmentSeparator[0];
             var digits = 0;
             while (digits < fileName.Length && char.IsDigit(fileName[digits]))
             {

@@ -1,0 +1,51 @@
+{
+  "layout": "date,name,material,serial,custom",
+  "labels": "||||安装说明",
+  "flags": "0|1|0|1|1",
+  "sample": "20260919-板1-6061-B-X.SLDPRT",
+  "expectedCompositeName": "板1-B-X",
+  "level2Value": "5052",
+  "expectedAfterLevel2": "20260919-板1-5052-B-X",
+  "level3Value": "侧板",
+  "expectedAfterLevel3": "20260919-侧板-5052-B-X",
+  "semanticFields": {
+    "rule:name": "segment:2",
+    "rule:material": "segment:3",
+    "rule:version": "segment:4",
+    "rule:assemblynote": "segment:5"
+  },
+  "expectedValues": {
+    "rule:name": "板1",
+    "rule:material": "6061",
+    "rule:version": "B",
+    "rule:assemblynote": "X"
+  },
+  "expectedExpandedMaterial": "6061",
+  "expectedExpandedProcess": "cnc",
+  "expectedExpandedSurface": "本色氧化",
+  "columnOrder": "name,material,process,surface,quantity,assemblynote,remark,sequence,location,classification",
+  "nameHeader": "零件名称测试",
+  "expectedFirstColumn": "name",
+  "expectedFirstHeader": "零件名称测试",
+  "subassemblyScope": [
+    { "name": "20260425_装配-水箱总装", "expect": "Expand" },
+    { "name": "20260425-装配-测试组件", "expect": "Expand" },
+    { "name": "20260919-6061-安装板", "expect": "Expand" },
+    { "name": "淘宝-气动-TN20X20S(0)+()", "expect": "TreatAsStandard" },
+    { "name": "淘宝-五金-弹性管夹5", "expect": "TreatAsStandard" },
+    { "name": "代理-直线导轨-盖板", "expect": "TreatAsStandard" },
+    { "name": "淘宝追加工-机架总成", "expect": "TreatAsStandard" },
+    { "name": "P80-02-01-01-0治疗通道组件", "expect": "Ignore" },
+    { "name": "气密性二代", "expect": "Ignore" },
+    { "name": "参考-测试治具", "expect": "Ignore" }
+  ],
+  "rowDisposition": [
+    { "name": "20260919-6061-密封水槽", "expect": "Matched" },
+    { "name": "淘宝-电气-430a", "expect": "Matched" },
+    { "name": "代理-直线导轨-盖板", "expect": "Matched" },
+    { "name": "参考-测试治具", "expect": "Reference" },
+    { "name": "P80-02-01-01-0治疗通道组件", "expect": "Unmatched" },
+    { "name": "气密性二代", "expect": "Unmatched" },
+    { "name": "GPR20006L", "expect": "Unmatched" }
+  ]
+}
