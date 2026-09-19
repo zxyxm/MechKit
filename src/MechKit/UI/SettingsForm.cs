@@ -497,9 +497,28 @@ namespace MechKit.UI
 
             var exportButton = Theme.CreatePrimaryButton("导出我的设置…");
             exportButton.Width = 150;
-            exportButton.Dock = DockStyle.Left;
             exportButton.Click += delegate { Export(); };
-            layout.Controls.Add(exportButton, 0, 2);
+
+            var saveConfigButton = Theme.CreateSecondaryButton("保存配置");
+            saveConfigButton.Width = 130;
+            saveConfigButton.Margin = new Padding(10, 0, 0, 0);
+            saveConfigButton.Click += delegate
+            {
+                SaveSettings();
+                _status.Text = "当前 MechKit 配置已保存。";
+            };
+
+            var exportActions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Theme.Surface,
+                Margin = new Padding(0)
+            };
+            exportActions.Controls.Add(exportButton);
+            exportActions.Controls.Add(saveConfigButton);
+            layout.Controls.Add(exportActions, 0, 2);
 
             var importHint = Theme.CreateLabel(
                 "导入：在另一台电脑 / 另一个 SOLIDWORKS 上导入该文件，导入后重启 SOLIDWORKS 生效",
