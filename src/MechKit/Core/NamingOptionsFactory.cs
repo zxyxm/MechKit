@@ -45,19 +45,55 @@ namespace MechKit.Core
                 }
 
                 var key = line.Substring(0, equal).Trim();
-                var values = line.Substring(equal + 1).Split(new[] { ',' }, 2);
-                if (key.Length == 0 || values.Length == 0)
+                var payload = line.Substring(equal + 1).Trim();
+                var separator = payload.LastIndexOf('-');
+
+                // 仅用于兼容升级前的配置；界面保存时一律规范成短横线。
+                if (separator <= 0)
+                {
+                    separator = payload.IndexOf(',');
+                }
+                if (separator <= 0)
+                {
+                    separator = payload.IndexOf('，');
+                }
+                if (key.Length == 0 || separator <= 0 || separator >= payload.Length - 1)
                 {
                     continue;
                 }
 
                 result[key] = new MaterialProcessPreset
                 {
-                    Material = values[0].Trim(),
-                    Process = values.Length > 1 ? values[1].Trim() : string.Empty
+                    Material = payload.Substring(0, separator).Trim(),
+                    Process = payload.Substring(separator + 1).Trim()
                 };
             }
             return result;
+        }
+
+        public static string NormalizeMaterialProcessPresetFormat(string text)
+        {
+            var lines = new List<string>();
+            foreach (var sourceLine in (text ?? string.Empty).Replace("\r", string.Empty).Split('\n'))
+            {
+                var line = sourceLine.Trim();
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+
+                var equal = line.IndexOf('=');
+                if (equal <= 0)
+                {
+                    lines.Add(line);
+                    continue;
+                }
+
+                var key = line.Substring(0, equal).Trim();
+                var payload = line.Substring(equal + 1).Trim().Replace('，', '-').Replace(',', '-');
+                lines.Add(key + "=" + payload);
+            }
+            return string.Join("\n", lines.ToArray());
         }
 
         public static Dictionary<string, string> ParsePrefixBindings(string text)

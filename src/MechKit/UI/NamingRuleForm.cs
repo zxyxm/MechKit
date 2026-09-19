@@ -263,7 +263,7 @@ namespace MechKit.UI
             layout.Controls.Add(addRow, 0, 4);
 
             layout.Controls.Add(BuildField("材料/工艺预设", _machinedMaterialProcessRules,
-                "每行：第2段=材料,工艺；例如 6061=6061,cnc"), 0, 5);
+                "每行：第2段=材料-工艺；例如 6061=6061-cnc"), 0, 5);
 
             _partNumberSource.DropDownStyle = ComboBoxStyle.DropDownList;
             _partNumberSource.Font = Theme.Body;
@@ -1102,7 +1102,7 @@ namespace MechKit.UI
             _prefixes.Text = "淘宝 代理 淘宝追加工";
             _middleNames.Text = "接近开关 电机 丝杆";
             _machinedMaterialProcessRules.Text =
-                "6061=6061,cnc\r\n5052=5052,钣金\r\n304=304,cnc\r\n轴304=304,车铣\r\n淘宝=-,追加工";
+                "6061=6061-cnc\r\n5052=5052-钣金\r\n304=304-cnc\r\n轴304=304-车铣\r\n淘宝=--追加工";
             _standardBindingEnabled.Checked = true;
             _standardBindings.Text = "电机=代理|接近开关=代理";
             _partNumberSource.SelectedIndex = 0;
@@ -1131,10 +1131,11 @@ namespace MechKit.UI
                 NamingOptionsFactory.ParsePrefixes(_prefixes.Text), _prefixDescriptions);
             s.BomMiddleNames = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(_middleNames.Text));
-            s.MachinedMaterialProcessRules = _machinedMaterialProcessRules.Text.Trim();
+            s.MachinedMaterialProcessRules = NamingOptionsFactory.NormalizeMaterialProcessPresetFormat(
+                _machinedMaterialProcessRules.Text.Trim());
             s.StandardPrefixBindingEnabled = _standardBindingEnabled.Checked;
             s.StandardPrefixBindings = _standardBindings.Text.Trim();
-            s.NamingPresetVersion = 1;
+            s.NamingPresetVersion = 2;
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();
@@ -1189,12 +1190,14 @@ namespace MechKit.UI
                     continue;
                 }
                 var equal = line.IndexOf('=');
-                var comma = line.IndexOf(',', Math.Max(0, equal + 1));
-                if (equal <= 0 || comma <= equal + 1)
+                var payload = equal < 0 ? string.Empty : line.Substring(equal + 1);
+                var dash = payload.LastIndexOf('-');
+                if (equal <= 0 || line.IndexOf(',') >= 0 || line.IndexOf('，') >= 0 ||
+                    dash <= 0 || dash >= payload.Length - 1)
                 {
                     MessageBox.Show(this,
                         "材料/工艺预设格式不正确：\r\n" + line +
-                        "\r\n\r\n正确格式示例：6061=6061,cnc",
+                        "\r\n\r\n请使用短横线，不要使用逗号。正确示例：6061=6061-cnc",
                         AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
                 }

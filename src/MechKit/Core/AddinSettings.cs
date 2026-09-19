@@ -130,13 +130,13 @@ namespace MechKit.Core
             set { Set("MachinedSegmentLabels", value); }
         }
 
-        /// <summary>加工件第2段到“材料,工艺”的预设映射；每行一条 key=材料,工艺。</summary>
+        /// <summary>加工件第2段到“材料-工艺”的预设映射；每行一条 key=材料-工艺。</summary>
         public string MachinedMaterialProcessRules
         {
             get
             {
                 return Get("MachinedMaterialProcessRules",
-                    "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工");
+                    "6061=6061-cnc\n5052=5052-钣金\n304=304-cnc\n轴304=304-车铣\n淘宝=--追加工");
             }
             set { Set("MachinedMaterialProcessRules", value); }
         }
@@ -357,14 +357,23 @@ namespace MechKit.Core
                     settings.MachinedSegments = "date,material,name,serial,custom";
                     settings.MachinedSegmentLabels = "||||拓展代号";
                     settings.MachinedMaterialProcessRules =
-                        "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工";
+                        "6061=6061-cnc\n5052=5052-钣金\n304=304-cnc\n轴304=304-车铣\n淘宝=--追加工";
                     settings.BomPrefixes = "淘宝 代理 淘宝追加工";
                     settings.BomMiddleNames = "接近开关 电机 丝杆";
                     settings.StandardPrefixBindingEnabled = true;
                     settings.StandardPrefixBindings = "电机=代理|接近开关=代理";
                     settings.BomMachinedMaterialField = "auto";
                     settings.BomMachinedProcessField = "auto";
-                    settings.NamingPresetVersion = 1;
+                    settings.NamingPresetVersion = 2;
+                }
+
+                // v2：材料与工艺统一改用短横线分隔，不再在设置中保存中英文逗号。
+                if (settings.NamingPresetVersion < 2)
+                {
+                    settings.MachinedMaterialProcessRules =
+                        NamingOptionsFactory.NormalizeMaterialProcessPresetFormat(
+                            settings.MachinedMaterialProcessRules);
+                    settings.NamingPresetVersion = 2;
                 }
             }
             catch (Exception ex)
