@@ -38,7 +38,8 @@ namespace MechKit
         public const int CmdBatchExport = 5;
         // 6 曾用于“属性工具”，保留空号，避免旧版 SOLIDWORKS 命令映射串位。
         public const int CmdTaskPane = 7;
-        public const int CmdSettings = 8;
+        // 8 曾用于“个人配置”；新“设置”使用新 ID，强制 SOLIDWORKS 刷新旧按钮文字与布局。
+        public const int CmdSettings = 10;
         public const int CmdAbout = 9;
 
         public static readonly int[] CommandIds =

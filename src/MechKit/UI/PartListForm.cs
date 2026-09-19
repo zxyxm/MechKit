@@ -100,7 +100,7 @@ namespace MechKit.UI
             var title = Theme.CreateLabel("预览 BOM", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
 
-            var subtitle = Theme.CreateLabel("双击表格可编辑名称、材料和工艺；应用后写入零件自定义属性",
+            var subtitle = Theme.CreateLabel("按下划线解析字段；双击可编辑零件名、材料、工艺和备注",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
 
@@ -223,7 +223,7 @@ namespace MechKit.UI
         private string DescribeRule()
         {
             var s = _host.Settings;
-            var separator = string.IsNullOrEmpty(s.SegmentSeparator) ? "_" : s.SegmentSeparator;
+            var separator = "_";
             var prefixes = s.BomPrefixes;
             var segmentOrder = NamingOptionsFactory.DescribeMachinedSegments(
                 NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments),
@@ -352,27 +352,27 @@ namespace MechKit.UI
             _grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
             Theme.StyleGrid(_grid);
             var sequenceColumn = new DataGridViewTextBoxColumn { HeaderText = "序号", Width = 50, ReadOnly = true };
-            var partNumberColumn = new DataGridViewTextBoxColumn { HeaderText = "图号", Width = 140, ReadOnly = true };
+            var locationColumn = new DataGridViewTextBoxColumn { HeaderText = "位置", Width = 220, ReadOnly = true };
+            var typeColumn = new DataGridViewTextBoxColumn { HeaderText = "属性", Width = 76, ReadOnly = true };
             var nameColumn = new DataGridViewTextBoxColumn
             {
-                HeaderText = "名称（可编辑）",
+                HeaderText = "零件名（可编辑）",
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
                 MinimumWidth = 150
             };
             var materialColumn = new DataGridViewTextBoxColumn { HeaderText = "材料（可编辑）", Width = 130 };
             var processColumn = new DataGridViewTextBoxColumn { HeaderText = "工艺（可编辑）", Width = 130 };
             var quantityColumn = new DataGridViewTextBoxColumn { HeaderText = "数量", Width = 60, ReadOnly = true };
-            var typeColumn = new DataGridViewTextBoxColumn { HeaderText = "类型", Width = 70, ReadOnly = true };
-            var configurationColumn = new DataGridViewTextBoxColumn { HeaderText = "配置", Width = 90, ReadOnly = true };
-            var fileColumn = new DataGridViewTextBoxColumn { HeaderText = "文件名", Width = 180, ReadOnly = true };
+            var remarkColumn = new DataGridViewTextBoxColumn { HeaderText = "备注（可编辑）", Width = 150 };
 
             var editableColor = Color.FromArgb(255, 252, 226);
             nameColumn.DefaultCellStyle.BackColor = editableColor;
             materialColumn.DefaultCellStyle.BackColor = editableColor;
             processColumn.DefaultCellStyle.BackColor = editableColor;
+            remarkColumn.DefaultCellStyle.BackColor = editableColor;
 
-            _grid.Columns.AddRange(sequenceColumn, partNumberColumn, nameColumn, materialColumn,
-                processColumn, quantityColumn, typeColumn, configurationColumn, fileColumn);
+            _grid.Columns.AddRange(sequenceColumn, locationColumn, typeColumn, nameColumn,
+                materialColumn, processColumn, quantityColumn, remarkColumn);
 
             panel.Controls.Add(_grid);
             return panel;
@@ -471,19 +471,16 @@ namespace MechKit.UI
             _folderBox.Text = settings.OutputFolder;
             _recursive.Checked = true;
 
-            _partNumberSource.SelectedIndex = Clamp(settings.PartNumberSource, 0, 1);
-            _cutRule.SelectedIndex = Clamp(settings.PartNumberCutRule, 0, 4);
             _patternBox.Text = settings.PartNumberPattern;
-            _materialSource.SelectedIndex = Clamp(settings.MaterialSource, 0, 2);
 
-            _onlyMachined.Checked = settings.PartListOnlyMachined;
+            _onlyMachined.Checked = false;
+            _onlyMachined.Visible = false;
             _excludeToolbox.Checked = true;
             _excludeSuppressed.Checked = true;
             _readProperties.Checked = settings.PartListReadProperties;
             _detectVendor.Checked = settings.DetectVendorParts;
             _useSegments.Checked = settings.UseNameSegments;
             _segmentSeparator.Text = string.IsNullOrEmpty(settings.SegmentSeparator) ? "_" : settings.SegmentSeparator;
-            _materialSegment.SelectedIndex = MaterialSegmentIndexFromValue(settings.MaterialSegment);
 
             _partNumberProperty.Text = settings.PartNumberProperty;
             _materialProperty.Text = settings.MaterialProperty;
@@ -561,14 +558,14 @@ namespace MechKit.UI
         {
             var options = new PartListOptions
             {
-                OnlyMachined = _onlyMachined.Checked,
+                OnlyMachined = false,
                 ExcludeToolbox = _excludeToolbox.Checked,
                 DetectVendorParts = _detectVendor.Checked,
                 ExcludeSuppressed = _excludeSuppressed.Checked,
-                ReadCustomProperties = _readProperties.Checked
+                ReadCustomProperties = _readProperties.Checked,
+                AssemblyLevel = _host.Settings.BomAssemblyLevel
             };
 
-            options.Naming.Source = (PartNumberSource)_partNumberSource.SelectedIndex;
             // 命名规则（来源 / 截断 / 分段 / 前缀 / 收录过滤）统一由「命名规则设置」管理
             options.Naming = NamingOptionsFactory.FromSettings(_host.Settings);
             return options;
@@ -585,8 +582,14 @@ namespace MechKit.UI
             var swApp = _host.SwApp;
             if (swApp == null)
             {
-                MessageBox.Show(this, "未连接到 SOLIDWORKS。", AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // 离线测试宿主：展示与真实 BOM 完全相同的列和典型解析结果。
+                _rows = BuildOfflinePreviewRows();
+                ShowRows(_rows);
+                _status.Text = "离线示例：3 种 / 9 件";
+                AppendLog("离线示例：20260919_6061_扫码枪安装板 → 加工件 / 扫码枪安装板 / 6061");
+                AppendLog("离线示例：电机_MG996_伺服电机 → 标准件 / 伺服电机 / MG996 / 电机");
+                _exportButton.Enabled = true;
+                _writeBackButton.Enabled = false;
                 return;
             }
 
@@ -678,6 +681,43 @@ namespace MechKit.UI
             }
         }
 
+        private static List<PartListRow> BuildOfflinePreviewRows()
+        {
+            return new List<PartListRow>
+            {
+                new PartListRow
+                {
+                    Location = "顶层装配体 > 机架组件",
+                    Classification = "加工件",
+                    Name = "扫码枪安装板",
+                    Material = "6061",
+                    Process = "CNC",
+                    Quantity = 2,
+                    Remark = "20260919_6061_扫码枪安装板"
+                },
+                new PartListRow
+                {
+                    Location = "顶层装配体 > 驱动组件",
+                    Classification = "标准件",
+                    Name = "伺服电机",
+                    Material = "MG996",
+                    Process = "电机",
+                    Quantity = 4,
+                    Remark = "电机_MG996_伺服电机"
+                },
+                new PartListRow
+                {
+                    Location = "顶层装配体 > 电控组件",
+                    Classification = "标准件",
+                    Name = "接近开关",
+                    Material = "LJ12A3",
+                    Process = "电气",
+                    Quantity = 3,
+                    Remark = "电气_LJ12A3_接近开关"
+                }
+            };
+        }
+
         private void ShowRows(IList<PartListRow> rows)
         {
             _grid.SuspendLayout();
@@ -691,14 +731,13 @@ namespace MechKit.UI
                     var index = _grid.Rows.Add();
                     var gridRow = _grid.Rows[index];
                     gridRow.Cells[0].Value = i + 1;
-                    gridRow.Cells[1].Value = row.PartNumber;
-                    gridRow.Cells[2].Value = row.Name;
-                    gridRow.Cells[3].Value = row.Material;
-                    gridRow.Cells[4].Value = row.Process;
-                    gridRow.Cells[5].Value = row.Quantity;
-                    gridRow.Cells[6].Value = row.Classification;
-                    gridRow.Cells[7].Value = row.Configuration;
-                    gridRow.Cells[8].Value = row.FileName;
+                    gridRow.Cells[1].Value = row.Location;
+                    gridRow.Cells[2].Value = row.Classification;
+                    gridRow.Cells[3].Value = row.Name;
+                    gridRow.Cells[4].Value = row.Material;
+                    gridRow.Cells[5].Value = row.Process;
+                    gridRow.Cells[6].Value = row.Quantity;
+                    gridRow.Cells[7].Value = row.Remark;
                 }
             }
             finally
@@ -715,9 +754,10 @@ namespace MechKit.UI
             for (var i = 0; i < count; i++)
             {
                 var gridRow = _grid.Rows[i];
-                _rows[i].Name = Convert.ToString(gridRow.Cells[2].Value).Trim();
-                _rows[i].Material = Convert.ToString(gridRow.Cells[3].Value).Trim();
-                _rows[i].Process = Convert.ToString(gridRow.Cells[4].Value).Trim();
+                _rows[i].Name = Convert.ToString(gridRow.Cells[3].Value).Trim();
+                _rows[i].Material = Convert.ToString(gridRow.Cells[4].Value).Trim();
+                _rows[i].Process = Convert.ToString(gridRow.Cells[5].Value).Trim();
+                _rows[i].Remark = Convert.ToString(gridRow.Cells[7].Value).Trim();
             }
         }
 
@@ -746,7 +786,7 @@ namespace MechKit.UI
             }
 
             var message = string.Format(
-                "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」并保存。" +
+                "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」「备注」并保存。" +
                 System.Environment.NewLine + System.Environment.NewLine +
                 "本轮不会重命名零件文件，因此不会破坏装配引用。是否继续？", changed);
             if (MessageBox.Show(this, message, AddinConstants.Title,

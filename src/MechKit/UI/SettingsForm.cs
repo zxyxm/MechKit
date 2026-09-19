@@ -7,7 +7,7 @@ using MechKit.Core;
 
 namespace MechKit.UI
 {
-    /// <summary>个人配置：常用目录快捷入口 + 个人设置导出/导入（含笔势、快捷键）。</summary>
+    /// <summary>统一设置：BOM 格式 + 个人配置与迁移。</summary>
     internal sealed class SettingsForm : Form
     {
         private readonly IAddinHost _host;
@@ -17,6 +17,7 @@ namespace MechKit.UI
         private readonly TextBox _toolbox;
         private readonly TextBox _prefixes;
         private readonly CheckBox _requirePattern;
+        private readonly ComboBox _assemblyLevel;
         private readonly Label _status;
 
         public SettingsForm(IAddinHost host)
@@ -28,6 +29,7 @@ namespace MechKit.UI
             _toolbox = Theme.CreateTextBox();
             _prefixes = Theme.CreateTextBox();
             _requirePattern = new CheckBox();
+            _assemblyLevel = new ComboBox();
             _status = Theme.CreateValueLabel("就绪");
 
             BuildLayout();
@@ -36,16 +38,16 @@ namespace MechKit.UI
 
         private void BuildLayout()
         {
-            Text = "MechKit 个人配置";
+            Text = "MechKit 设置";
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             StartPosition = FormStartPosition.CenterParent;
             WindowLayout.Attach(this, _host.Settings, new Size(980, 680), new Size(880, 580));
 
             var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
-            var title = Theme.CreateLabel("个人配置", Theme.Title, Color.White);
+            var title = Theme.CreateLabel("设置", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
-            var subtitle = Theme.CreateLabel("常用目录快捷入口 · 个人设置迁移（含笔势、快捷键、文件位置）",
+            var subtitle = Theme.CreateLabel("BOM 格式 · 装配层级 · 个人配置与设置迁移",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
             header.Controls.Add(title);
@@ -53,21 +55,34 @@ namespace MechKit.UI
 
             var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 10, 14, 6), BackColor = Theme.Canvas };
 
-            var layout = new TableLayoutPanel
+            var tabs = new TabControl
+            {
+                Dock = DockStyle.Fill,
+                Font = Theme.Body
+            };
+
+            var bomTab = new TabPage("BOM 格式") { BackColor = Theme.Canvas, Padding = new Padding(8) };
+            bomTab.Controls.Add(BuildBomPanel());
+
+            var personalTab = new TabPage("个人配置") { BackColor = Theme.Canvas, Padding = new Padding(8) };
+            var personal = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
                 RowCount = 3,
                 BackColor = Theme.Canvas
             };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 248f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+            personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 214f));
+            personal.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+            personal.Controls.Add(BuildFolderPanel(), 0, 0);
+            personal.Controls.Add(BuildTransferPanel(), 0, 1);
+            personal.Controls.Add(BuildStatusBar(), 0, 2);
+            personalTab.Controls.Add(personal);
 
-            layout.Controls.Add(BuildFolderPanel(), 0, 0);
-            layout.Controls.Add(BuildTransferPanel(), 0, 1);
-            layout.Controls.Add(BuildStatusBar(), 0, 2);
-            body.Controls.Add(layout);
+            tabs.TabPages.Add(bomTab);
+            tabs.TabPages.Add(personalTab);
+            body.Controls.Add(tabs);
 
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 52, BackColor = Theme.Canvas, Padding = new Padding(14, 6, 14, 12) };
             var close = Theme.CreatePrimaryButton("关闭");
@@ -81,6 +96,117 @@ namespace MechKit.UI
             Controls.Add(header);
         }
 
+        private Control BuildBomPanel()
+        {
+            var panel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Theme.Surface,
+                Padding = new Padding(18, 16, 18, 16)
+            };
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 300,
+                ColumnCount = 2,
+                RowCount = 7,
+                BackColor = Theme.Surface
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+
+            var heading = Theme.CreateLabel("BOM 表格格式", Theme.BodyBold, Theme.Text);
+            heading.Dock = DockStyle.Fill;
+            layout.Controls.Add(heading, 0, 0);
+            layout.SetColumnSpan(heading, 2);
+
+            _assemblyLevel.DropDownStyle = ComboBoxStyle.DropDownList;
+            _assemblyLevel.Font = Theme.Body;
+            _assemblyLevel.Dock = DockStyle.Left;
+            _assemblyLevel.Width = 270;
+            _assemblyLevel.Items.AddRange(new object[]
+            {
+                "仅顶层装配体",
+                "展开到第 1 级子装配体",
+                "展开到第 2 级子装配体",
+                "展开到第 3 级子装配体",
+                "展开到第 4 级子装配体",
+                "展开到第 5 级子装配体",
+                "完整路径（到最小单位）"
+            });
+            layout.Controls.Add(BomLabel("位置显示层级"), 0, 1);
+            layout.Controls.Add(_assemblyLevel, 1, 1);
+
+            var separator = Theme.CreateValueLabel("下划线  _");
+            separator.Dock = DockStyle.Left;
+            separator.Width = 270;
+            layout.Controls.Add(BomLabel("字段分隔符"), 0, 2);
+            layout.Controls.Add(separator, 1, 2);
+
+            _prefixes.Dock = DockStyle.Left;
+            _prefixes.Width = 420;
+            layout.Controls.Add(BomLabel("标准件前缀"), 0, 3);
+            layout.Controls.Add(_prefixes, 1, 3);
+
+            _requirePattern.Text = "只收录加工件（日期段开头）与标准件（已配置前缀开头）";
+            _requirePattern.AutoSize = true;
+            _requirePattern.ForeColor = Theme.Text;
+            _requirePattern.Margin = new Padding(0, 8, 0, 0);
+            layout.Controls.Add(BomLabel("收录范围"), 0, 4);
+            layout.Controls.Add(_requirePattern, 1, 4);
+
+            var headers = Theme.CreateValueLabel("序号｜位置｜属性｜零件名｜材料｜工艺｜数量｜备注");
+            headers.Dock = DockStyle.Fill;
+            headers.ForeColor = Theme.Muted;
+            layout.Controls.Add(BomLabel("表头顺序"), 0, 5);
+            layout.Controls.Add(headers, 1, 5);
+
+            var actions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Theme.Surface
+            };
+            var save = Theme.CreatePrimaryButton("保存 BOM 设置");
+            save.Width = 130;
+            save.Click += delegate { SaveSettings(); };
+            var naming = Theme.CreateSecondaryButton("命名规则设置…");
+            naming.Width = 140;
+            naming.Margin = new Padding(8, 0, 0, 0);
+            naming.Click += delegate
+            {
+                using (var form = new NamingRuleForm(_host))
+                {
+                    form.ShowDialog(this);
+                }
+
+                LoadFromSettings();
+            };
+            actions.Controls.Add(save);
+            actions.Controls.Add(naming);
+            layout.Controls.Add(actions, 1, 6);
+
+            panel.Controls.Add(layout);
+            return panel;
+        }
+
+        private static Label BomLabel(string text)
+        {
+            var label = Theme.CreateFieldLabel(text);
+            label.Dock = DockStyle.Fill;
+            label.ForeColor = Theme.Text;
+            return label;
+        }
+
         private Control BuildFolderPanel()
         {
             var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Surface, Padding = new Padding(12, 10, 12, 10), AutoScroll = true };
@@ -89,7 +215,7 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 7,
+                RowCount = 6,
                 BackColor = Theme.Surface
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));
@@ -97,7 +223,6 @@ namespace MechKit.UI
             {
                 layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             }
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
             layout.Controls.Add(Theme.CreateLabel("常用目录（点「打开」直接在资源管理器里打开）", Theme.BodyBold, Theme.Text), 0, 0);
@@ -105,7 +230,6 @@ namespace MechKit.UI
             layout.Controls.Add(BuildFolderRow("工程图/零件模板", _template, () => SwFolders.DrawingTemplates()), 0, 2);
             layout.Controls.Add(BuildFolderRow("宏", _macro, () => SwFolders.Macros()), 0, 3);
             layout.Controls.Add(BuildFolderRow("Toolbox", _toolbox, () => SwFolders.Toolbox()), 0, 4);
-            layout.Controls.Add(BuildPrefixRow(), 0, 5);
 
             var buttons = new FlowLayoutPanel
             {
@@ -120,7 +244,7 @@ namespace MechKit.UI
             detect.Margin = new Padding(0, 2, 8, 0);
             detect.Click += delegate { DetectAll(); };
 
-            var save = Theme.CreatePrimaryButton("保存目录设置");
+            var save = Theme.CreatePrimaryButton("保存个人配置");
             save.Width = 120;
             save.Margin = new Padding(0, 2, 0, 0);
             save.Click += delegate { SaveSettings(); };
@@ -147,7 +271,7 @@ namespace MechKit.UI
             buttons.Controls.Add(save);
             buttons.Controls.Add(weldment);
             buttons.Controls.Add(naming);
-            layout.Controls.Add(buttons, 0, 6);
+            layout.Controls.Add(buttons, 0, 5);
 
             panel.Controls.Add(layout);
             return panel;
@@ -316,6 +440,7 @@ namespace MechKit.UI
             _toolbox.Text = string.IsNullOrEmpty(settings.ToolboxFolder) ? SwFolders.Toolbox() : settings.ToolboxFolder;
             _prefixes.Text = settings.BomPrefixes;
             _requirePattern.Checked = settings.BomRequirePattern;
+            _assemblyLevel.SelectedIndex = AssemblyLevelToIndex(settings.BomAssemblyLevel);
         }
 
         private void DetectAll()
@@ -336,8 +461,19 @@ namespace MechKit.UI
             settings.ToolboxFolder = _toolbox.Text.Trim();
             settings.BomPrefixes = _prefixes.Text.Trim();
             settings.BomRequirePattern = _requirePattern.Checked;
+            settings.BomAssemblyLevel = AssemblyLevelFromIndex(_assemblyLevel.SelectedIndex);
             settings.Save();
-            _status.Text = "目录设置已保存。";
+            _status.Text = "设置已保存。";
+        }
+
+        private static int AssemblyLevelToIndex(int value)
+        {
+            return value < 0 ? 6 : Math.Min(value, 5);
+        }
+
+        private static int AssemblyLevelFromIndex(int index)
+        {
+            return index >= 6 || index < 0 ? -1 : index;
         }
 
         /// <summary>把随包的焊件轮廓库一键迁移到 SOLIDWORKS（会弹一次 UAC）。</summary>

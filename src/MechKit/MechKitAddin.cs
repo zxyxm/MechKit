@@ -374,7 +374,8 @@ namespace MechKit
                 ExcludeToolbox = false,      // 标准件也要列出
                 DetectVendorParts = _settings.DetectVendorParts,
                 ExcludeSuppressed = true,
-                ReadCustomProperties = _settings.PartListReadProperties
+                ReadCustomProperties = _settings.PartListReadProperties,
+                AssemblyLevel = _settings.BomAssemblyLevel
             };
 
             options.Naming = NamingOptionsFactory.FromSettings(_settings);
@@ -798,8 +799,8 @@ namespace MechKit
                 AddinConstants.CmdGenerateBom, menuAndToolbar));
 
             indices.Add(_commandGroup.AddCommandItem2("明细汇总", -1,
-                "读取零件图号与材料，统计装配体中加工件的数量",
-                "明细汇总（图号 / 材料 / 数量）", 1, "OnPartList", "OnAlwaysEnable",
+                "按装配位置汇总加工件与标准件，可预览并编辑 BOM",
+                "明细汇总 / BOM 预览", 1, "OnPartList", "OnAlwaysEnable",
                 AddinConstants.CmdPartList, menuAndToolbar));
 
             indices.Add(_commandGroup.AddCommandItem2("加工件命名规则", -1,
@@ -822,9 +823,9 @@ namespace MechKit
                 "工具箱面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",
                 AddinConstants.CmdTaskPane, menuAndToolbar));
 
-            indices.Add(_commandGroup.AddCommandItem2("个人配置", -1,
-                "常用目录快捷入口，以及个人设置（含笔势、快捷键）的导出与导入",
-                "个人配置 / 设置迁移", 7, "OnSettings", "OnAlwaysEnable",
+            indices.Add(_commandGroup.AddCommandItem2("设置", -1,
+                "BOM 格式、装配层级、常用目录与个人设置迁移",
+                "MechKit 设置", 7, "OnSettings", "OnAlwaysEnable",
                 AddinConstants.CmdSettings, menuAndToolbar));
 
             indices.Add(_commandGroup.AddCommandItem2("关于", -1,

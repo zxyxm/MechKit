@@ -92,7 +92,7 @@ namespace MechKit.Core
         /// <summary>是否按分隔符把文件名分段解析名称/材料（日期_材料_名称）。</summary>
         public bool UseNameSegments
         {
-            get { return GetBool("UseNameSegments", false); }
+            get { return GetBool("UseNameSegments", true); }
             set { SetBool("UseNameSegments", value); }
         }
 
@@ -132,7 +132,7 @@ namespace MechKit.Core
 
         public bool PartListOnlyMachined
         {
-            get { return GetBool("PartListOnlyMachined", true); }
+            get { return GetBool("PartListOnlyMachined", false); }
             set { SetBool("PartListOnlyMachined", value); }
         }
 
@@ -199,6 +199,16 @@ namespace MechKit.Core
         {
             get { return GetBool("BomRequirePattern", true); }
             set { SetBool("BomRequirePattern", value); }
+        }
+
+        /// <summary>
+        /// BOM“位置”列显示的装配体层级。0 = 仅顶层装配体，1~5 = 展开对应层数，
+        /// -1 = 一直显示到零件所属的最小子装配体。
+        /// </summary>
+        public int BomAssemblyLevel
+        {
+            get { return GetInt("BomAssemblyLevel", -1); }
+            set { SetInt("BomAssemblyLevel", value); }
         }
 
         public static AddinSettings Load()

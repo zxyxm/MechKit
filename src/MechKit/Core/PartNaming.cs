@@ -340,6 +340,21 @@ namespace MechKit.Core
             return MaterialSegment == 0 ? string.Empty : PickSegment(fileName, MaterialSegment);
         }
 
+        /// <summary>严格按加工件段定义从文件名取零件名称，不读取自定义属性。</summary>
+        public string ResolveNameFromSegments(string filePath)
+        {
+            if (!UseNameSegments)
+            {
+                return string.Empty;
+            }
+
+            var fileName = GetFileNameWithoutExtension(filePath);
+            var configuredNameSegment = IndexOfSegment(MachinedSegmentKind.Name);
+            return IsMachinedName(fileName) && configuredNameSegment >= 0
+                ? PickSegment(fileName, configuredNameSegment + 1)
+                : string.Empty;
+        }
+
         private int IndexOfSegment(MachinedSegmentKind kind)
         {
             if (MachinedSegments == null)

@@ -46,6 +46,7 @@ namespace MechKit.UI
             _host = host;
             _initialTab = initialTab;
             _separator = Theme.CreateTextBox();
+            _separator.ReadOnly = true;
             _segmentPanel = new TableLayoutPanel();
             _machinedSegments = new List<MachinedSegmentKind>();
             _segmentLabels = new List<string>();
@@ -745,7 +746,7 @@ namespace MechKit.UI
         private void LoadFromSettings()
         {
             var s = _host.Settings;
-            _separator.Text = string.IsNullOrEmpty(s.SegmentSeparator) ? "_" : s.SegmentSeparator;
+            _separator.Text = "_";
             _machinedSegments.Clear();
             _machinedSegments.AddRange(NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments));
             _segmentLabels.Clear();
@@ -790,7 +791,7 @@ namespace MechKit.UI
             }
 
             var s = _host.Settings;
-            s.SegmentSeparator = string.IsNullOrEmpty(_separator.Text) ? "_" : _separator.Text;
+            s.SegmentSeparator = "_";
             s.MachinedSegments = NamingOptionsFactory.SerializeMachinedSegments(_machinedSegments);
             s.MachinedSegmentLabels = NamingOptionsFactory.SerializeMachinedSegmentLabels(_segmentLabels);
             s.MaterialSegment = SegmentPosition(MachinedSegmentKind.Material);
@@ -866,7 +867,7 @@ namespace MechKit.UI
                     Cut = (FileNameCutRule)Math.Max(0, _cutRule.SelectedIndex),
                     Pattern = _pattern.Text.Trim(),
                     UseNameSegments = true,
-                    SegmentSeparator = string.IsNullOrEmpty(_separator.Text) ? "_" : _separator.Text,
+                    SegmentSeparator = "_",
                     MaterialSegment = SegmentPosition(MachinedSegmentKind.Material),
                     NameSegment = SegmentPosition(MachinedSegmentKind.Name),
                     MachinedSegments = _machinedSegments.ToArray(),

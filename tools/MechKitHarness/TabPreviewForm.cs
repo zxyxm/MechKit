@@ -130,7 +130,7 @@ namespace MechKit.Harness
             var commands = new List<CommandSpec>
             {
                 new CommandSpec("一键生成BOM", "一键生\r\n成 BOM\r\n表", 76, 0),
-                new CommandSpec("明细汇总（图号/材料/数量）", "明细汇总（\r\n图号/材料\r\n/数量）", 84, 1),
+                new CommandSpec("明细汇总 / BOM 预览", "明细汇总\r\nBOM预览", 84, 1),
                 new CommandSpec("加工件命名规则", "加工件\r\n命名规\r\n则设置", 69, 2),
                 new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3)
             };
@@ -147,7 +147,8 @@ namespace MechKit.Harness
             commands.AddRange(new[]
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
-                new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6)
+                new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6),
+                new CommandSpec("设置", "设置", 45, 7)
             });
 
             var x = 0;

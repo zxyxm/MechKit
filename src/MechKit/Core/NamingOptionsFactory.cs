@@ -18,10 +18,9 @@ namespace MechKit.Core
             naming.Cut = (FileNameCutRule)settings.PartNumberCutRule;
             naming.Pattern = settings.PartNumberPattern;
             naming.Material = (MaterialSource)settings.MaterialSource;
-            naming.UseNameSegments = settings.UseNameSegments;
-            naming.SegmentSeparator = string.IsNullOrEmpty(settings.SegmentSeparator)
-                ? "_"
-                : settings.SegmentSeparator;
+            naming.UseNameSegments = true;
+            // BOM 字段统一以单个下划线分隔，避免不同电脑配置造成列错位。
+            naming.SegmentSeparator = "_";
             naming.NameSegment = -1;
             naming.MaterialSegment = settings.MaterialSegment;
             naming.MachinedSegments = ParseMachinedSegments(settings.MachinedSegments);

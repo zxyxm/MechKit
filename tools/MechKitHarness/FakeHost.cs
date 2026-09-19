@@ -46,7 +46,7 @@ namespace MechKit.Harness
 
         public void ShowSettingsDialog()
         {
-            Log.Info("[harness] 个人配置 被点击");
+            Log.Info("[harness] 设置 被点击");
         }
 
         public void ShowNamingRuleDialog(int tabIndex)

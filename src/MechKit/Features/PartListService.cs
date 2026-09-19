@@ -18,6 +18,7 @@ namespace MechKit.Features
             DetectVendorParts = true;
             ExcludeSuppressed = true;
             ReadCustomProperties = true;
+            AssemblyLevel = -1;
         }
 
         public NamingOptions Naming { get; set; }
@@ -35,11 +36,16 @@ namespace MechKit.Features
 
         /// <summary>打开零件读取自定义属性（图号、材料、来源）。较慢但更准确。</summary>
         public bool ReadCustomProperties { get; set; }
+
+        /// <summary>“位置”列的装配层级：0 仅顶层，正数展开对应级数，-1 显示完整父装配路径。</summary>
+        public int AssemblyLevel { get; set; }
     }
 
     /// <summary>明细表中的一行（同一零件 + 同一配置合并计数）。</summary>
     internal sealed class PartListRow
     {
+        public string Location { get; set; }
+
         public string PartNumber { get; set; }
 
         public string Name { get; set; }
@@ -49,9 +55,11 @@ namespace MechKit.Features
         /// <summary>零件自定义属性中的加工工艺，例如车、铣、焊接、表面处理。</summary>
         public string Process { get; set; }
 
+        public string Remark { get; set; }
+
         public int Quantity { get; set; }
 
-        /// <summary>加工件 / 标准件 / 外购件 / 虚拟件。</summary>
+        /// <summary>BOM 属性：加工件 / 标准件。</summary>
         public string Classification { get; set; }
 
         public string FilePath { get; set; }
@@ -64,13 +72,16 @@ namespace MechKit.Features
 
         public string OriginalProcess { get; private set; }
 
+        public string OriginalRemark { get; private set; }
+
         public bool HasBomEdits
         {
             get
             {
                 return !string.Equals(Name ?? string.Empty, OriginalName ?? string.Empty, StringComparison.Ordinal) ||
                        !string.Equals(Material ?? string.Empty, OriginalMaterial ?? string.Empty, StringComparison.Ordinal) ||
-                       !string.Equals(Process ?? string.Empty, OriginalProcess ?? string.Empty, StringComparison.Ordinal);
+                       !string.Equals(Process ?? string.Empty, OriginalProcess ?? string.Empty, StringComparison.Ordinal) ||
+                       !string.Equals(Remark ?? string.Empty, OriginalRemark ?? string.Empty, StringComparison.Ordinal);
             }
         }
 
@@ -79,6 +90,7 @@ namespace MechKit.Features
             OriginalName = Name ?? string.Empty;
             OriginalMaterial = Material ?? string.Empty;
             OriginalProcess = Process ?? string.Empty;
+            OriginalRemark = Remark ?? string.Empty;
         }
 
         public string FileName
@@ -122,16 +134,18 @@ namespace MechKit.Features
                 return rows;
             }
 
-            var components = assembly.GetComponents(false) as object[];
+            // 只取顶层组件，再由 VisitComponent 递归。直接取全部组件后再递归会重复计数。
+            var components = assembly.GetComponents(true) as object[];
             if (components == null)
             {
                 log("装配体中没有组件。");
                 return rows;
             }
 
+            var hierarchy = new List<string> { ResolveTopAssemblyName(swApp) };
             foreach (var item in components)
             {
-                VisitComponent(context, item as Component2);
+                VisitComponent(context, item as Component2, hierarchy);
             }
 
             foreach (var pair in context.Rows)
@@ -177,21 +191,30 @@ namespace MechKit.Features
             var segmentMaterial = options.Naming.ResolveMaterialFromSegments(path);
             var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
 
-            return new PartListRow
+            var row = new PartListRow
             {
+                Location = string.Empty,
                 PartNumber = options.Naming.ResolvePartNumber(path, name => Lookup(properties, name)),
-                Name = options.Naming.ResolveName(path, name => Lookup(properties, name)),
-                Material = !string.IsNullOrEmpty(propertyMaterial)
-                    ? propertyMaterial
-                    : !string.IsNullOrEmpty(segmentMaterial)
+                Name = options.Naming.ResolveNameFromSegments(path),
+                Material = !string.IsNullOrEmpty(segmentMaterial)
                     ? segmentMaterial
+                    : !string.IsNullOrEmpty(propertyMaterial)
+                    ? propertyMaterial
                     : options.Naming.ResolveMaterial(modelMaterial, name => Lookup(properties, name)),
                 Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
+                Remark = First(properties, "备注", "说明", "Remark", "Notes"),
                 Quantity = 1,
                 Classification = Classify(context, path, path, properties),
                 FilePath = path,
                 Configuration = configuration
             };
+            ApplyStandardFields(row, path, options.Naming);
+            if (string.IsNullOrEmpty(row.Name))
+            {
+                row.Name = options.Naming.ResolveName(path, name => Lookup(properties, name));
+            }
+
+            return row;
         }
 
         /// <summary>把文件夹下的零件逐个汇总（不做数量合并，每个文件计 1）。</summary>
@@ -213,21 +236,29 @@ namespace MechKit.Features
                     continue;
                 }
 
-                rows.Add(new PartListRow
+                var row = new PartListRow
                 {
+                    Location = new DirectoryInfo(folder).Name,
                     PartNumber = options.Naming.ResolvePartNumber(path, name => Lookup(properties, name)),
-                    Name = options.Naming.ResolveName(path, name => Lookup(properties, name)),
-                    Material = !string.IsNullOrEmpty(propertyMaterial)
-                        ? propertyMaterial
-                        : !string.IsNullOrEmpty(segmentMaterial)
+                    Name = options.Naming.ResolveNameFromSegments(path),
+                    Material = !string.IsNullOrEmpty(segmentMaterial)
                         ? segmentMaterial
+                        : !string.IsNullOrEmpty(propertyMaterial)
+                        ? propertyMaterial
                         : options.Naming.ResolveMaterial(string.Empty, name => Lookup(properties, name)),
                     Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
+                    Remark = First(properties, "备注", "说明", "Remark", "Notes"),
                     Quantity = 1,
                     Classification = Classify(context, path, path, properties),
                     FilePath = path,
                     Configuration = string.Empty
-                });
+                };
+                ApplyStandardFields(row, path, options.Naming);
+                if (string.IsNullOrEmpty(row.Name))
+                {
+                    row.Name = options.Naming.ResolveName(path, name => Lookup(properties, name));
+                }
+                rows.Add(row);
             }
 
             SortRows(rows);
@@ -238,7 +269,7 @@ namespace MechKit.Features
         {
             var machinedKinds = 0;
             var machinedTotal = 0;
-            var otherTotal = 0;
+            var standardTotal = 0;
 
             foreach (var row in rows)
             {
@@ -249,11 +280,11 @@ namespace MechKit.Features
                 }
                 else
                 {
-                    otherTotal += row.Quantity;
+                    standardTotal += row.Quantity;
                 }
             }
 
-            return string.Format("加工件 {0} 种 / {1} 件；其他 {2} 件。", machinedKinds, machinedTotal, otherTotal);
+            return string.Format("加工件 {0} 种 / {1} 件；标准件 {2} 件。", machinedKinds, machinedTotal, standardTotal);
         }
 
         /// <summary>导出 CSV（带 BOM，Excel 直接打开不乱码）。</summary>
@@ -265,20 +296,19 @@ namespace MechKit.Features
             var path = Path.Combine(folder, fileName);
 
             var builder = new StringBuilder();
-            builder.AppendLine("序号,图号,名称,材料,工艺,数量,类型,配置,文件名");
+            builder.AppendLine("序号,位置,属性,零件名,材料,工艺,数量,备注");
 
             for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
                 builder.Append(i + 1).Append(',')
-                       .Append(Csv(row.PartNumber)).Append(',')
+                       .Append(Csv(row.Location)).Append(',')
+                       .Append(Csv(row.Classification)).Append(',')
                        .Append(Csv(row.Name)).Append(',')
                        .Append(Csv(row.Material)).Append(',')
                        .Append(Csv(row.Process)).Append(',')
                        .Append(row.Quantity).Append(',')
-                       .Append(Csv(row.Classification)).Append(',')
-                       .Append(Csv(row.Configuration)).Append(',')
-                       .Append(Csv(row.FileName)).AppendLine();
+                       .Append(Csv(row.Remark)).AppendLine();
             }
 
             builder.AppendLine();
@@ -443,6 +473,13 @@ namespace MechKit.Features
                             new CustomProperty("工艺", PropertyTypes.Text, row.Process ?? string.Empty), true);
                     }
 
+                    if (!string.Equals(row.Remark ?? string.Empty, row.OriginalRemark ?? string.Empty,
+                            StringComparison.Ordinal))
+                    {
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("备注", PropertyTypes.Text, row.Remark ?? string.Empty), true);
+                    }
+
                     if (!ok)
                     {
                         log("✗ 写入失败：" + row.FileName);
@@ -516,7 +553,7 @@ namespace MechKit.Features
             public int SkippedByPattern { get; set; }
         }
 
-        private static void VisitComponent(CollectContext context, Component2 component)
+        private static void VisitComponent(CollectContext context, Component2 component, IList<string> hierarchy)
         {
             if (component == null)
             {
@@ -535,20 +572,22 @@ namespace MechKit.Features
 
                 if (docType == DocAssembly)
                 {
-                    // 子装配体：递归展开，其内部零件会按实例数重复计数
+                    // 子装配体：把它加入位置路径，再递归其直接子组件。
+                    var childHierarchy = new List<string>(hierarchy ?? new string[0]);
+                    childHierarchy.Add(ComponentDisplayName(component, path));
                     var children = component.GetChildren() as object[];
                     if (children != null)
                     {
                         foreach (var child in children)
                         {
-                            VisitComponent(context, child as Component2);
+                            VisitComponent(context, child as Component2, childHierarchy);
                         }
                     }
 
                     return;
                 }
 
-                Accumulate(context, component, path);
+                Accumulate(context, component, path, hierarchy);
             }
             catch (Exception ex)
             {
@@ -556,13 +595,15 @@ namespace MechKit.Features
             }
         }
 
-        private static void Accumulate(CollectContext context, Component2 component, string path)
+        private static void Accumulate(CollectContext context, Component2 component, string path,
+            IList<string> hierarchy)
         {
             var configuration = component.ReferencedConfiguration ?? string.Empty;
             var isVirtual = string.IsNullOrEmpty(path);
+            var location = FormatLocation(hierarchy, context.Options.AssemblyLevel);
             var key = isVirtual
-                ? "#virtual|" + (component.Name2 ?? string.Empty)
-                : path.ToLowerInvariant() + "|" + configuration.ToLowerInvariant();
+                ? "#virtual|" + (component.Name2 ?? string.Empty) + "|" + location
+                : path.ToLowerInvariant() + "|" + configuration.ToLowerInvariant() + "|" + location;
 
             PartListRow row;
             if (context.Rows.TryGetValue(key, out row))
@@ -619,33 +660,136 @@ namespace MechKit.Features
 
             var segmentMaterial = context.Options.Naming.ResolveMaterialFromSegments(displayPath);
             var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
+            var classification = Classify(context, path, ruleName, properties);
 
             row = new PartListRow
             {
+                Location = location,
                 PartNumber = context.Options.Naming.ResolvePartNumber(displayPath, name => Lookup(properties, name)),
-                Name = context.Options.Naming.ResolveName(displayPath, name => Lookup(properties, name)),
-                Material = !string.IsNullOrEmpty(propertyMaterial)
-                    ? propertyMaterial
-                    : !string.IsNullOrEmpty(segmentMaterial)
+                Name = context.Options.Naming.ResolveNameFromSegments(displayPath),
+                Material = !string.IsNullOrEmpty(segmentMaterial)
                     ? segmentMaterial
+                    : !string.IsNullOrEmpty(propertyMaterial)
+                    ? propertyMaterial
                     : context.Options.Naming.ResolveMaterial(modelMaterial, name => Lookup(properties, name)),
                 Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
+                Remark = First(properties, "备注", "说明", "Remark", "Notes"),
                 Quantity = 1,
-                Classification = isVirtual ? "虚拟件" : Classify(context, path, ruleName, properties),
+                Classification = classification,
                 FilePath = path,
                 Configuration = configuration
             };
 
+            ApplyStandardFields(row, displayPath, context.Options.Naming);
+            if (string.IsNullOrEmpty(row.Name))
+            {
+                row.Name = context.Options.Naming.ResolveName(displayPath, name => Lookup(properties, name));
+            }
+
             context.Rows[key] = row;
+        }
+
+        private static string ResolveTopAssemblyName(ISldWorks swApp)
+        {
+            try
+            {
+                var doc = swApp == null ? null : swApp.IActiveDoc2;
+                if (doc != null)
+                {
+                    var path = doc.GetPathName();
+                    var name = NamingOptions.GetFileNameWithoutExtension(
+                        string.IsNullOrEmpty(path) ? doc.GetTitle() : path);
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        return name.Trim();
+                    }
+                }
+            }
+            catch
+            {
+                // 未保存文档或离线宿主，使用通用名称。
+            }
+
+            return "顶层装配体";
+        }
+
+        private static string ComponentDisplayName(Component2 component, string path)
+        {
+            var value = NamingOptions.GetFileNameWithoutExtension(path);
+            if (string.IsNullOrWhiteSpace(value) && component != null)
+            {
+                value = component.Name2 ?? string.Empty;
+                var slash = value.LastIndexOf('/');
+                if (slash >= 0 && slash < value.Length - 1)
+                {
+                    value = value.Substring(slash + 1);
+                }
+
+                var instance = value.LastIndexOf('<');
+                if (instance > 0 && value.EndsWith(">", StringComparison.Ordinal))
+                {
+                    value = value.Substring(0, instance);
+                }
+            }
+
+            return string.IsNullOrWhiteSpace(value) ? "子装配体" : value.Trim();
+        }
+
+        private static string FormatLocation(IList<string> hierarchy, int assemblyLevel)
+        {
+            if (hierarchy == null || hierarchy.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var count = assemblyLevel < 0
+                ? hierarchy.Count
+                : Math.Min(hierarchy.Count, assemblyLevel + 1);
+            var parts = new string[count];
+            for (var i = 0; i < count; i++)
+            {
+                parts[i] = hierarchy[i];
+            }
+
+            return string.Join(" > ", parts);
+        }
+
+        /// <summary>
+        /// 标准件统一按“前缀_型号_名称”解释：工艺=前缀，材料=型号，零件名=余下标题。
+        /// 这样电机_MG996_舵机会得到：标准件 / 舵机 / MG996 / 电机。
+        /// </summary>
+        private static void ApplyStandardFields(PartListRow row, string sourceName, NamingOptions naming)
+        {
+            if (row == null || naming == null ||
+                !string.Equals(row.Classification, "标准件", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var stem = NamingOptions.GetFileNameWithoutExtension(sourceName).Trim();
+            var separator = string.IsNullOrEmpty(naming.SegmentSeparator) ? "_" : naming.SegmentSeparator;
+            var parts = stem.Split(new[] { separator }, StringSplitOptions.None);
+            if (parts.Length == 0 || !naming.HasKnownPrefix(parts[0]))
+            {
+                return;
+            }
+
+            row.Process = parts[0].Trim();
+            row.Material = parts.Length > 1 ? parts[1].Trim() : string.Empty;
+            if (parts.Length > 2)
+            {
+                var title = new string[parts.Length - 2];
+                Array.Copy(parts, 2, title, 0, title.Length);
+                row.Name = string.Join(separator, title).Trim();
+            }
+            else
+            {
+                row.Name = stem;
+            }
         }
 
         private static string Classify(CollectContext context, string path, string name, Dictionary<string, string> properties)
         {
-            if (string.IsNullOrEmpty(path))
-            {
-                return "虚拟件";
-            }
-
             // 命名规则优先：日期开头 = 加工件；已知前缀开头 = 标准件
             var ruleName = NamingOptions.GetFileNameWithoutExtension(
                 string.IsNullOrEmpty(name) ? path : name).Trim();
@@ -676,7 +820,7 @@ namespace MechKit.Features
                 var byKeyword = VendorKeywords.Match(Path.GetFileName(path));
                 if (!string.IsNullOrEmpty(byKeyword))
                 {
-                    return byKeyword;
+                    return "标准件";
                 }
             }
 
@@ -695,7 +839,7 @@ namespace MechKit.Features
                     if (text.Contains("外购") || text.Contains("外协") || text.Contains("采购") ||
                         text.Contains("purchas") || text.Contains("bought"))
                     {
-                        return "外购件";
+                        return "标准件";
                     }
 
                     if (text.Contains("加工") || text.Contains("自制") || text.Contains("machin"))
@@ -803,9 +947,15 @@ namespace MechKit.Features
         {
             rows.Sort(delegate(PartListRow left, PartListRow right)
             {
-                var byNumber = string.Compare(left.PartNumber, right.PartNumber, StringComparison.OrdinalIgnoreCase);
-                return byNumber != 0
-                    ? byNumber
+                var byLocation = string.Compare(left.Location, right.Location, StringComparison.OrdinalIgnoreCase);
+                if (byLocation != 0)
+                {
+                    return byLocation;
+                }
+
+                var byType = string.Compare(left.Classification, right.Classification, StringComparison.OrdinalIgnoreCase);
+                return byType != 0
+                    ? byType
                     : string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
             });
         }
