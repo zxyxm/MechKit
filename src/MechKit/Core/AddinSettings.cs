@@ -116,6 +116,13 @@ namespace MechKit.Core
             set { SetInt("MaterialSegment", value); }
         }
 
+        /// <summary>加工件段顺序，例如 date,material,name,serial。</summary>
+        public string MachinedSegments
+        {
+            get { return Get("MachinedSegments", "date,material,name,serial"); }
+            set { Set("MachinedSegments", value); }
+        }
+
         public bool PartListOnlyMachined
         {
             get { return GetBool("PartListOnlyMachined", true); }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Windows.Forms;
@@ -9,372 +10,335 @@ using MechKit.Core;
 namespace MechKit.Harness
 {
     /// <summary>
-    /// 还原 SOLIDWORKS CommandManager 选项卡的离线预览：
-    /// 顶部选项卡条 + MechKit 选项卡内容（和插件在 SW 里创建的按钮一一对应），
-    /// 图标用的是插件内嵌的真实资源。
+    /// SOLIDWORKS CommandManager 的离线 1:1 预览。
+    /// 尺寸、按钮换行、图标位置与底部选项卡均按实际界面截图还原；
+    /// 按钮仍调用 HarnessForm 中对应的真实窗口逻辑。
     /// </summary>
     internal sealed class TabPreviewForm : Form
     {
-        private static readonly Color Accent = Color.FromArgb(15, 108, 189);
-        private static readonly Color RibbonBack = Color.FromArgb(240, 242, 245);
-        private static readonly Color TabBand = Color.FromArgb(250, 251, 252);
-        private static readonly Color Border = Color.FromArgb(214, 219, 226);
+        private static readonly Color RibbonBack = Color.FromArgb(245, 245, 245);
+        private static readonly Color TabBack = Color.FromArgb(230, 230, 230);
+        private static readonly Color SelectedTabBack = Color.FromArgb(250, 250, 250);
+        private static readonly Color Border = Color.FromArgb(139, 139, 139);
+        private static readonly Color TextColor = Color.FromArgb(18, 18, 18);
 
         private readonly List<Bitmap> _icons = new List<Bitmap>();
-        private readonly List<Bitmap> _smallIcons = new List<Bitmap>();
         private readonly Action<string> _onCommand;
+        private readonly Panel _canvas;
 
         public TabPreviewForm(Action<string> onCommand)
         {
             _onCommand = onCommand;
 
-            Text = "MechKit 选项卡预览（还原 SOLIDWORKS CommandManager）";
-            Font = new Font("Microsoft YaHei UI", 9f);
-            ClientSize = new Size(1180, 420);
+            Text = "MechKit 选项卡离线测试";
+            Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Regular, GraphicsUnit.Point);
+            AutoScaleMode = AutoScaleMode.None;
+            ClientSize = new Size(1050, 150);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = RibbonBack;
+            MaximizeBox = false;
 
             LoadIcons();
 
-            Controls.Add(BuildRibbon());
-            Controls.Add(BuildToolbarStrip());
-            Controls.Add(BuildTabStrip());
-            Controls.Add(BuildFrame());
+            _canvas = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = RibbonBack
+            };
+            _canvas.Controls.Add(BuildCommandArea());
+            _canvas.Controls.Add(BuildTabStrip());
+            Controls.Add(_canvas);
 
             MechKit.UI.WindowLayout.EnableEscapeToClose(this);
+        }
+
+        /// <summary>只保存 CommandManager 客户区，不包含 Windows 标题栏和边框。</summary>
+        public void SaveClientImage(string path)
+        {
+            _canvas.PerformLayout();
+            using (var bitmap = new Bitmap(_canvas.ClientSize.Width, _canvas.ClientSize.Height))
+            {
+                _canvas.DrawToBitmap(bitmap, new Rectangle(Point.Empty, _canvas.ClientSize));
+                bitmap.Save(path, ImageFormat.Png);
+            }
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-            foreach (var icon in _icons)
-            {
-                icon.Dispose();
-            }
-
-            foreach (var icon in _smallIcons)
-            {
-                icon.Dispose();
-            }
+                foreach (var icon in _icons)
+                {
+                    icon.Dispose();
+                }
             }
 
             base.Dispose(disposing);
         }
 
-        /// <summary>从插件内嵌资源里切出每个命令的图标（和 SOLIDWORKS 用的是同一批文件）。</summary>
+        /// <summary>从插件内嵌 strip40.png 中切出与 SOLIDWORKS 相同的命令图标。</summary>
         private void LoadIcons()
         {
             try
             {
                 IconResources.Extract();
+                foreach (var path in IconResources.SmallIcons)
+                {
+                    if (!string.Equals(Path.GetFileName(path), "strip40.png",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    using (var strip = new Bitmap(path))
+                    {
+                        var size = strip.Height;
+                        var count = strip.Width / size;
+                        for (var i = 0; i < count; i++)
+                        {
+                            var rect = new Rectangle(i * size, 0, size, size);
+                            _icons.Add(strip.Clone(rect, PixelFormat.Format32bppArgb));
+                        }
+                    }
+
+                    break;
+                }
             }
             catch (Exception ex)
             {
-                Log.Warn("[harness] 提取图标失败：" + ex.Message);
-                return;
-            }
-
-            var wanted = new[] { "strip40.png", "strip20.png" };
-            foreach (var path in IconResources.SmallIcons)
-            {
-                var fileName = Path.GetFileName(path);
-                if (Array.IndexOf(wanted, fileName) < 0)
-                {
-                    continue;
-                }
-
-                using (var strip = new Bitmap(path))
-                {
-                    var size = strip.Height;
-                    var count = strip.Width / size;
-                    var target = fileName == "strip40.png" ? _icons : _smallIcons;
-                    for (var i = 0; i < count; i++)
-                    {
-                        var rect = new Rectangle(i * size, 0, size, size);
-                        target.Add(strip.Clone(rect, PixelFormat.Format32bppArgb));
-                    }
-                }
+                Log.Warn("[harness] 提取选项卡图标失败：" + ex.Message);
             }
         }
 
-        private Control BuildFrame()
+        /// <summary>截图上方的 MechKit 命令区：7 个按钮，位置与换行均固定。</summary>
+        private Control BuildCommandArea()
         {
-            // 窗体外框：模拟 SW 主窗口的边线
-            return new Panel { Dock = DockStyle.Left, Width = 0, BackColor = Border };
+            var host = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = RibbonBack
+            };
+            host.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                using (var pen = new Pen(Border))
+                {
+                    e.Graphics.DrawLine(pen, 0, host.Height - 1, host.Width, host.Height - 1);
+                }
+            };
+
+            var commands = new[]
+            {
+                new CommandSpec("一键生成BOM", "一键生\r\n成 BOM\r\n表", 76, 0),
+                new CommandSpec("明细汇总（图号/材料/数量）", "明细汇总（\r\n图号/材料\r\n/数量）", 84, 1),
+                new CommandSpec("加工件命名规则", "加工件\r\n命名规\r\n则设置", 69, 2),
+                new CommandSpec("标准件前缀", "标准件\r\n前缀设\r\n置", 63, 3),
+                new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
+                new CommandSpec("属性工具", "属性\r\n工具", 45, 5),
+                new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6)
+            };
+
+            var x = 0;
+            for (var i = 0; i < commands.Length; i++)
+            {
+                var command = commands[i];
+                var capturedId = command.Id;
+                var button = new CommandButton(
+                    command.DisplayText,
+                    command.IconIndex < _icons.Count ? _icons[command.IconIndex] : null)
+                {
+                    Location = new Point(x, 0),
+                    Size = new Size(command.Width, 117),
+                    // 参考截图中鼠标停在“标准件前缀”按钮上的状态。
+                    Highlighted = string.Equals(command.Id, "标准件前缀", StringComparison.Ordinal)
+                };
+                button.Click += delegate { _onCommand(capturedId); };
+                host.Controls.Add(button);
+                x += command.Width;
+            }
+
+            return host;
         }
 
-        /// <summary>顶部的选项卡条，MechKit 高亮选中。</summary>
+        /// <summary>截图底部的 SOLIDWORKS 选项卡条，MechKit 保持选中。</summary>
         private Control BuildTabStrip()
         {
-            var panel = new Panel { Dock = DockStyle.Top, Height = 34, BackColor = TabBand };
+            var panel = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 33,
+                BackColor = RibbonBack
+            };
 
             var tabs = new[]
             {
-                "装配体", "布局", "草图", "标注", "评估", "SOLIDWORKS 插件", "MBD", "MechKit"
+                new TabSpec("装配体", 72),
+                new TabSpec("布局", 59),
+                new TabSpec("草图", 57),
+                new TabSpec("标注", 56),
+                new TabSpec("评估", 56),
+                new TabSpec("SOLIDWORKS 插件", 176),
+                new TabSpec("MBD", 60),
+                new TabSpec("MechKit", 82),
+                new TabSpec("嘉立创Ican机械设计", 191),
+                new TabSpec("嘉立创Ican工具箱", 171)
             };
 
-            var x = 8;
+            var x = 0;
             foreach (var tab in tabs)
             {
-                var isMechKit = tab == "MechKit";
+                var selected = string.Equals(tab.Text, "MechKit", StringComparison.Ordinal);
                 var label = new Label
                 {
-                    Text = tab,
+                    Text = tab.Text,
                     AutoSize = false,
-                    Width = TextRenderer.MeasureText(tab, Font).Width + 24,
-                    Height = 32,
-                    TextAlign = ContentAlignment.MiddleCenter,
                     Location = new Point(x, 0),
-                    Font = isMechKit ? new Font(Font, FontStyle.Bold) : Font,
-                    ForeColor = isMechKit ? Accent : Color.FromArgb(70, 76, 84),
-                    BackColor = isMechKit ? Color.White : TabBand
+                    Size = new Size(tab.Width + 1, 33),
+                    Font = Font,
+                    ForeColor = TextColor,
+                    BackColor = selected ? SelectedTabBack : TabBack,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    UseMnemonic = false
                 };
-
-                var captured = label;
-                captured.Paint += delegate(object sender, PaintEventArgs e)
-                {
-                    if (isMechKit)
-                    {
-                        using (var pen = new Pen(Accent, 2))
-                        {
-                            e.Graphics.DrawLine(pen, 4, captured.Height - 2,
-                                captured.Width - 4, captured.Height - 2);
-                        }
-                    }
-                };
-
                 panel.Controls.Add(label);
-                x += label.Width;
-            }
 
-            var hint = new Label
-            {
-                Text = "← 这是 SOLIDWORKS 里 MechKit 选项卡的位置（选项卡栏末尾）",
-                AutoSize = true,
-                ForeColor = Color.FromArgb(120, 128, 136),
-                Location = new Point(x + 16, 8)
-            };
-            panel.Controls.Add(hint);
+                // 相邻标签共享一条边框，避免出现双线。
+                x += tab.Width;
+            }
 
             return panel;
         }
 
-        /// <summary>MechKit 选项卡的内容：和插件创建的 7 个命令一一对应。</summary>
-        /// <summary>经典工具条样式：小图标 + 折行文字，和 SOLIDWORKS 顶部那排一样。</summary>
-        private Control BuildToolbarStrip()
+        private sealed class CommandSpec
         {
-            var commands = new[]
+            public CommandSpec(string id, string displayText, int width, int iconIndex)
             {
-                "一键生成BOM", "明细汇总（图号/材料/数量）", "加工件命名规则", "标准件前缀",
-                "批量导出", "属性工具", "工具箱面板", "个人配置/设置迁移", "关于 MechKit"
-            };
-
-            var host = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = RibbonBack, Padding = new Padding(10, 8, 10, 4) };
-
-            var caption = new Label
-            {
-                Text = "① SOLIDWORKS 顶部工具条（经典工具条样式，装好后就是这个样子）",
-                Dock = DockStyle.Top,
-                Height = 18,
-                ForeColor = Color.FromArgb(110, 118, 126),
-                Font = new Font(Font.FontFamily, 8f)
-            };
-
-            var row = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                BackColor = RibbonBack
-            };
-
-            for (var i = 0; i < commands.Length; i++)
-            {
-                var index = i;
-                var button = new Button
-                {
-                    Text = commands[i],
-                    Width = 62,
-                    Height = 54,
-                    Margin = new Padding(0, 0, 2, 0),
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = RibbonBack,
-                    ForeColor = Color.FromArgb(32, 36, 40),
-                    TextAlign = ContentAlignment.BottomCenter,
-                    ImageAlign = ContentAlignment.TopCenter,
-                    Image = index < _smallIcons.Count ? _smallIcons[index] : null,
-                    Padding = new Padding(0, 2, 0, 2),
-                    UseVisualStyleBackColor = false,
-                    Font = new Font(Font.FontFamily, 7.5f)
-                };
-
-                button.FlatAppearance.BorderColor = RibbonBack;
-                button.FlatAppearance.MouseOverBackColor = Color.FromArgb(226, 238, 250);
-                button.Click += delegate { _onCommand(commands[index]); };
-                row.Controls.Add(button);
+                Id = id;
+                DisplayText = displayText;
+                Width = width;
+                IconIndex = iconIndex;
             }
 
-            host.Controls.Add(row);
-            host.Controls.Add(caption);
-            return host;
+            public string Id { get; private set; }
+            public string DisplayText { get; private set; }
+            public int Width { get; private set; }
+            public int IconIndex { get; private set; }
         }
 
-        private Control BuildRibbon()
+        private sealed class TabSpec
         {
-            var host = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(10, 8, 10, 8) };
-
-            var caption = new Label
+            public TabSpec(string text, int width)
             {
-                Text = "② MechKit 选项卡（CommandManager）——点击任意按钮会打开对应的真实窗口",
-                Dock = DockStyle.Top,
-                Height = 20,
-                ForeColor = Color.FromArgb(110, 118, 126),
-                Font = new Font(Font.FontFamily, 8f)
-            };
-            host.Controls.Add(caption);
-
-            var group = new Panel
-            {
-                // 左侧 = MechKit 命令组（大按钮），右侧 = 说明文字，两块并排不重叠
-                Dock = DockStyle.Left,
-                Width = 9 * 106 + 24,
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle,
-                Padding = new Padding(8, 6, 8, 6)
-            };
-
-            var commands = new[]
-            {
-                "一键生成BOM", "明细汇总（图号/材料/数量）", "加工件命名规则", "标准件前缀",
-                "批量导出", "属性工具", "工具箱面板", "个人配置/设置迁移", "关于 MechKit"
-            };
-
-            var row = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                BackColor = Color.White
-            };
-
-            for (var i = 0; i < commands.Length; i++)
-            {
-                var index = i;
-                var button = new Button
-                {
-                    Text = commands[i],
-                    Width = 104,
-                    Height = 88,
-                    Margin = new Padding(2, 2, 2, 2),
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.White,
-                    ForeColor = Color.FromArgb(32, 36, 40),
-                    TextAlign = ContentAlignment.BottomCenter,
-                    ImageAlign = ContentAlignment.TopCenter,
-                    Image = index < _icons.Count ? _icons[index] : null,
-                    Padding = new Padding(0, 4, 0, 16),
-                    UseVisualStyleBackColor = false
-                };
-
-                button.FlatAppearance.BorderColor = Color.White;
-                button.FlatAppearance.MouseOverBackColor = Color.FromArgb(226, 238, 250);
-                button.Click += delegate { _onCommand(commands[index]); };
-                row.Controls.Add(button);
+                Text = text;
+                Width = width;
             }
 
-            group.Controls.Add(row);
+            public string Text { get; private set; }
+            public int Width { get; private set; }
+        }
 
-            var groupCaption = new Label
+        /// <summary>自绘命令按钮，避免 WinForms Button 自动调整图标和换行导致失真。</summary>
+        private sealed class CommandButton : Control
+        {
+            private readonly Bitmap _icon;
+            private bool _hovered;
+            private bool _pressed;
+
+            public CommandButton(string text, Bitmap icon)
             {
-                Text = "MechKit",
-                Dock = DockStyle.Bottom,
-                Height = 18,
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.FromArgb(110, 118, 126),
-                Font = new Font(Font.FontFamily, 8f)
-            };
-            group.Controls.Add(groupCaption);
-            groupCaption.BringToFront();
+                Text = text;
+                _icon = icon;
+                Cursor = Cursors.Hand;
+                Font = new Font("Microsoft YaHei UI", 10.5f, FontStyle.Regular, GraphicsUnit.Point);
+                BackColor = RibbonBack;
+                ForeColor = TextColor;
+                TabStop = true;
 
-            host.Controls.Add(group);
+                SetStyle(ControlStyles.AllPaintingInWmPaint |
+                         ControlStyles.OptimizedDoubleBuffer |
+                         ControlStyles.ResizeRedraw |
+                         ControlStyles.UserPaint, true);
+            }
 
-            // 第二组：标准件前缀按钮（和插件在选项卡上创建的第二组命令一致）
-            var prefixes = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomPrefixes);
-            if (prefixes.Length > 0)
+            public bool Highlighted { get; set; }
+
+            protected override void OnMouseEnter(EventArgs e)
             {
-                var prefixGroup = new Panel
-                {
-                    Dock = DockStyle.Left,
-                    Width = Math.Min(prefixes.Length, 12) * 78 + 20,
-                    BackColor = Color.White,
-                    BorderStyle = BorderStyle.FixedSingle,
-                    Padding = new Padding(8, 6, 8, 6)
-                };
+                _hovered = true;
+                Invalidate();
+                base.OnMouseEnter(e);
+            }
 
-                var prefixRow = new FlowLayoutPanel
-                {
-                    Dock = DockStyle.Fill,
-                    FlowDirection = FlowDirection.LeftToRight,
-                    WrapContents = true,
-                    BackColor = Color.White
-                };
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                _hovered = false;
+                _pressed = false;
+                Invalidate();
+                base.OnMouseLeave(e);
+            }
 
-                var count = Math.Min(prefixes.Length, 12);
-                for (var i = 0; i < count; i++)
+            protected override void OnMouseDown(MouseEventArgs e)
+            {
+                if (e.Button == MouseButtons.Left)
                 {
-                    var prefix = prefixes[i];
-                    var button = new Button
-                    {
-                        Text = prefix,
-                        Width = 70,
-                        Height = 34,
-                        Margin = new Padding(2),
-                        FlatStyle = FlatStyle.Flat,
-                        BackColor = Color.White,
-                        ForeColor = Color.FromArgb(32, 36, 40),
-                        UseVisualStyleBackColor = false
-                    };
-                    button.FlatAppearance.BorderColor = Color.FromArgb(214, 219, 226);
-                    button.FlatAppearance.MouseOverBackColor = Color.FromArgb(226, 238, 250);
-                    button.Click += delegate { _onCommand("前缀:" + prefix); };
-                    prefixRow.Controls.Add(button);
+                    _pressed = true;
+                    Focus();
+                    Invalidate();
                 }
 
-                prefixGroup.Controls.Add(prefixRow);
-
-                var prefixCaption = new Label
-                {
-                    Text = "标准件前缀",
-                    Dock = DockStyle.Bottom,
-                    Height = 18,
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    ForeColor = Color.FromArgb(110, 118, 126),
-                    Font = new Font(Font.FontFamily, 8f)
-                };
-                prefixGroup.Controls.Add(prefixCaption);
-                prefixCaption.BringToFront();
-
-                host.Controls.Add(prefixGroup);
+                base.OnMouseDown(e);
             }
 
-            var info = new Label
+            protected override void OnMouseUp(MouseEventArgs e)
             {
-                Dock = DockStyle.Fill,
-                Text = "点击按钮会调用与 SOLIDWORKS 里完全相同的处理逻辑（离线下没有文档，因此会走\"未打开文档\"分支）。\r\n\r\n" +
-                       "· 生成BOM：汇总当前装配体，导出 CSV 并用 Excel 打开\r\n" +
-                       "· 明细汇总：图号 / 材料 / 加工件数量，可导出或写回属性\r\n" +
-                       "· 批量导出：PDF / DWG / DXF / STEP / IGES / STL\r\n" +
-                       "· 属性工具：批量写入自定义属性\r\n" +
-                       "· 工具箱面板：任务面板（含一键加/去前缀）\r\n" +
-                       "· 个人配置：常用目录 + 个人设置导出导入（含笔势）",
-                ForeColor = Color.FromArgb(120, 128, 136),
-                Padding = new Padding(16, 4, 0, 0)
-            };
-            host.Controls.Add(info);
-            info.BringToFront();
+                _pressed = false;
+                Invalidate();
+                base.OnMouseUp(e);
+            }
 
-            return host;
+            protected override void OnKeyDown(KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+                {
+                    OnClick(EventArgs.Empty);
+                    e.Handled = true;
+                }
+
+                base.OnKeyDown(e);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var active = Highlighted || _hovered || _pressed;
+                e.Graphics.Clear(active
+                    ? (_pressed ? Color.FromArgb(214, 214, 214) : Color.FromArgb(232, 232, 232))
+                    : RibbonBack);
+
+                if (active)
+                {
+                    using (var pen = new Pen(Border))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+                    }
+                }
+
+                if (_icon != null)
+                {
+                    e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    var iconSize = 28;
+                    var iconX = (Width - iconSize) / 2;
+                    e.Graphics.DrawImage(_icon, new Rectangle(iconX, 7, iconSize, iconSize));
+                }
+
+                var textBounds = new Rectangle(1, 40, Width - 2, Height - 41);
+                TextRenderer.DrawText(e.Graphics, Text, Font, textBounds, ForeColor,
+                    TextFormatFlags.HorizontalCenter |
+                    TextFormatFlags.Top |
+                    TextFormatFlags.NoPadding |
+                    TextFormatFlags.NoPrefix);
+            }
         }
     }
 }

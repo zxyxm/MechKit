@@ -27,6 +27,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
 $project = Join-Path $repoRoot 'src\MechKit\MechKit.csproj'
 $toolsProject = Join-Path $repoRoot 'tools\DocInspector\DocInspector.csproj'
+$harnessProject = Join-Path $repoRoot 'tools\MechKitHarness\MechKitHarness.csproj'
 
 function Test-SolidWorksFolder {
     param([string] $Folder)
@@ -158,4 +159,25 @@ if (-not $SkipTools) {
 
     $toolsOutput = Join-Path $repoRoot "tools\DocInspector\bin\$Configuration\DocInspector.exe"
     Write-Host "Output: $toolsOutput"
+
+    Write-Host ''
+    Write-Host 'Building tools\MechKitHarness ...'
+
+    $harnessArguments = @(
+        $harnessProject,
+        '/nologo',
+        '/restore',
+        '/v:minimal',
+        "/p:Configuration=$Configuration",
+        "/p:SwDir=$swFolder",
+        "/p:MechKitDir=$toolkitDir"
+    )
+
+    & $msbuild $harnessArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "MechKitHarness build failed with exit code $LASTEXITCODE."
+    }
+
+    $harnessOutput = Join-Path $repoRoot "tools\MechKitHarness\bin\$Configuration\MechKitHarness.exe"
+    Write-Host "Output: $harnessOutput"
 }

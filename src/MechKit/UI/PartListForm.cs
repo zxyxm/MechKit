@@ -225,9 +225,12 @@ namespace MechKit.UI
             var s = _host.Settings;
             var separator = string.IsNullOrEmpty(s.SegmentSeparator) ? "_" : s.SegmentSeparator;
             var prefixes = s.BomPrefixes;
+            var segmentOrder = NamingOptionsFactory.DescribeMachinedSegments(
+                NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments));
 
             return string.Format(
-                "当前规则：加工件 = 日期{0}材料{0}名称；标准件前缀 = {1}；只收录这两类{2}",
+                "当前规则：加工件 = {0}（分隔符 {1}）；标准件前缀 = {2}；只收录这两类{3}",
+                segmentOrder,
                 separator,
                 string.IsNullOrEmpty(prefixes) ? "（未设置）" : prefixes,
                 s.BomRequirePattern ? string.Empty : "（当前已关闭过滤，全部收录）");

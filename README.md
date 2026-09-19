@@ -45,7 +45,7 @@
 
 ### 2.2 名称与材料按段解析
 
-勾选「名称/材料按文件名分段」，默认分隔符 `_`，规则为：
+加工件规则默认使用分隔符 `_`，并按界面中从上到下的段顺序解析：
 
 ```
 20260908_6061_扫码枪安装板.sldprt
@@ -53,8 +53,9 @@
  （日期） 材料=6061  名称=扫码枪安装板
 ```
 
-- **名称** = 最后一段
-- **材料** = 倒数第二段（可改成最后一段 / 倒数第三段 / 不取自名称）
+- **时间段**固定为第 1 段，用来判定加工件，不能移动或删除
+- **材料段、零件名称段、扩展序号段、自定义段**可通过 `＋ 增加段` 添加
+- 除时间段外，可用 `↑ / ↓` 调整顺序，也可删除；材料和名称会按调整后的段位置解析
 
 只有文件名里真的分段时才会生效；`拨线板.sldprt` 这类名字会原样作为名称，材料留空。
 
@@ -208,6 +209,20 @@ MechKitAddin/
    ├─ Test-Naming.ps1            图号/材料规则离线测试
    ├─ testdata/                  测试用例（中文放在 JSON 里，脚本保持纯 ASCII）
    └─ DocInspector/              命令行诊断工具
+```
+
+### 离线测试选项卡 UI
+
+不启动 SOLIDWORKS，直接打开与 CommandManager 同尺寸、同按钮逻辑的测试界面：
+
+```powershell
+tools\MechKitHarness\bin\Release\MechKitHarness.exe --tab
+```
+
+也可以自动渲染一张 1050×150 的客户端预览图，用于布局对比：
+
+```powershell
+tools\MechKitHarness\bin\Release\MechKitHarness.exe --tab-image=C:\Temp\MechKit-tab.png
 ```
 
 ## 7. 常见问题

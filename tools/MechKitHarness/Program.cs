@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using MechKit.Core;
 using MechKit.UI;
@@ -182,6 +183,29 @@ namespace MechKit.Harness
             Show(new TabPreviewForm(Execute));
         }
 
+        /// <summary>把 1:1 选项卡客户端直接渲染成 PNG，便于无 SOLIDWORKS 的视觉回归。</summary>
+        public void SaveTabPreview(string path)
+        {
+            var target = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using (var preview = new TabPreviewForm(Execute))
+            {
+                preview.Show(this);
+                Application.DoEvents();
+
+                preview.SaveClientImage(target);
+
+                preview.Close();
+            }
+
+            Log.Info("[harness] 选项卡预览图已保存：" + target);
+        }
+
         /// <summary>直接打开指定窗口，便于命令行预览：--settings / --partlist / --export / --property</summary>
         public void OpenNamed(string name)
         {
@@ -242,6 +266,15 @@ namespace MechKit.Harness
                 if (string.Equals(arg, "--tab", StringComparison.OrdinalIgnoreCase))
                 {
                     form.Shown += delegate { form.OpenTabPreview(); };
+                }
+                else if (arg.StartsWith("--tab-image=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var imagePath = arg.Substring("--tab-image=".Length).Trim().Trim('"');
+                    form.Shown += delegate
+                    {
+                        form.SaveTabPreview(imagePath);
+                        form.Close();
+                    };
                 }
                 else if (arg.StartsWith("--", StringComparison.Ordinal))
                 {

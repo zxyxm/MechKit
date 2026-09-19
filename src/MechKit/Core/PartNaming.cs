@@ -50,6 +50,16 @@ namespace MechKit.Core
         PropertyOnly = 2
     }
 
+    /// <summary>加工件文件名中各段的用途；数组顺序就是文件名中的前后顺序。</summary>
+    internal enum MachinedSegmentKind
+    {
+        Date = 0,
+        Material = 1,
+        Name = 2,
+        Serial = 3,
+        Custom = 4
+    }
+
     /// <summary>
     /// 图号 / 名称 / 材料的解析规则。
     /// 机械制图习惯：文件名形如「JX-2024-001 支架」，图号取空格前，名称取空格后。
@@ -66,6 +76,13 @@ namespace MechKit.Core
             SegmentSeparator = "_";
             NameSegment = -1;
             MaterialSegment = -2;
+            MachinedSegments = new[]
+            {
+                MachinedSegmentKind.Date,
+                MachinedSegmentKind.Material,
+                MachinedSegmentKind.Name,
+                MachinedSegmentKind.Serial
+            };
             PartNumberProperties = new[] { "图号", "零件号", "零件代号", "代号", "PartNumber", "Part Number", "Number", "DrawingNo" };
             NameProperties = new[] { "名称", "零件名称", "Description", "Title", "Name" };
             MaterialProperties = new[] { "材料", "材质", "Material", "材质牌号" };
@@ -93,6 +110,9 @@ namespace MechKit.Core
         /// <summary>材料所在段：-2 = 倒数第二段，0 = 不从文件名取材料。</summary>
         public int MaterialSegment { get; set; }
 
+        /// <summary>加工件段定义；顺序对应文件名中从左到右的位置。</summary>
+        public MachinedSegmentKind[] MachinedSegments { get; set; }
+
         /// <summary>BOM 收录用的名称前缀，例如 电机 / 电气 / 淘宝。用下划线分隔各段。</summary>
         public string[] BomPrefixes { get; set; }
 
@@ -118,7 +138,26 @@ namespace MechKit.Core
             }
 
             var fileName = GetFileNameWithoutExtension(name).Trim();
-            return StartsWithDate(fileName) || HasKnownPrefix(FirstSegment(fileName));
+            return IsMachinedName(fileName) || HasKnownPrefix(FirstSegment(fileName));
+        }
+
+        /// <summary>按当前段顺序找到时间段，并用它判断是否为加工件。</summary>
+        public bool IsMachinedName(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                return false;
+            }
+
+            var cleanName = GetFileNameWithoutExtension(fileName).Trim();
+            var dateIndex = IndexOfSegment(MachinedSegmentKind.Date);
+            if (dateIndex < 0 || string.IsNullOrEmpty(SegmentSeparator))
+            {
+                return StartsWithDate(cleanName);
+            }
+
+            var parts = cleanName.Split(SegmentSeparator.ToCharArray(), StringSplitOptions.None);
+            return dateIndex < parts.Length && IsDateSegment(parts[dateIndex]);
         }
 
         /// <summary>名称是否以日期开头（6~8 位数字，后面跟分隔符或直接结束）。</summary>
@@ -147,6 +186,30 @@ namespace MechKit.Core
 
             var separator = fileName[digits];
             return separator == '_' || separator == '-' || separator == ' ';
+        }
+
+        private static bool IsDateSegment(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+
+            var text = value.Trim();
+            if (text.Length < 6 || text.Length > 8)
+            {
+                return false;
+            }
+
+            foreach (var character in text)
+            {
+                if (!char.IsDigit(character))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>取名称的第一段（下划线分隔）。</summary>
@@ -216,7 +279,10 @@ namespace MechKit.Core
 
             var fileName = GetFileNameWithoutExtension(filePath);
 
-            var fromSegment = PickSegment(fileName, NameSegment);
+            var configuredNameSegment = IndexOfSegment(MachinedSegmentKind.Name);
+            var fromSegment = UseNameSegments && IsMachinedName(fileName) && configuredNameSegment >= 0
+                ? PickSegment(fileName, configuredNameSegment + 1)
+                : PickSegment(fileName, NameSegment);
             if (UseNameSegments && !string.IsNullOrEmpty(fromSegment))
             {
                 return fromSegment;
@@ -255,12 +321,37 @@ namespace MechKit.Core
         /// <summary>从文件名分段取材料；未启用或取不到时返回空字符串。</summary>
         public string ResolveMaterialFromSegments(string filePath)
         {
-            if (!UseNameSegments || MaterialSegment == 0)
+            if (!UseNameSegments)
             {
                 return string.Empty;
             }
 
-            return PickSegment(GetFileNameWithoutExtension(filePath), MaterialSegment);
+            var fileName = GetFileNameWithoutExtension(filePath);
+            var configuredMaterialSegment = IndexOfSegment(MachinedSegmentKind.Material);
+            if (IsMachinedName(fileName) && configuredMaterialSegment >= 0)
+            {
+                return PickSegment(fileName, configuredMaterialSegment + 1);
+            }
+
+            return MaterialSegment == 0 ? string.Empty : PickSegment(fileName, MaterialSegment);
+        }
+
+        private int IndexOfSegment(MachinedSegmentKind kind)
+        {
+            if (MachinedSegments == null)
+            {
+                return -1;
+            }
+
+            for (var i = 0; i < MachinedSegments.Length; i++)
+            {
+                if (MachinedSegments[i] == kind)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         /// <summary>
@@ -419,8 +510,8 @@ namespace MechKit.Core
             }
 
             var segments = UseNameSegments
-                ? string.Format("；名称/材料按「{0}」分段（名称段 {1}，材料段 {2}）",
-                    SegmentSeparator, NameSegment, MaterialSegment)
+                ? string.Format("；按「{0}」分段（{1}）",
+                    SegmentSeparator, NamingOptionsFactory.DescribeMachinedSegments(MachinedSegments))
                 : string.Empty;
 
             return string.Format("图号：{0} / {1}{2}", source, cut, segments);

@@ -6,6 +6,9 @@ MechKit —— 交付包说明
   1、安装包\      给使用者的成品，双击「安装与卸载.exe」即可
   2、源码\        完整 C# 源码，可用 Visual Studio / MSBuild 重新编译
 
+安装包\离线UI测试\MechKitHarness.exe 可在不启动 SOLIDWORKS 的情况下测试
+MechKit 选项卡布局及各按钮页面逻辑；打开后点击「★ 选项卡预览」。
+
 
 一、只想用插件
 ------------------------------------------------
@@ -64,6 +67,7 @@ tools\
   Generate-Icons.ps1                        重新生成图标
   Enable-FusionLog.ps1                      排查插件加载失败用
   DocInspector\                             命令行诊断工具（读真实图纸验证规则）
+  MechKitHarness\                           离线选项卡与页面测试宿主
 
 
 四、两个技术要点（改代码前值得看一眼）

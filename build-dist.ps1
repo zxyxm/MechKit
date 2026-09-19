@@ -136,6 +136,34 @@ if (Test-Path $inspector) {
     Write-Host ("    + {0}\DocInspector.exe" -f $manifest.diagnosticsFolder)
 }
 
+# Offline CommandManager UI test harness
+$harness = Join-Path $repoRoot "tools\MechKitHarness\bin\$Configuration\MechKitHarness.exe"
+if (Test-Path $harness) {
+    $uiFolder = Join-Path $packageDir $manifest.uiTestFolder
+    New-Item -ItemType Directory -Path $uiFolder -Force | Out-Null
+    $harnessRoot = Split-Path -Parent $harness
+    $previewName = 'MechKit-tab.png'
+    $previewPath = Join-Path $harnessRoot $previewName
+
+    $renderArgs = '"--tab-image={0}"' -f $previewPath
+    $renderProcess = Start-Process -FilePath $harness -ArgumentList $renderArgs `
+        -WindowStyle Hidden -Wait -PassThru
+    if ($renderProcess.ExitCode -ne 0) {
+        throw "UI harness rendering failed ($($renderProcess.ExitCode))."
+    }
+    if (-not (Test-Path -LiteralPath $previewPath)) {
+        throw "UI harness did not create preview: $previewPath"
+    }
+
+    foreach ($name in @('MechKitHarness.exe', 'MechKitHarness.exe.config', 'MechKit.dll',
+                        'SolidWorks.Interop.sldworks.dll', 'SolidWorks.Interop.swconst.dll',
+                        'SolidWorks.Interop.swpublished.dll', $previewName)) {
+        $source = Join-Path $harnessRoot $name
+        if (Test-Path $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $uiFolder $name) -Force }
+    }
+    Write-Host ("    + {0}\MechKitHarness.exe" -f $manifest.uiTestFolder)
+}
+
 # source tree, excluding build output (only when explicitly requested:
 # the source folder is the working copy, so it must not be overwritten casually)
 if ($IncludeSource) {
@@ -156,6 +184,8 @@ $robocopyArgs = @(
     (Join-Path $repoRoot 'src\MechKit\obj'),
     (Join-Path $repoRoot 'tools\DocInspector\bin'),
     (Join-Path $repoRoot 'tools\DocInspector\obj'),
+    (Join-Path $repoRoot 'tools\MechKitHarness\bin'),
+    (Join-Path $repoRoot 'tools\MechKitHarness\obj'),
     (Join-Path $repoRoot 'installer\MechKitSetup\bin'),
     (Join-Path $repoRoot 'installer\MechKitSetup\obj')
 )

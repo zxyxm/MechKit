@@ -52,8 +52,10 @@ $namingType = $assembly.GetType('MechKit.Core.NamingOptions', $false)
 $sourceEnum = $assembly.GetType('MechKit.Core.PartNumberSource', $false)
 $cutEnum = $assembly.GetType('MechKit.Core.FileNameCutRule', $false)
 $materialEnum = $assembly.GetType('MechKit.Core.MaterialSource', $false)
+$segmentEnum = $assembly.GetType('MechKit.Core.MachinedSegmentKind', $false)
+$factoryType = $assembly.GetType('MechKit.Core.NamingOptionsFactory', $false)
 
-foreach ($type in @($namingType, $sourceEnum, $cutEnum, $materialEnum)) {
+foreach ($type in @($namingType, $sourceEnum, $cutEnum, $materialEnum, $segmentEnum, $factoryType)) {
     if (-not $type) { throw 'Unexpected assembly layout: MechKit.Core types are missing.' }
 }
 
@@ -70,7 +72,11 @@ $matchesBomPattern = $namingType.GetMethod('MatchesBomPattern')
 $startsWithDate = $namingType.GetMethod('StartsWithDate')
 $prefixProperty = $namingType.GetProperty('BomPrefixes')
 $requirePatternProperty = $namingType.GetProperty('RequireBomPattern')
-$parsePrefixes = $assembly.GetType('MechKit.Core.NamingOptionsFactory', $false).GetMethod('ParsePrefixes')
+$machinedSegmentsProperty = $namingType.GetProperty('MachinedSegments')
+$parsePrefixes = $factoryType.GetMethod('ParsePrefixes')
+$parseMachinedSegments = $factoryType.GetMethod('ParseMachinedSegments')
+$serializeMachinedSegments = $factoryType.GetMethod('SerializeMachinedSegments')
+$isMachinedName = $namingType.GetMethod('IsMachinedName')
 
 $failures = New-Object System.Collections.Generic.List[string]
 $checked = 0
@@ -171,6 +177,40 @@ foreach ($case in $cases.segmentCases) {
 
     $material = $resolveSegmentMaterial.Invoke($options, @($file))
     Assert-Equal ("segment material / " + $case.name) $case.expectedMaterial $material
+}
+
+# Ordered machining segments: the configured row order controls name/material
+# extraction. The date segment is normalized to one immutable first row.
+foreach ($case in $cases.orderedSegmentCases) {
+    $options = New-NamingOptions 'FileName' 'FirstSpace' ''
+    $namingType.GetProperty('UseNameSegments').SetValue($options, $true)
+    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_')
+    $segments = $parseMachinedSegments.Invoke($null, @((Get-Field $case 'layout')))
+    $machinedSegmentsProperty.SetValue($options, $segments)
+
+    $emptyLookup = New-Lookup $null
+    $file = Get-Field $case 'file'
+    $name = $resolveName.Invoke($options, @($file, $emptyLookup))
+    Assert-Equal ("ordered name / " + $case.name) $case.expectedName $name
+
+    $material = $resolveSegmentMaterial.Invoke($options, @($file))
+    Assert-Equal ("ordered material / " + $case.name) $case.expectedMaterial $material
+
+    $invokeArguments = New-Object 'object[]' 1
+    $invokeArguments[0] = $segments
+    $normalized = $serializeMachinedSegments.Invoke($null, $invokeArguments)
+    Assert-Equal ("ordered layout / " + $case.name) $case.expectedLayout $normalized
+
+    $script:checked++
+    $actualMachined = [bool] $isMachinedName.Invoke($options, @($file))
+    if ($actualMachined -eq [bool] $case.isMachined) {
+        Write-Host ("[PASS] ordered BOM / {0} -> machined={1}" -f $case.name, $actualMachined)
+    }
+    else {
+        Write-Host ("[FAIL] ordered BOM / {0} -> machined={1} (expected {2})" -f `
+            $case.name, $actualMachined, [bool] $case.isMachined)
+        $script:failures.Add("ordered BOM / " + $case.name)
+    }
 }
 
 # BOM rule: machined parts (date first) and standard parts (prefix first) are

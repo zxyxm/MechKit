@@ -4,6 +4,7 @@
   "readmeName": "安装说明.txt",
   "configName": "config.ini",
   "diagnosticsFolder": "诊断工具",
+  "uiTestFolder": "离线UI测试",
   "packageFolderName": "安装包",
   "sourceFolderName": "源码",
   "guideName": "使用说明.txt",

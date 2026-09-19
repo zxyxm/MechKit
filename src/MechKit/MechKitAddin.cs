@@ -464,7 +464,19 @@ namespace MechKit
                     return;
                 }
 
-                var known = NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes);
+                // 配置前缀和内置快捷前缀都视为“已知前缀”。这样从“电机_”
+                // 切换成“气动_”时会替换旧前缀，而不是叠加成“气动_电机_”。
+                var knownList = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
+                foreach (var preset in AddinConstants.PresetPrefixes)
+                {
+                    if (!knownList.Exists(delegate(string item)
+                        { return string.Equals(item, preset, StringComparison.OrdinalIgnoreCase); }))
+                    {
+                        knownList.Add(preset);
+                    }
+                }
+
+                var known = knownList.ToArray();
                 var changed = 0;
 
                 for (var i = 1; i <= count; i++)

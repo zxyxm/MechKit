@@ -497,7 +497,7 @@ namespace MechKit.Features
             var ruleName = NamingOptions.GetFileNameWithoutExtension(
                 string.IsNullOrEmpty(name) ? path : name).Trim();
 
-            if (NamingOptions.StartsWithDate(ruleName))
+            if (context.Options.Naming.IsMachinedName(ruleName))
             {
                 return "加工件";
             }
