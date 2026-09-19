@@ -147,7 +147,6 @@ namespace MechKit.Harness
             commands.AddRange(new[]
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
-                new CommandSpec("属性工具", "属性\r\n工具", 45, 5),
                 new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6)
             });
 

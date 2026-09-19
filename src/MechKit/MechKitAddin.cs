@@ -817,11 +817,6 @@ namespace MechKit
                 "批量导出", 4, "OnBatchExport", "OnAlwaysEnable",
                 AddinConstants.CmdBatchExport, menuAndToolbar));
 
-            indices.Add(_commandGroup.AddCommandItem2("属性工具", -1,
-                "查看当前文档属性，或向整个文件夹批量写入自定义属性",
-                "属性工具", 5, "OnPropertyTool", "OnAlwaysEnable",
-                AddinConstants.CmdPropertyTool, menuAndToolbar));
-
             indices.Add(_commandGroup.AddCommandItem2("工具箱面板", -1,
                 "显示 / 隐藏 MechKit任务面板",
                 "工具箱面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",

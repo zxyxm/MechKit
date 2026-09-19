@@ -57,7 +57,6 @@ namespace MechKit.Harness
             buttons.Controls.Add(CreateButton("加工件命名规则", delegate { Execute("加工件命名规则"); }));
             buttons.Controls.Add(CreateButton("标准件前缀", delegate { Execute("标准件前缀"); }));
             buttons.Controls.Add(CreateButton("批量导出", delegate { Execute("批量导出"); }));
-            buttons.Controls.Add(CreateButton("属性工具", delegate { Execute("属性工具"); }));
             buttons.Controls.Add(CreateButton("个人配置", delegate { Execute("个人配置"); }));
             buttons.Controls.Add(CreateButton("关于", delegate { Execute("关于"); }));
             buttons.Controls.Add(CreateButton("任务面板", delegate { ShowTaskPane(); }));

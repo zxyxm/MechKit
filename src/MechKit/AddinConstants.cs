@@ -36,7 +36,7 @@ namespace MechKit
         public const int CmdPartNamingRule = 3;
         public const int CmdStandardPrefix = 4;
         public const int CmdBatchExport = 5;
-        public const int CmdPropertyTool = 6;
+        // 6 曾用于“属性工具”，保留空号，避免旧版 SOLIDWORKS 命令映射串位。
         public const int CmdTaskPane = 7;
         public const int CmdSettings = 8;
         public const int CmdAbout = 9;
@@ -44,7 +44,7 @@ namespace MechKit
         public static readonly int[] CommandIds =
         {
             CmdGenerateBom, CmdPartList, CmdPartNamingRule, CmdStandardPrefix,
-            CmdBatchExport, CmdPropertyTool, CmdTaskPane, CmdSettings, CmdAbout
+            CmdBatchExport, CmdTaskPane, CmdSettings, CmdAbout
         };
 
         /// <summary>命令数量，图标条必须为每个命令预留一格（见 tools\Generate-Icons.ps1）。</summary>
