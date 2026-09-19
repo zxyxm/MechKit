@@ -27,6 +27,9 @@ namespace MechKit
         /// <summary>分隔线按钮的 UserID（图标条里紧跟 9 个命令图标的那一格）。</summary>
         public const int PrefixSpacerUserId = 900;
 
+        /// <summary>动态前缀命令的 UserID 起点；每个按钮必须有不同的持久 ID。</summary>
+        public const int PrefixCommandUserIdBase = 1000;
+
         /// <summary>命令项的用户 ID（存入注册表用于刷新命令组）。</summary>
         public const int CmdGenerateBom = 1;
         public const int CmdPartList = 2;

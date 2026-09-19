@@ -411,9 +411,19 @@ namespace MechKit
 
         public void ShowPartListDialog()
         {
-            using (var form = new PartListForm(this))
+            try
             {
-                ShowDialog(form);
+                Log.Info("打开明细汇总窗口。");
+                using (var form = new PartListForm(this))
+                {
+                    ShowDialog(form);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("打开明细汇总窗口失败", ex);
+                MessageBox.Show("无法打开明细汇总：" + ex.Message, AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -733,12 +743,20 @@ namespace MechKit
                 return;
             }
 
-            // 命令项数量/ID 变化后必须重建命令组，否则 SOLIDWORKS 会沿用旧布局
+            var prefixButtons = BuildPrefixButtonList();
+            var expectedIds = new List<int>(AddinConstants.CommandIds);
+            for (var prefixIndex = 0; prefixIndex < prefixButtons.Count; prefixIndex++)
+            {
+                expectedIds.Add(AddinConstants.PrefixCommandUserIdBase + prefixIndex);
+            }
+
+            // 命令项数量/ID 变化后必须重建命令组，否则 SOLIDWORKS 会沿用旧布局。
+            // 这里包含动态前缀 ID，用于清除旧版本在 Activate 之后追加命令造成的失效映射。
             var ignorePrevious = false;
             object storedIds;
             if (_commandManager.GetGroupDataFromRegistry(AddinConstants.CommandGroupId, out storedIds))
             {
-                ignorePrevious = !SameIds(storedIds as int[], AddinConstants.CommandIds);
+                ignorePrevious = !SameIds(storedIds as int[], expectedIds.ToArray());
             }
 
             int errors = 0;
@@ -818,21 +836,8 @@ namespace MechKit
                 "关于 MechKit", 8, "OnAbout", "OnAlwaysEnable",
                 AddinConstants.CmdAbout, menuAndToolbar));
 
-            _commandGroup.HasToolbar = true;
-            _commandGroup.HasMenu = true;
-            // 菜单在零件 / 装配体 / 工程图里都要出现
-            _commandGroup.ShowInDocumentType = (int)swDocTemplateTypes_e.swDocTemplateTypePART
-                                               | (int)swDocTemplateTypes_e.swDocTemplateTypeASSEMBLY
-                                               | (int)swDocTemplateTypes_e.swDocTemplateTypeDRAWING;
-            _commandGroup.Activate();
-
-            // 说明：不需要手工调用 AddCommandTab —— SOLIDWORKS 会为已激活的
-            // CommandGroup 自动创建 MechKit 选项卡；手工再建一个同名选项卡
-            // 反而会盖住自动生成的那个（表现为选项卡内容空白）。
-
             // 紧接「标准件前缀」（设置）按钮之后：先画一条分隔线，再排上常用前缀快捷按钮，
             // 选中零件点一下就直接加该前缀，不用打开设置窗口。
-            var prefixButtons = BuildPrefixButtonList();
             if (prefixButtons.Count > 0)
             {
                 _commandGroup.AddSpacer2(-1, AddinConstants.PrefixSpacerUserId);
@@ -844,12 +849,26 @@ namespace MechKit
                         prefixButtons[i], 10 + i,   // 图标条：第 10 格是分隔线，前缀从第 11 格起
                         string.Format("OnPrefixCommand({0})", i),
                         "OnAlwaysEnable",
-                        0, menuAndToolbar);
+                        AddinConstants.PrefixCommandUserIdBase + i, menuAndToolbar);
                 }
 
                 Log.Info(string.Format("前缀快捷按钮已创建：{0} 个（{1}）",
                     prefixButtons.Count, NamingOptionsFactory.SerializePrefixes(prefixButtons)));
             }
+
+            // 所有普通命令和动态前缀命令必须先注册，再统一激活；激活后追加会导致
+            // SOLIDWORKS 的持久命令映射错位，表现为按钮可见但点击无回调。
+            _commandGroup.HasToolbar = true;
+            _commandGroup.HasMenu = true;
+            // 菜单在零件 / 装配体 / 工程图里都要出现
+            _commandGroup.ShowInDocumentType = (int)swDocTemplateTypes_e.swDocTemplateTypePART
+                                               | (int)swDocTemplateTypes_e.swDocTemplateTypeASSEMBLY
+                                               | (int)swDocTemplateTypes_e.swDocTemplateTypeDRAWING;
+            _commandGroup.Activate();
+
+            // 说明：不需要手工调用 AddCommandTab —— SOLIDWORKS 会为已激活的
+            // CommandGroup 自动创建 MechKit 选项卡；手工再建一个同名选项卡
+            // 反而会盖住自动生成的那个（表现为选项卡内容空白）。
 
             // 让工具栏在安装后立刻可见（装的当天就能在工具栏上看到按钮）
             try
