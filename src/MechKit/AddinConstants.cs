@@ -21,12 +21,6 @@ namespace MechKit
         /// <summary>CommandManager 命令组 ID，需在插件之间保持唯一。</summary>
         public const int CommandGroupId = 42117;
 
-        /// <summary>常用前缀：设置按钮后面那一排快捷按钮（点一下即加该前缀）。</summary>
-        public static readonly string[] PresetPrefixes =
-        {
-            "电机", "电气", "淘宝", "气动", "液压", "标准件", "外购件", "轴承", "紧固件", "传感器"
-        };
-
         /// <summary>前缀快捷按钮最多数量（图标条里为此预留了 12 格）。</summary>
         public const int MaxPrefixCommands = 12;
 

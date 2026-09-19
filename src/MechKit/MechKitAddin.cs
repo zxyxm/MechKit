@@ -464,18 +464,9 @@ namespace MechKit
                     return;
                 }
 
-                // 配置前缀和内置快捷前缀都视为“已知前缀”。这样从“电机_”
-                // 切换成“气动_”时会替换旧前缀，而不是叠加成“气动_电机_”。
+                // 设置页保存的前缀都视为“已知前缀”。从面板切换前缀时替换旧值，
+                // 不叠加成“气动_电机_”。
                 var knownList = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
-                foreach (var preset in AddinConstants.PresetPrefixes)
-                {
-                    if (!knownList.Exists(delegate(string item)
-                        { return string.Equals(item, preset, StringComparison.OrdinalIgnoreCase); }))
-                    {
-                        knownList.Add(preset);
-                    }
-                }
-
                 var known = knownList.ToArray();
                 var changed = 0;
 
@@ -941,7 +932,7 @@ namespace MechKit
         }
 
         /// <summary>
-        /// 前缀快捷按钮列表 = 用户已配置的前缀 + 常用前缀（去重，最多 12 个）。
+        /// 前缀快捷按钮列表 = 用户在标准件设置中维护的前缀（去重，最多 12 个）。
         /// 顺序即按钮顺序，OnPrefixCommand(序号) 用的就是这个列表。
         /// </summary>
         private List<string> BuildPrefixButtonList()
@@ -953,14 +944,6 @@ namespace MechKit
                 if (!string.IsNullOrEmpty(prefix) && !result.Contains(prefix))
                 {
                     result.Add(prefix);
-                }
-            }
-
-            foreach (var preset in AddinConstants.PresetPrefixes)
-            {
-                if (!result.Contains(preset))
-                {
-                    result.Add(preset);
                 }
             }
 
