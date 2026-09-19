@@ -1,0 +1,12 @@
+{
+  "folderPrefix": "MechKit工具箱",
+  "installerExeName": "安装与卸载.exe",
+  "readmeName": "安装说明.txt",
+  "configName": "config.ini",
+  "diagnosticsFolder": "诊断工具",
+  "packageFolderName": "安装包",
+  "sourceFolderName": "源码",
+  "guideName": "使用说明.txt",
+  "title": "MechKit",
+  "description": "图号 / 材料 / 加工件数量 —— SOLIDWORKS 插件"
+}

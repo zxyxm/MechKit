@@ -1,0 +1,36 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{1BFDE2C0-C117-4A78-A31D-741543371433}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MechKit", "src\MechKit\MechKit.csproj", "{56B8B0AE-CF50-4854-B6A7-C339E467A6F5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{4647702E-BD92-4255-A6A7-8777433D64E2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocInspector", "tools\DocInspector\DocInspector.csproj", "{49F59BA2-F200-48D2-A21A-054714776F52}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{56B8B0AE-CF50-4854-B6A7-C339E467A6F5}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{56B8B0AE-CF50-4854-B6A7-C339E467A6F5}.Debug|Any CPU.Build.0 = Debug|x64
+		{56B8B0AE-CF50-4854-B6A7-C339E467A6F5}.Release|Any CPU.ActiveCfg = Release|x64
+		{56B8B0AE-CF50-4854-B6A7-C339E467A6F5}.Release|Any CPU.Build.0 = Release|x64
+		{49F59BA2-F200-48D2-A21A-054714776F52}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{49F59BA2-F200-48D2-A21A-054714776F52}.Debug|Any CPU.Build.0 = Debug|x64
+		{49F59BA2-F200-48D2-A21A-054714776F52}.Release|Any CPU.ActiveCfg = Release|x64
+		{49F59BA2-F200-48D2-A21A-054714776F52}.Release|Any CPU.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{56B8B0AE-CF50-4854-B6A7-C339E467A6F5} = {1BFDE2C0-C117-4A78-A31D-741543371433}
+		{49F59BA2-F200-48D2-A21A-054714776F52} = {4647702E-BD92-4255-A6A7-8777433D64E2}
+	EndGlobalSection
+EndGlobal

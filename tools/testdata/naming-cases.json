@@ -1,0 +1,235 @@
+{
+  "note": "Expected results for MechKit.Core.NamingOptions. Kept out of the .ps1 file so the script itself stays ASCII-only (Windows PowerShell 5.1 reads BOM-less scripts as ANSI).",
+  "partNumberCases": [
+    {
+      "name": "space separator",
+      "source": "FileName",
+      "cut": "FirstSpace",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "expected": "JX-2024-001"
+    },
+    {
+      "name": "full file name",
+      "source": "FileName",
+      "cut": "None",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "expected": "JX-2024-001 支架"
+    },
+    {
+      "name": "underscore separator",
+      "source": "FileName",
+      "cut": "FirstUnderscore",
+      "file": "C:\\work\\ABC_123.sldprt",
+      "expected": "ABC"
+    },
+    {
+      "name": "hyphen separator",
+      "source": "FileName",
+      "cut": "FirstHyphen",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "expected": "JX"
+    },
+    {
+      "name": "regex capture group",
+      "source": "FileName",
+      "cut": "Regex",
+      "pattern": "^([A-Z]+-[0-9]+)-[0-9]+",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "expected": "JX-2024"
+    },
+    {
+      "name": "custom property wins",
+      "source": "PropertyFirst",
+      "cut": "FirstSpace",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "properties": {
+        "图号": "TP-9001"
+      },
+      "expected": "TP-9001"
+    },
+    {
+      "name": "custom property missing -> file name",
+      "source": "PropertyFirst",
+      "cut": "FirstSpace",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "properties": {
+        "零件号": ""
+      },
+      "expected": "JX-2024-001"
+    }
+  ],
+  "nameCases": [
+    {
+      "name": "name from remainder",
+      "source": "FileName",
+      "cut": "FirstSpace",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "expected": "支架"
+    },
+    {
+      "name": "name from custom property",
+      "source": "FileName",
+      "cut": "FirstSpace",
+      "file": "C:\\work\\JX-2024-001 支架.sldprt",
+      "properties": {
+        "名称": "支撑座"
+      },
+      "expected": "支撑座"
+    },
+    {
+      "name": "no cut -> whole name",
+      "source": "FileName",
+      "cut": "None",
+      "file": "C:\\work\\ABC_123.sldprt",
+      "expected": "ABC_123"
+    }
+  ],
+  "materialCases": [
+    {
+      "name": "material from model",
+      "source": "Model",
+      "modelMaterial": "45 钢",
+      "properties": {},
+      "expected": "45 钢"
+    },
+    {
+      "name": "material property wins",
+      "source": "PropertyFirst",
+      "modelMaterial": "45 钢",
+      "properties": {
+        "材料": "Q235B"
+      },
+      "expected": "Q235B"
+    },
+    {
+      "name": "material falls back to model",
+      "source": "PropertyFirst",
+      "modelMaterial": "45 钢",
+      "properties": {},
+      "expected": "45 钢"
+    },
+    {
+      "name": "property only ignores model",
+      "source": "PropertyOnly",
+      "modelMaterial": "45 钢",
+      "properties": {},
+      "expected": ""
+    }
+  ],
+  "segmentCases": [
+    {
+      "name": "date_material_name",
+      "file": "C:\\work\\20260908_6061_扫码枪安装板.sldprt",
+      "expectedName": "扫码枪安装板",
+      "expectedMaterial": "6061"
+    },
+    {
+      "name": "date_material_name sheet metal",
+      "file": "C:\\work\\20260902_SPCC_电柜门.sldprt",
+      "expectedName": "电柜门",
+      "expectedMaterial": "SPCC"
+    },
+    {
+      "name": "single segment",
+      "file": "C:\\work\\拨线板.sldprt",
+      "expectedName": "拨线板",
+      "expectedMaterial": ""
+    },
+    {
+      "name": "leading separator (vendor part)",
+      "file": "C:\\work\\_LRM5BK-N-H-A.sldprt",
+      "expectedName": "LRM5BK-N-H-A",
+      "expectedMaterial": ""
+    }
+  ],
+  "bomCases": [
+    {
+      "name": "machined part (date first)",
+      "part": "20260908_6061_扫码枪安装板",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "加工件",
+      "kindCode": "MACHINED"
+    },
+    {
+      "name": "machined part (sheet metal)",
+      "part": "20260902_SPCC_电柜门",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "加工件",
+      "kindCode": "MACHINED"
+    },
+    {
+      "name": "machined part (real project name)",
+      "part": "20260420_装配体_敲击测试",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "加工件",
+      "kindCode": "MACHINED"
+    },
+    {
+      "name": "standard part (motor)",
+      "part": "电机_MG996",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "标准件",
+      "kindCode": "STANDARD"
+    },
+    {
+      "name": "standard part (electric)",
+      "part": "电气_接近开关",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "标准件",
+      "kindCode": "STANDARD"
+    },
+    {
+      "name": "purchased part (taobao)",
+      "part": "淘宝_气缸SC50",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": true,
+      "kind": "标准件",
+      "kindCode": "STANDARD"
+    },
+    {
+      "name": "sub part (no date, no prefix)",
+      "part": "拨线板",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": false,
+      "kind": "",
+      "kindCode": ""
+    },
+    {
+      "name": "sub part (imported auto name)",
+      "part": "大洋20250919.sldasm-Part-1",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": false,
+      "kind": "",
+      "kindCode": ""
+    },
+    {
+      "name": "sub part (vendor code)",
+      "part": "SY7120-5LZD-02_B",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": false,
+      "kind": "",
+      "kindCode": ""
+    },
+    {
+      "name": "prefix not in list",
+      "part": "气动_气缸",
+      "prefixes": "电机,电气,淘宝",
+      "inBom": false,
+      "kind": "",
+      "kindCode": ""
+    },
+    {
+      "name": "prefix added by user",
+      "part": "气动_气缸",
+      "prefixes": "电机,电气,淘宝,气动",
+      "inBom": true,
+      "kind": "标准件",
+      "kindCode": "STANDARD"
+    }
+  ]
+}

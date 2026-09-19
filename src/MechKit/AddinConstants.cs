@@ -1,0 +1,56 @@
+namespace MechKit
+{
+    /// <summary>
+    /// 插件的固定标识。修改 GUID 相当于变成另一个插件，
+    /// 会导致注册表中的旧注册项失效，请谨慎修改。
+    /// </summary>
+    internal static class AddinConstants
+    {
+        /// <summary>插件 CLSID（COM 注册 + SOLIDWORKS 加载都依赖它）。</summary>
+        public const string AddinGuid = "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10";
+
+        /// <summary>COM ProgID。</summary>
+        public const string ProgId = "MechKit.Addin";
+
+        /// <summary>SOLIDWORKS「工具 > 插件」列表中显示的名称。</summary>
+        public const string Title = "MechKit";
+
+        /// <summary>SOLIDWORKS「工具 > 插件」列表中显示的说明。</summary>
+        public const string Description = "MechKit：图号 / 材料 / 加工件数量一键汇总，一键生成 BOM，批量导出与属性批处理";
+
+        /// <summary>CommandManager 命令组 ID，需在插件之间保持唯一。</summary>
+        public const int CommandGroupId = 42117;
+
+        /// <summary>常用前缀：设置按钮后面那一排快捷按钮（点一下即加该前缀）。</summary>
+        public static readonly string[] PresetPrefixes =
+        {
+            "电机", "电气", "淘宝", "气动", "液压", "标准件", "外购件", "轴承", "紧固件", "传感器"
+        };
+
+        /// <summary>前缀快捷按钮最多数量（图标条里为此预留了 12 格）。</summary>
+        public const int MaxPrefixCommands = 12;
+
+        /// <summary>分隔线按钮的 UserID（图标条里紧跟 9 个命令图标的那一格）。</summary>
+        public const int PrefixSpacerUserId = 900;
+
+        /// <summary>命令项的用户 ID（存入注册表用于刷新命令组）。</summary>
+        public const int CmdGenerateBom = 1;
+        public const int CmdPartList = 2;
+        public const int CmdPartNamingRule = 3;
+        public const int CmdStandardPrefix = 4;
+        public const int CmdBatchExport = 5;
+        public const int CmdPropertyTool = 6;
+        public const int CmdTaskPane = 7;
+        public const int CmdSettings = 8;
+        public const int CmdAbout = 9;
+
+        public static readonly int[] CommandIds =
+        {
+            CmdGenerateBom, CmdPartList, CmdPartNamingRule, CmdStandardPrefix,
+            CmdBatchExport, CmdPropertyTool, CmdTaskPane, CmdSettings, CmdAbout
+        };
+
+        /// <summary>命令数量，图标条必须为每个命令预留一格（见 tools\Generate-Icons.ps1）。</summary>
+        public const int CommandCount = 9;
+    }
+}
