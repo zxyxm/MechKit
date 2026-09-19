@@ -540,29 +540,67 @@ namespace MechKit.UI
 
         private Control BuildTransferPanel()
         {
-            var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Surface, Padding = new Padding(12, 10, 12, 10), Margin = new Padding(0, 8, 0, 0) };
+            var panel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Theme.Surface,
+                Padding = new Padding(12, 10, 12, 10),
+                Margin = new Padding(0, 8, 0, 0),
+                AutoScroll = true
+            };
 
             var layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 ColumnCount = 1,
-                RowCount = 6,
+                RowCount = 8,
                 BackColor = Theme.Surface
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-            layout.Controls.Add(Theme.CreateLabel("个人设置迁移", Theme.BodyBold, Theme.Text), 0, 0);
+            layout.Controls.Add(Theme.CreateLabel("MechKit 配置与预设迁移", Theme.BodyBold, Theme.Text), 0, 0);
+
+            var portableHint = Theme.CreateLabel(
+                "导出命名规则、前缀/中间名、材料工艺预设与 BOM 设置。换电脑后将文件复制到 MechKit.dll 同目录（通常 C:\\MechKit），重启 SOLIDWORKS 自动生效。",
+                Theme.Small, Theme.Muted);
+            portableHint.Dock = DockStyle.Fill;
+            layout.Controls.Add(portableHint, 0, 1);
+
+            var portableActions = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Theme.Surface,
+                Margin = new Padding(0)
+            };
+            var portableExport = Theme.CreatePrimaryButton("导出 MechKit 配置…");
+            portableExport.Width = 170;
+            portableExport.Click += delegate { ExportMechKitConfiguration(); };
+            var openInstall = Theme.CreateSecondaryButton("打开安装目录");
+            openInstall.Width = 130;
+            openInstall.Margin = new Padding(10, 0, 0, 0);
+            openInstall.Click += delegate { OpenFolder(Path.GetDirectoryName(AddinSettings.PortableSettingsPath)); };
+            portableActions.Controls.Add(portableExport);
+            portableActions.Controls.Add(openInstall);
+            layout.Controls.Add(portableActions, 0, 2);
+
+            layout.Controls.Add(Theme.CreateLabel("SOLIDWORKS 个人设置迁移", Theme.BodyBold, Theme.Text), 0, 3);
 
             var exportHint = Theme.CreateLabel(
                 "导出：把当前 SOLIDWORKS 的个人设置保存成一个文件（界面布局、笔势、快捷键、文件位置、导出选项等）",
                 Theme.Small, Theme.Muted);
             exportHint.Dock = DockStyle.Fill;
-            layout.Controls.Add(exportHint, 0, 1);
+            layout.Controls.Add(exportHint, 0, 4);
 
             var exportButton = Theme.CreatePrimaryButton("导出我的设置…");
             exportButton.Width = 150;
@@ -587,22 +625,64 @@ namespace MechKit.UI
             };
             exportActions.Controls.Add(exportButton);
             exportActions.Controls.Add(saveConfigButton);
-            layout.Controls.Add(exportActions, 0, 2);
+            layout.Controls.Add(exportActions, 0, 5);
 
             var importHint = Theme.CreateLabel(
                 "导入：在另一台电脑 / 另一个 SOLIDWORKS 上导入该文件，导入后重启 SOLIDWORKS 生效",
                 Theme.Small, Theme.Muted);
             importHint.Dock = DockStyle.Fill;
-            layout.Controls.Add(importHint, 0, 3);
+            layout.Controls.Add(importHint, 0, 6);
 
             var importButton = Theme.CreateSecondaryButton("导入设置…");
             importButton.Width = 150;
             importButton.Dock = DockStyle.Left;
             importButton.Click += delegate { Import(); };
-            layout.Controls.Add(importButton, 0, 4);
+            layout.Controls.Add(importButton, 0, 7);
 
             panel.Controls.Add(layout);
             return panel;
+        }
+
+        private void ExportMechKitConfiguration()
+        {
+            SaveSettings();
+
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Title = "导出 MechKit 配置与预设";
+                dialog.Filter = "MechKit 便携配置 (*.ini)|*.ini|所有文件 (*.*)|*.*";
+                dialog.FileName = AddinSettings.PortableFileName;
+                dialog.DefaultExt = "ini";
+                dialog.AddExtension = true;
+
+                var folder = _host.Settings.SettingsBackupFolder;
+                if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+                {
+                    dialog.InitialDirectory = folder;
+                }
+
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                string message;
+                var ok = _host.Settings.ExportPortable(dialog.FileName, out message);
+                if (ok)
+                {
+                    _host.Settings.SettingsBackupFolder = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+                    _host.Settings.Save();
+                    message += Environment.NewLine + Environment.NewLine +
+                               "换电脑使用：把文件放到 " +
+                               Path.GetDirectoryName(AddinSettings.PortableSettingsPath) +
+                               "，并保持文件名为 " + AddinSettings.PortableFileName + "。";
+                }
+
+                _status.Text = ok ? "MechKit 便携配置已导出。" : message;
+                Log.Info(message);
+                MessageBox.Show(this, message, "MechKit",
+                    MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            }
         }
 
         private Control BuildStatusBar()

@@ -9,6 +9,11 @@ MechKit —— 交付包说明
 安装包\离线UI测试\MechKitHarness.exe 可在不启动 SOLIDWORKS 的情况下测试
 MechKit 选项卡布局及各按钮页面逻辑；打开后点击「★ 选项卡预览」。
 
+换电脑迁移 MechKit 命名/BOM 配置：
+在「设置 → 个人配置」点击「导出 MechKit 配置…」，得到 MechKit-settings.ini；
+把文件复制到新电脑的安装根目录（默认 C:\MechKit，与 MechKit.dll 同目录），
+重启 SOLIDWORKS 后自动生效。
+
 
 一、只想用插件
 ------------------------------------------------

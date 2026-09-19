@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Text;
 
 namespace MechKit.Core
@@ -11,8 +12,26 @@ namespace MechKit.Core
     /// </summary>
     public sealed class AddinSettings
     {
+        public const string PortableFileName = "MechKit-settings.ini";
+
         private readonly Dictionary<string, string> _values =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 放在 MechKit.dll 同目录时会自动生效的便携配置文件。
+        /// 安装版中通常为 C:\MechKit\MechKit-settings.ini。
+        /// </summary>
+        public static string PortableSettingsPath
+        {
+            get
+            {
+                var location = Assembly.GetExecutingAssembly().Location;
+                var directory = string.IsNullOrEmpty(location)
+                    ? AppDomain.CurrentDomain.BaseDirectory
+                    : Path.GetDirectoryName(location);
+                return Path.Combine(directory ?? AppDomain.CurrentDomain.BaseDirectory, PortableFileName);
+            }
+        }
 
         public string SourceFolder
         {
@@ -312,28 +331,16 @@ namespace MechKit.Core
 
             try
             {
-                var file = AppPaths.SettingsFile;
-                if (!File.Exists(file))
+                LoadFile(settings, AppPaths.SettingsFile);
+
+                // DLL 同目录的便携配置最后读取，从而覆盖本机配置。
+                // 用户只需把导出的文件放到安装根目录并重启 SOLIDWORKS。
+                var portableFile = PortableSettingsPath;
+                if (!string.Equals(portableFile, AppPaths.SettingsFile,
+                        StringComparison.OrdinalIgnoreCase) && File.Exists(portableFile))
                 {
-                    return settings;
-                }
-
-                foreach (var line in File.ReadAllLines(file, Encoding.UTF8))
-                {
-                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
-                    var index = line.IndexOf('=');
-                    if (index <= 0)
-                    {
-                        continue;
-                    }
-
-                    var key = line.Substring(0, index).Trim();
-                    var value = line.Substring(index + 1);
-                    settings._values[key] = Unescape(value);
+                    LoadFile(settings, portableFile);
+                    Log.Info("已加载便携配置：" + portableFile);
                 }
 
                 // 首次升级到三段式标准件命名时，把旧默认映射迁移为：
@@ -389,19 +396,115 @@ namespace MechKit.Core
             try
             {
                 AppPaths.Ensure(AppPaths.Root);
-
-                var builder = new StringBuilder();
-                builder.AppendLine("# MechKit 配置");
-                foreach (var pair in _values)
-                {
-                    builder.Append(pair.Key).Append('=').AppendLine(Escape(pair.Value));
-                }
-
-                File.WriteAllText(AppPaths.SettingsFile, builder.ToString(), Encoding.UTF8);
+                WriteFile(AppPaths.SettingsFile, _values, "# MechKit 本机配置");
             }
             catch (Exception ex)
             {
                 Log.Error("保存配置失败", ex);
+            }
+        }
+
+        /// <summary>
+        /// 导出可跨电脑使用的 MechKit 功能配置与命名预设。
+        /// 窗口位置、输出目录和 SOLIDWORKS 本机路径不会写入。
+        /// </summary>
+        public bool ExportPortable(string targetFile, out string message)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(targetFile))
+                {
+                    message = "没有指定配置文件路径。";
+                    return false;
+                }
+
+                var directory = Path.GetDirectoryName(Path.GetFullPath(targetFile));
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var portableValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pair in _values)
+                {
+                    if (IsPortableKey(pair.Key))
+                    {
+                        portableValues[pair.Key] = pair.Value;
+                    }
+                }
+
+                WriteFile(targetFile, portableValues,
+                    "# MechKit 便携配置：复制到 MechKit.dll 所在目录，重启 SOLIDWORKS 自动生效");
+                message = "MechKit 配置与预设已导出：" + targetFile;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error("导出便携配置失败", ex);
+                message = "导出 MechKit 配置失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        private static void LoadFile(AddinSettings settings, string file)
+        {
+            if (settings == null || string.IsNullOrEmpty(file) || !File.Exists(file))
+            {
+                return;
+            }
+
+            foreach (var line in File.ReadAllLines(file, Encoding.UTF8))
+            {
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var index = line.IndexOf('=');
+                if (index <= 0)
+                {
+                    continue;
+                }
+
+                var key = line.Substring(0, index).Trim();
+                var value = line.Substring(index + 1);
+                settings._values[key] = Unescape(value);
+            }
+        }
+
+        private static void WriteFile(string file, IDictionary<string, string> values, string heading)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(heading);
+            foreach (var pair in values)
+            {
+                builder.Append(pair.Key).Append('=').AppendLine(Escape(pair.Value));
+            }
+
+            File.WriteAllText(file, builder.ToString(), new UTF8Encoding(true));
+        }
+
+        private static bool IsPortableKey(string key)
+        {
+            if (string.IsNullOrEmpty(key) || key.StartsWith("Window.", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            switch (key.ToLowerInvariant())
+            {
+                case "sourcefolder":
+                case "outputfolder":
+                case "propertyfolder":
+                case "weldmentfolder":
+                case "weldmentlibrarysource":
+                case "templatefolder":
+                case "macrofolder":
+                case "toolboxfolder":
+                case "settingsbackupfolder":
+                    return false;
+                default:
+                    return true;
             }
         }
 
