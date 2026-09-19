@@ -291,7 +291,8 @@ namespace MechKit.UI
                 "属性:材料",
                 "属性:工艺",
                 "属性:备注",
-                "留空"
+                "留空",
+                "第3段及以后"
             });
             return combo;
         }
@@ -611,6 +612,7 @@ namespace MechKit.UI
                 case 12: return "property:process";
                 case 13: return "property:remark";
                 case 14: return "empty";
+                case 15: return "tail:3";
                 default: return "auto";
             }
         }
@@ -630,6 +632,7 @@ namespace MechKit.UI
             else if (value == "property:process") index = 12;
             else if (value == "property:remark") index = 13;
             else if (value == "empty") index = 14;
+            else if (value == "tail:3") index = 15;
             else if (value.StartsWith("segment:", StringComparison.Ordinal))
             {
                 int segment;

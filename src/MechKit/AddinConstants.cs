@@ -30,6 +30,15 @@ namespace MechKit
         /// <summary>动态前缀命令的 UserID 起点；每个按钮必须有不同的持久 ID。</summary>
         public const int PrefixCommandUserIdBase = 1000;
 
+        /// <summary>中间名快捷按钮最多数量。</summary>
+        public const int MaxMiddleNameCommands = 12;
+
+        /// <summary>前缀组与中间名组之间的分隔线 UserID。</summary>
+        public const int MiddleNameSpacerUserId = 901;
+
+        /// <summary>动态中间名命令的 UserID 起点。</summary>
+        public const int MiddleNameCommandUserIdBase = 2000;
+
         /// <summary>命令项的用户 ID（存入注册表用于刷新命令组）。</summary>
         public const int CmdGenerateBom = 1;
         public const int CmdPartList = 2;

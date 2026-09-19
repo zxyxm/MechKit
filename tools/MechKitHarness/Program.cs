@@ -129,6 +129,12 @@ namespace MechKit.Harness
                 return;
             }
 
+            if (command.StartsWith("中间:", StringComparison.Ordinal))
+            {
+                _host.ApplyMiddleName(command.Substring("中间:".Length), false);
+                return;
+            }
+
             switch (command)
             {
                 case "生成BOM":
@@ -205,6 +211,31 @@ namespace MechKit.Harness
             Log.Info("[harness] 选项卡预览图已保存：" + target);
         }
 
+        /// <summary>把标准件命名设置窗口渲染成 PNG，用于脱机布局回归。</summary>
+        public void SaveStandardPreview(string path)
+        {
+            var target = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using (var preview = new NamingRuleForm(_host, 1))
+            {
+                preview.Show(this);
+                Application.DoEvents();
+                using (var bitmap = new Bitmap(preview.ClientSize.Width, preview.ClientSize.Height))
+                {
+                    preview.DrawToBitmap(bitmap, preview.ClientRectangle);
+                    bitmap.Save(target, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                preview.Close();
+            }
+
+            Log.Info("[harness] 标准件命名预览图已保存：" + target);
+        }
+
         /// <summary>直接打开指定窗口，便于命令行预览：--settings / --partlist / --export / --naming / --standard</summary>
         public void OpenNamed(string name)
         {
@@ -275,6 +306,15 @@ namespace MechKit.Harness
                     form.Shown += delegate
                     {
                         form.SaveTabPreview(imagePath);
+                        form.Close();
+                    };
+                }
+                else if (arg.StartsWith("--standard-image=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var imagePath = arg.Substring("--standard-image=".Length).Trim().Trim('"');
+                    form.Shown += delegate
+                    {
+                        form.SaveStandardPreview(imagePath);
                         form.Close();
                     };
                 }

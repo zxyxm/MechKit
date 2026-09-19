@@ -9,7 +9,7 @@ namespace MechKit.UI
     /// <summary>
     /// 命名规则设置：分成「加工件」「标准件」两栏（选项卡），互不挤压。
     ///   · 加工件：可增删、排序的分段规则（时间段固定第一）、图号来源与截断
-    ///   · 标准件：纵向维护前缀与说明；实际套用前缀统一在选项卡/任务面板完成
+    ///   · 标准件：维护前缀、说明与中文中间名；实际套用统一在选项卡/任务面板完成
     /// 底部是实时预览：输入一个零件名，立刻看到解析结果与是否进 BOM。
     /// </summary>
     internal sealed class NamingRuleForm : Form
@@ -31,6 +31,9 @@ namespace MechKit.UI
         private readonly TextBox _newPrefixDescription;
         private readonly TableLayoutPanel _usedPrefixPanel;
         private readonly Dictionary<string, string> _prefixDescriptions;
+        private readonly TextBox _middleNames;
+        private readonly TextBox _newMiddleName;
+        private readonly TableLayoutPanel _usedMiddleNamePanel;
 
         // 预览
         private readonly TextBox _sample;
@@ -60,12 +63,16 @@ namespace MechKit.UI
             _newPrefixDescription = Theme.CreateTextBox();
             _usedPrefixPanel = new TableLayoutPanel();
             _prefixDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _middleNames = Theme.CreateTextBox();
+            _newMiddleName = Theme.CreateTextBox();
+            _usedMiddleNamePanel = new TableLayoutPanel();
             _sample = Theme.CreateTextBox();
             _preview = Theme.CreateValueLabel(string.Empty);
 
             BuildLayout();
             LoadFromSettings();
             UpdatePrefixButtons();
+            UpdateMiddleNameButtons();
             UpdatePreview();
         }
 
@@ -79,7 +86,7 @@ namespace MechKit.UI
             var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
             var title = Theme.CreateLabel("命名规则设置", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
-            var subtitle = Theme.CreateLabel("加工件用日期开头，标准件用前缀开头，各段一律用下划线分隔",
+            var subtitle = Theme.CreateLabel("加工件用日期开头；标准件格式：前缀_中文中间名_原始名称或型号",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
             header.Controls.Add(title);
@@ -505,7 +512,7 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Top,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 7,
                 BackColor = Theme.Surface,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
@@ -515,7 +522,10 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 320f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 230f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
 
             var title = Theme.CreateLabel("标准件前缀管理", Theme.BodyBold, Theme.Text);
             title.Dock = DockStyle.Fill;
@@ -597,6 +607,64 @@ namespace MechKit.UI
             _usedPrefixPanel.Padding = new Padding(0, 2, 0, 2);
             layout.Controls.Add(_usedPrefixPanel, 0, 3);
 
+            var middleTitle = Theme.CreateLabel(
+                "中间名管理（中文描述，例如：接近开关、磁吸开关）",
+                Theme.BodyBold, Theme.Text);
+            middleTitle.Dock = DockStyle.Fill;
+            middleTitle.TextAlign = ContentAlignment.BottomLeft;
+            middleTitle.Margin = new Padding(0, 6, 0, 4);
+            layout.Controls.Add(middleTitle, 0, 4);
+
+            var addMiddleRow = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 1,
+                BackColor = Theme.Surface
+            };
+            addMiddleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96f));
+            addMiddleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260f));
+            addMiddleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92f));
+            addMiddleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            var middleCaption = Theme.CreateFieldLabel("增加中间名");
+            middleCaption.Dock = DockStyle.Fill;
+            _newMiddleName.Dock = DockStyle.Fill;
+            _newMiddleName.Margin = new Padding(0, 6, 10, 6);
+            var addMiddleButton = Theme.CreatePrimaryButton("＋ 增加");
+            addMiddleButton.Dock = DockStyle.Fill;
+            addMiddleButton.Margin = new Padding(0, 5, 10, 5);
+            addMiddleButton.Click += delegate { AddTypedMiddleName(); };
+            _newMiddleName.KeyDown += delegate(object sender, KeyEventArgs args)
+            {
+                if (args.KeyCode == Keys.Enter)
+                {
+                    AddTypedMiddleName();
+                    args.Handled = true;
+                    args.SuppressKeyPress = true;
+                }
+            };
+            var middleHint = Theme.CreateValueLabel(
+                "保存后会成为任务面板快捷按钮；命名格式：前缀_中间名_原始名称或型号");
+            middleHint.Dock = DockStyle.Fill;
+            middleHint.Font = Theme.Small;
+            middleHint.ForeColor = Theme.Muted;
+            addMiddleRow.Controls.Add(middleCaption, 0, 0);
+            addMiddleRow.Controls.Add(_newMiddleName, 1, 0);
+            addMiddleRow.Controls.Add(addMiddleButton, 2, 0);
+            addMiddleRow.Controls.Add(middleHint, 3, 0);
+            layout.Controls.Add(addMiddleRow, 0, 5);
+
+            _usedMiddleNamePanel.Dock = DockStyle.Fill;
+            _usedMiddleNamePanel.AutoScroll = true;
+            _usedMiddleNamePanel.ColumnCount = 1;
+            _usedMiddleNamePanel.RowCount = 0;
+            _usedMiddleNamePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            _usedMiddleNamePanel.BackColor = Theme.Surface;
+            _usedMiddleNamePanel.Margin = new Padding(0, 0, 0, 4);
+            _usedMiddleNamePanel.Padding = new Padding(0, 2, 0, 2);
+            layout.Controls.Add(_usedMiddleNamePanel, 0, 6);
+
             viewport.Controls.Add(layout);
             return viewport;
         }
@@ -672,6 +740,13 @@ namespace MechKit.UI
                 }
 
                 UpdatePreview();
+            };
+            _middleNames.TextChanged += delegate
+            {
+                if (!_syncing)
+                {
+                    UpdateMiddleNameButtons();
+                }
             };
 
             return panel;
@@ -755,6 +830,9 @@ namespace MechKit.UI
                     _usedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
                     _usedPrefixPanel.Controls.Add(row, 0, index);
                 }
+
+                _usedPrefixPanel.RowCount = Math.Max(1, prefixes.Length) + 1;
+                _usedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             }
             finally
             {
@@ -769,6 +847,111 @@ namespace MechKit.UI
             {
                 yield return child;
             }
+        }
+
+        /// <summary>按当前配置重建纵向“中文中间名 + 删除”行。</summary>
+        private void UpdateMiddleNameButtons()
+        {
+            if (_syncing)
+            {
+                return;
+            }
+
+            _syncing = true;
+            try
+            {
+                _usedMiddleNamePanel.SuspendLayout();
+                foreach (Control control in new List<Control>(GetControls(_usedMiddleNamePanel)))
+                {
+                    _usedMiddleNamePanel.Controls.Remove(control);
+                    control.Dispose();
+                }
+                _usedMiddleNamePanel.RowStyles.Clear();
+                _usedMiddleNamePanel.RowCount = 0;
+
+                var names = NamingOptionsFactory.ParsePrefixes(_middleNames.Text);
+                if (names.Length == 0)
+                {
+                    _usedMiddleNamePanel.RowCount = 1;
+                    _usedMiddleNamePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
+                    var empty = Theme.CreateLabel("（还没有中间名，请在上方输入后点击“增加”）", Theme.Small, Theme.Muted);
+                    empty.Dock = DockStyle.Fill;
+                    _usedMiddleNamePanel.Controls.Add(empty, 0, 0);
+                }
+
+                for (var index = 0; index < names.Length; index++)
+                {
+                    var value = names[index];
+                    var row = new TableLayoutPanel
+                    {
+                        Dock = DockStyle.Fill,
+                        ColumnCount = 2,
+                        RowCount = 1,
+                        BackColor = Theme.Surface,
+                        Margin = new Padding(0, 0, 0, 6)
+                    };
+                    row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                    row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42f));
+
+                    var tag = Theme.CreateValueLabel(value);
+                    tag.Dock = DockStyle.Fill;
+                    tag.TextAlign = ContentAlignment.MiddleLeft;
+                    tag.BackColor = Color.FromArgb(245, 248, 251);
+                    tag.BorderStyle = BorderStyle.FixedSingle;
+                    tag.Padding = new Padding(10, 0, 0, 0);
+                    tag.Margin = new Padding(0, 3, 8, 3);
+
+                    var delete = Theme.CreateSecondaryButton("×");
+                    delete.Dock = DockStyle.Fill;
+                    delete.Margin = new Padding(0, 3, 0, 3);
+                    delete.Click += delegate { RemoveMiddleName(value); };
+                    row.Controls.Add(tag, 0, 0);
+                    row.Controls.Add(delete, 1, 0);
+
+                    _usedMiddleNamePanel.RowCount = index + 1;
+                    _usedMiddleNamePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+                    _usedMiddleNamePanel.Controls.Add(row, 0, index);
+                }
+
+                _usedMiddleNamePanel.RowCount = Math.Max(1, names.Length) + 1;
+                _usedMiddleNamePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            }
+            finally
+            {
+                _usedMiddleNamePanel.ResumeLayout();
+                _syncing = false;
+            }
+        }
+
+        private void AddTypedMiddleName()
+        {
+            var value = _newMiddleName.Text.Trim().Trim('_');
+            if (value.Length == 0)
+            {
+                return;
+            }
+
+            var names = new List<string>(NamingOptionsFactory.ParsePrefixes(_middleNames.Text));
+            if (names.Count >= AddinConstants.MaxMiddleNameCommands && !names.Contains(value))
+            {
+                MessageBox.Show(this, "选项卡面板最多显示 12 个中间名，请先删除一个再增加。",
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (!names.Contains(value))
+            {
+                names.Add(value);
+            }
+            _middleNames.Text = NamingOptionsFactory.SerializePrefixes(names);
+            _newMiddleName.Clear();
+            _newMiddleName.Focus();
+        }
+
+        private void RemoveMiddleName(string value)
+        {
+            var names = new List<string>(NamingOptionsFactory.ParsePrefixes(_middleNames.Text));
+            names.Remove(value);
+            _middleNames.Text = NamingOptionsFactory.SerializePrefixes(names);
         }
 
         private void AddPrefix(string prefix, string description)
@@ -838,6 +1021,8 @@ namespace MechKit.UI
             }
             _prefixes.Text = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(s.BomPrefixes));
+            _middleNames.Text = NamingOptionsFactory.SerializePrefixes(
+                NamingOptionsFactory.ParsePrefixes(s.BomMiddleNames));
             _partNumberSource.SelectedIndex = Math.Max(0, Math.Min(2, s.PartNumberSource));
             _cutRule.SelectedIndex = Math.Max(0, Math.Min(4, s.PartNumberCutRule));
             _pattern.Text = s.PartNumberPattern;
@@ -863,6 +1048,7 @@ namespace MechKit.UI
             _prefixDescriptions["电气"] = "传感器、开关及其他电气元件";
             _prefixDescriptions["淘宝"] = "淘宝或其他平台采购件";
             _prefixes.Text = "电机 电气 淘宝";
+            _middleNames.Text = "接近开关 磁吸开关";
             _partNumberSource.SelectedIndex = 0;
             _cutRule.SelectedIndex = 0;
             _pattern.Text = string.Empty;
@@ -887,6 +1073,8 @@ namespace MechKit.UI
                 NamingOptionsFactory.ParsePrefixes(_prefixes.Text));
             s.BomPrefixDescriptions = NamingOptionsFactory.SerializePrefixDescriptions(
                 NamingOptionsFactory.ParsePrefixes(_prefixes.Text), _prefixDescriptions);
+            s.BomMiddleNames = NamingOptionsFactory.SerializePrefixes(
+                NamingOptionsFactory.ParsePrefixes(_middleNames.Text));
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();
@@ -895,7 +1083,7 @@ namespace MechKit.UI
 
             Log.Info("命名规则已保存：加工件=" +
                 NamingOptionsFactory.DescribeMachinedSegments(_machinedSegments, _segmentLabels) +
-                "；标准件前缀=" + s.BomPrefixes);
+                "；标准件前缀=" + s.BomPrefixes + "；中间名=" + s.BomMiddleNames);
             Close();
         }
 

@@ -576,6 +576,109 @@ namespace MechKit
             return name;
         }
 
+        /// <summary>把选中组件改成“前缀_中文中间名_原始名称或型号”。</summary>
+        public void ApplyMiddleName(string middleName, bool remove)
+        {
+            try
+            {
+                var doc = SwUtils.ActiveDoc(_swApp);
+                if (doc == null)
+                {
+                    MessageBox.Show("请先打开装配体，并选中零件 / 子装配体。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var selection = doc.SelectionManager as SelectionMgr;
+                var count = selection == null ? 0 : selection.GetSelectedObjectCount2(-1);
+                if (count <= 0)
+                {
+                    MessageBox.Show("请先选中要处理的零件或子装配体。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes);
+                var knownMiddleNames = NamingOptionsFactory.ParsePrefixes(_settings.BomMiddleNames);
+                var changed = 0;
+                for (var i = 1; i <= count; i++)
+                {
+                    Component2 component;
+                    try { component = selection.GetSelectedObject6(i, -1) as Component2; }
+                    catch { continue; }
+                    if (component == null || string.IsNullOrEmpty(component.Name2))
+                    {
+                        continue;
+                    }
+
+                    var name = component.Name2;
+                    var updated = SetMiddleName(name, middleName, prefixes, knownMiddleNames, remove);
+                    if (string.IsNullOrEmpty(updated) || string.Equals(name, updated, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        component.Name2 = updated;
+                        changed++;
+                        Log.Info(string.Format("重命名组件：{0} → {1}", name, updated));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn(string.Format("设置中间名失败：{0} - {1}", name, ex.Message));
+                    }
+                }
+
+                MessageBox.Show(string.Format("已{0}中间名：{1} 个组件。",
+                        remove ? "去掉" : "设置", changed),
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("设置中间名失败", ex);
+            }
+        }
+
+        private static string SetMiddleName(string name, string middleName, string[] prefixes,
+            string[] knownMiddleNames, bool remove)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+
+            var prefix = string.Empty;
+            var remainder = name;
+            foreach (var item in prefixes ?? new string[0])
+            {
+                var marker = (item ?? string.Empty).Trim() + "_";
+                if (marker.Length > 1 && remainder.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+                {
+                    prefix = marker.Substring(0, marker.Length - 1);
+                    remainder = remainder.Substring(marker.Length);
+                    break;
+                }
+            }
+
+            foreach (var item in knownMiddleNames ?? new string[0])
+            {
+                var marker = (item ?? string.Empty).Trim() + "_";
+                if (marker.Length > 1 && remainder.StartsWith(marker, StringComparison.OrdinalIgnoreCase))
+                {
+                    remainder = remainder.Substring(marker.Length);
+                    break;
+                }
+            }
+
+            var value = remove ? string.Empty : (middleName ?? string.Empty).Trim().Trim('_');
+            var parts = new List<string>();
+            if (prefix.Length > 0) parts.Add(prefix);
+            if (value.Length > 0) parts.Add(value);
+            if (remainder.Length > 0) parts.Add(remainder);
+            return string.Join("_", parts.ToArray());
+        }
+
         public void ShowPropertyToolDialog()
         {
             using (var form = new PropertyToolForm(this))
@@ -686,6 +789,31 @@ namespace MechKit
             }
         }
 
+        /// <summary>标准件中文中间名按钮回调，参数是中间名在配置列表中的序号。</summary>
+        public void OnMiddleNameCommand(string data)
+        {
+            try
+            {
+                int index;
+                if (!int.TryParse(data, out index))
+                {
+                    return;
+                }
+
+                var names = BuildMiddleNameButtonList();
+                if (index < 0 || index >= names.Count)
+                {
+                    return;
+                }
+
+                ApplyMiddleName(names[index], false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("中间名按钮回调失败", ex);
+            }
+        }
+
         public void OnPartList()
         {
             ShowPartListDialog();
@@ -753,10 +881,15 @@ namespace MechKit
             }
 
             var prefixButtons = BuildPrefixButtonList();
+            var middleNameButtons = BuildMiddleNameButtonList();
             var expectedIds = new List<int>(AddinConstants.CommandIds);
             for (var prefixIndex = 0; prefixIndex < prefixButtons.Count; prefixIndex++)
             {
                 expectedIds.Add(AddinConstants.PrefixCommandUserIdBase + prefixIndex);
+            }
+            for (var middleIndex = 0; middleIndex < middleNameButtons.Count; middleIndex++)
+            {
+                expectedIds.Add(AddinConstants.MiddleNameCommandUserIdBase + middleIndex);
             }
 
             // 命令项数量/ID 变化后必须重建命令组，否则 SOLIDWORKS 会沿用旧布局。
@@ -800,6 +933,7 @@ namespace MechKit
             // 图标索引对应 tools\Generate-Icons.ps1 中图标条的顺序，必须保持一致
             var indices = new List<int>();
             var prefixIndices = new List<int>();
+            var middleNameIndices = new List<int>();
 
             indices.Add(_commandGroup.AddCommandItem2("生成BOM", -1,
                 "一键汇总当前装配体，生成材料明细表 BOM（CSV，可用 Excel 打开）",
@@ -861,6 +995,25 @@ namespace MechKit
                     prefixButtons.Count, NamingOptionsFactory.SerializePrefixes(prefixButtons)));
             }
 
+            // 第二组快捷按钮用于标准件中文中间名。先点前缀、再点中间名，
+            // 即得到“前缀_中文中间名_原始名称或型号”。
+            if (middleNameButtons.Count > 0)
+            {
+                _commandGroup.AddSpacer2(-1, AddinConstants.MiddleNameSpacerUserId);
+                for (var i = 0; i < middleNameButtons.Count; i++)
+                {
+                    middleNameIndices.Add(_commandGroup.AddCommandItem2(middleNameButtons[i], -1,
+                        "给选中的零件 / 子装配体设置中文中间名：" + middleNameButtons[i],
+                        middleNameButtons[i], 10 + Math.Min(i, AddinConstants.MaxPrefixCommands - 1),
+                        string.Format("OnMiddleNameCommand({0})", i),
+                        "OnAlwaysEnable",
+                        AddinConstants.MiddleNameCommandUserIdBase + i, menuAndToolbar));
+                }
+
+                Log.Info(string.Format("中间名快捷按钮已创建：{0} 个（{1}）",
+                    middleNameButtons.Count, NamingOptionsFactory.SerializePrefixes(middleNameButtons)));
+            }
+
             // 所有普通命令和动态前缀命令必须先注册，再统一激活；激活后追加会导致
             // SOLIDWORKS 的持久命令映射错位，表现为按钮可见但点击无回调。
             _commandGroup.HasToolbar = true;
@@ -881,6 +1034,7 @@ namespace MechKit
                 if (i == 3)
                 {
                     tabIndices.AddRange(prefixIndices);
+                    tabIndices.AddRange(middleNameIndices);
                 }
             }
             CreateCommandTabs(tabIndices);
@@ -984,6 +1138,26 @@ namespace MechKit
             }
 
             while (result.Count > AddinConstants.MaxPrefixCommands)
+            {
+                result.RemoveAt(result.Count - 1);
+            }
+
+            return result;
+        }
+
+        /// <summary>中文中间名快捷按钮列表（去重，最多 12 个）。</summary>
+        private List<string> BuildMiddleNameButtonList()
+        {
+            var result = new List<string>();
+            foreach (var name in NamingOptionsFactory.ParsePrefixes(_settings.BomMiddleNames))
+            {
+                if (!string.IsNullOrEmpty(name) && !result.Contains(name))
+                {
+                    result.Add(name);
+                }
+            }
+
+            while (result.Count > AddinConstants.MaxMiddleNameCommands)
             {
                 result.RemoveAt(result.Count - 1);
             }

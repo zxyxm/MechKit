@@ -144,6 +144,20 @@ namespace MechKit.Harness
                     Math.Max(50, TextRenderer.MeasureText(prefix, Font).Width + 18), 10 + prefixIndex));
             }
 
+            var middleNames = NamingOptionsFactory.ParsePrefixes(AddinSettings.Load().BomMiddleNames);
+            if (middleNames.Length > 0)
+            {
+                // 对应 SOLIDWORKS CommandManager 中两组快捷按钮之间的分隔线。
+                commands.Add(new CommandSpec("分隔", string.Empty, 8, -1));
+            }
+            for (var middleIndex = 0; middleIndex < middleNames.Length &&
+                    middleIndex < AddinConstants.MaxMiddleNameCommands; middleIndex++)
+            {
+                var middleName = middleNames[middleIndex];
+                commands.Add(new CommandSpec("中间:" + middleName, middleName,
+                    Math.Max(64, TextRenderer.MeasureText(middleName, Font).Width + 18), 10 + middleIndex));
+            }
+
             commands.AddRange(new[]
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
@@ -155,6 +169,11 @@ namespace MechKit.Harness
             for (var i = 0; i < commands.Count; i++)
             {
                 var command = commands[i];
+                if (command.IconIndex < 0)
+                {
+                    x += command.Width;
+                    continue;
+                }
                 var capturedId = command.Id;
                 var button = new CommandButton(
                     command.DisplayText,

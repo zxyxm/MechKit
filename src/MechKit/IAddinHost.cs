@@ -30,6 +30,9 @@ namespace MechKit
         /// <summary>给选中的零件/子装配体加前缀（remove=true 时去掉已知前缀）。</summary>
         void ApplyPrefix(string prefix, bool remove);
 
+        /// <summary>给选中的零件/子装配体设置中文中间名（remove=true 时去掉已知中间名）。</summary>
+        void ApplyMiddleName(string middleName, bool remove);
+
         void ShowPropertyToolDialog();
 
         void ShowAboutDialog();

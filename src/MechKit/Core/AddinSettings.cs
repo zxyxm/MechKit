@@ -201,6 +201,13 @@ namespace MechKit.Core
             set { Set("BomPrefixDescriptions", value); }
         }
 
+        /// <summary>标准件中文中间名，空格分隔，例如：接近开关 磁吸开关。</summary>
+        public string BomMiddleNames
+        {
+            get { return Get("BomMiddleNames", "接近开关 磁吸开关"); }
+            set { Set("BomMiddleNames", value); }
+        }
+
         /// <summary>是否只收录「前缀_日期_材料_名称」这种命名的零件。</summary>
         public bool BomRequirePattern
         {
@@ -218,17 +225,17 @@ namespace MechKit.Core
             set { SetInt("BomAssemblyLevel", value); }
         }
 
-        // BOM 可编辑列的取值来源：auto / whole / segment:1..8 /
+        // BOM 可编辑列的取值来源：auto / whole / segment:1..8 / tail:3 /
         // property:name|material|process|remark / empty。
         public string BomStandardNameField
         {
-            get { return Get("BomStandardNameField", "segment:3"); }
+            get { return Get("BomStandardNameField", "segment:2"); }
             set { Set("BomStandardNameField", value); }
         }
 
         public string BomStandardMaterialField
         {
-            get { return Get("BomStandardMaterialField", "segment:2"); }
+            get { return Get("BomStandardMaterialField", "tail:3"); }
             set { Set("BomStandardMaterialField", value); }
         }
 
@@ -296,6 +303,21 @@ namespace MechKit.Core
                     var key = line.Substring(0, index).Trim();
                     var value = line.Substring(index + 1);
                     settings._values[key] = Unescape(value);
+                }
+
+                // 首次升级到三段式标准件命名时，把旧默认映射迁移为：
+                // 工艺=第1段、名称=第2段、材料/型号=第3段及以后。
+                if (!settings._values.ContainsKey("BomMiddleNames"))
+                {
+                    settings.BomMiddleNames = "接近开关 磁吸开关";
+                    if (settings.BomStandardNameField == "segment:3")
+                    {
+                        settings.BomStandardNameField = "segment:2";
+                    }
+                    if (settings.BomStandardMaterialField == "segment:2")
+                    {
+                        settings.BomStandardMaterialField = "tail:3";
+                    }
                 }
             }
             catch (Exception ex)

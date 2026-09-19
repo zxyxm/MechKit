@@ -19,8 +19,8 @@ namespace MechKit.Features
             ExcludeSuppressed = true;
             ReadCustomProperties = true;
             AssemblyLevel = -1;
-            StandardNameField = "segment:3";
-            StandardMaterialField = "segment:2";
+            StandardNameField = "segment:2";
+            StandardMaterialField = "tail:3";
             StandardProcessField = "segment:1";
             StandardRemarkField = "property:remark";
             MachinedNameField = "segment:3";
@@ -775,8 +775,9 @@ namespace MechKit.Features
         }
 
         /// <summary>
-        /// 标准件统一按“前缀_型号_名称”解释：工艺=前缀，材料=型号，零件名=余下标题。
-        /// 这样电机_MG996_舵机会得到：标准件 / 舵机 / MG996 / 电机。
+        /// 标准件统一按“前缀_中文中间名_原始名称或型号”解释：
+        /// 工艺=前缀，零件名=中文中间名，材料/型号=第 3 段及以后。
+        /// 例如电气_接近开关_LJ12A3_ZBX 会得到：标准件 / 接近开关 / LJ12A3_ZBX / 电气。
         /// </summary>
         private static void ApplyStandardFields(PartListRow row, string sourceName, NamingOptions naming)
         {
@@ -795,16 +796,16 @@ namespace MechKit.Features
             }
 
             row.Process = parts[0].Trim();
-            row.Material = parts.Length > 1 ? parts[1].Trim() : string.Empty;
+            row.Name = parts.Length > 1 ? parts[1].Trim() : stem;
             if (parts.Length > 2)
             {
-                var title = new string[parts.Length - 2];
-                Array.Copy(parts, 2, title, 0, title.Length);
-                row.Name = string.Join(separator, title).Trim();
+                var originalName = new string[parts.Length - 2];
+                Array.Copy(parts, 2, originalName, 0, originalName.Length);
+                row.Material = string.Join(separator, originalName).Trim();
             }
             else
             {
-                row.Name = stem;
+                row.Material = string.Empty;
             }
         }
 
@@ -859,6 +860,23 @@ namespace MechKit.Features
                 {
                     var parts = stem.Split(new[] { '_' }, StringSplitOptions.None);
                     return number <= parts.Length ? parts[number - 1].Trim() : string.Empty;
+                }
+
+                return string.Empty;
+            }
+
+            if (source.StartsWith("tail:", StringComparison.Ordinal))
+            {
+                int number;
+                if (int.TryParse(source.Substring("tail:".Length), out number) && number > 0)
+                {
+                    var parts = stem.Split(new[] { '_' }, StringSplitOptions.None);
+                    if (number <= parts.Length)
+                    {
+                        var tail = new string[parts.Length - number + 1];
+                        Array.Copy(parts, number - 1, tail, 0, tail.Length);
+                        return string.Join("_", tail).Trim();
+                    }
                 }
 
                 return string.Empty;

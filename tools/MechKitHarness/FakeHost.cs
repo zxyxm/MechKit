@@ -60,6 +60,12 @@ namespace MechKit.Harness
                 remove ? "去掉" : "添加", prefix));
         }
 
+        public void ApplyMiddleName(string middleName, bool remove)
+        {
+            Log.Info(string.Format("[harness] {0}中间名：{1}（离线预览，不做实际操作）",
+                remove ? "去掉" : "设置", middleName));
+        }
+
         public void ShowPropertyToolDialog()
         {
             Log.Info("[harness] 属性工具 被点击");

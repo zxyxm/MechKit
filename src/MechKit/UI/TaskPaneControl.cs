@@ -207,7 +207,7 @@ namespace MechKit.UI
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 146f));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 134f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 214f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f));
 
             root.Controls.Add(BuildHeader(), 0, 0);
@@ -372,12 +372,13 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 6,
                 BackColor = Theme.Canvas
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
@@ -400,13 +401,14 @@ namespace MechKit.UI
             layout.Controls.Add(propertyButton, 0, 2);
 
             layout.Controls.Add(BuildPrefixRow(), 0, 3);
+            layout.Controls.Add(BuildMiddleNameRow(), 0, 4);
 
             _syncDelete.Text = "应用时删除表中未列出的属性";
             _syncDelete.Font = Theme.Small;
             _syncDelete.ForeColor = Theme.Muted;
             _syncDelete.AutoSize = true;
             _syncDelete.Margin = new Padding(0, 4, 0, 0);
-            layout.Controls.Add(_syncDelete, 0, 4);
+            layout.Controls.Add(_syncDelete, 0, 5);
 
             panel.Controls.Add(layout);
             return panel;
@@ -468,6 +470,67 @@ namespace MechKit.UI
             remove.Click += delegate
             {
                 _host.ApplyPrefix(string.Empty, true);
+                RefreshDocument(false);
+            };
+            buttons.Controls.Add(remove);
+
+            row.Controls.Add(caption, 0, 0);
+            row.Controls.Add(buttons, 1, 0);
+            return row;
+        }
+
+        /// <summary>标准件中文中间名快捷栏：保留前缀与原始名称，只替换第 2 段。</summary>
+        private Control BuildMiddleNameRow()
+        {
+            var row = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = Theme.Canvas
+            };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42f));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+            var caption = Theme.CreateFieldLabel("中间");
+            caption.Dock = DockStyle.Fill;
+            caption.TextAlign = ContentAlignment.MiddleLeft;
+
+            var buttons = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Theme.Canvas,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = true,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+
+            foreach (var middleName in NamingOptionsFactory.ParsePrefixes(_host.Settings.BomMiddleNames))
+            {
+                var value = middleName;
+                var button = Theme.CreateSecondaryButton(value);
+                button.AutoSize = false;
+                button.Width = Math.Max(62, TextRenderer.MeasureText(value, Theme.Body).Width + 18);
+                button.Height = 28;
+                button.Margin = new Padding(0, 2, 4, 2);
+                button.Click += delegate
+                {
+                    _host.ApplyMiddleName(value, false);
+                    RefreshDocument(false);
+                };
+                buttons.Controls.Add(button);
+            }
+
+            var remove = Theme.CreateSecondaryButton("去中间名");
+            remove.AutoSize = false;
+            remove.Width = 76;
+            remove.Height = 28;
+            remove.Margin = new Padding(4, 2, 0, 2);
+            remove.Click += delegate
+            {
+                _host.ApplyMiddleName(string.Empty, true);
                 RefreshDocument(false);
             };
             buttons.Controls.Add(remove);
