@@ -88,6 +88,11 @@ namespace MechKit.Harness
             Log.Info("[harness] 命名规则设置已非模态打开（栏 " + safeTab + "）");
         }
 
+        public void RefreshNamingCommands()
+        {
+            Log.Info("[harness] 选项卡前缀/中间名按钮已按最新设置刷新");
+        }
+
         public void ApplyPrefix(string prefix, bool remove)
         {
             Log.Info(string.Format("[harness] {0}前缀：{1}（离线预览，不做实际操作）",

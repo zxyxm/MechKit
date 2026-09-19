@@ -1081,6 +1081,10 @@ namespace MechKit.UI
             s.UseNameSegments = true;
             s.Save();
 
+            // 动态快捷按钮是在 CommandManager 创建时注册的；保存后立即重建，
+            // 保证选项卡与这里维护的前缀/中间名列表完全一致。
+            _host.RefreshNamingCommands();
+
             Log.Info("命名规则已保存：加工件=" +
                 NamingOptionsFactory.DescribeMachinedSegments(_machinedSegments, _segmentLabels) +
                 "；标准件前缀=" + s.BomPrefixes + "；中间名=" + s.BomMiddleNames);

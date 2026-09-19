@@ -451,6 +451,29 @@ namespace MechKit
                 delegate { return new NamingRuleForm(this, safeTab); }, onClosed);
         }
 
+        /// <summary>保存命名规则后立即重建动态快捷按钮，无需重启 SOLIDWORKS。</summary>
+        public void RefreshNamingCommands()
+        {
+            try
+            {
+                if (_commandManager == null)
+                {
+                    return;
+                }
+
+                _commandManager.RemoveCommandGroup2(AddinConstants.CommandGroupId, false);
+                _commandGroup = null;
+                CreateCommandGroup();
+                Log.Info("命名快捷按钮已按最新设置刷新。");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("刷新命名快捷按钮失败", ex);
+                MessageBox.Show("设置已保存，但选项卡刷新失败。请重新加载 MechKit 插件。\r\n\r\n" + ex.Message,
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         /// <summary>
         /// 给选中的组件加/去命名前缀。命名规则：前缀_日期_材料_名称（下划线分段），
         /// 只有符合该规则的零件才会进入 BOM。
@@ -934,7 +957,10 @@ namespace MechKit
 
         private void CreateCommandGroup()
         {
-            _commandManager = _swApp.GetCommandManager(_cookie);
+            if (_commandManager == null)
+            {
+                _commandManager = _swApp.GetCommandManager(_cookie);
+            }
             if (_commandManager == null)
             {
                 Log.Error("无法获取 CommandManager。");

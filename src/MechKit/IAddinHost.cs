@@ -30,6 +30,9 @@ namespace MechKit
         /// <summary>非模态打开命名规则，并在窗口关闭后通知调用页刷新。</summary>
         void ShowNamingRuleDialog(int tabIndex, Action onClosed);
 
+        /// <summary>命名规则保存后重建选项卡上的前缀/中间名快捷按钮。</summary>
+        void RefreshNamingCommands();
+
         /// <summary>给选中的零件/子装配体加前缀（remove=true 时去掉已知前缀）。</summary>
         void ApplyPrefix(string prefix, bool remove);
 
