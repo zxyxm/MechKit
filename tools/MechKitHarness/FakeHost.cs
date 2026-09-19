@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
 using MechKit;
 using MechKit.Core;
+using MechKit.UI;
 using SolidWorks.Interop.sldworks;
 
 namespace MechKit.Harness
@@ -11,6 +14,9 @@ namespace MechKit.Harness
     /// </summary>
     internal sealed class FakeHost : IAddinHost
     {
+        private readonly Dictionary<string, Form> _openForms =
+            new Dictionary<string, Form>(StringComparer.OrdinalIgnoreCase);
+
         public FakeHost()
         {
             Settings = AddinSettings.Load();
@@ -51,7 +57,35 @@ namespace MechKit.Harness
 
         public void ShowNamingRuleDialog(int tabIndex)
         {
-            Log.Info("[harness] 命名规则设置 被点击（栏 " + tabIndex + "）");
+            ShowNamingRuleDialog(tabIndex, null);
+        }
+
+        public void ShowNamingRuleDialog(int tabIndex, Action onClosed)
+        {
+            var safeTab = tabIndex == 1 ? 1 : 0;
+            var key = "naming-" + safeTab;
+            Form existing;
+            if (_openForms.TryGetValue(key, out existing) && !existing.IsDisposed)
+            {
+                if (onClosed != null)
+                {
+                    existing.FormClosed += delegate { onClosed(); };
+                }
+                existing.BringToFront();
+                existing.Activate();
+                return;
+            }
+
+            var form = new NamingRuleForm(this, safeTab);
+            _openForms[key] = form;
+            form.FormClosed += delegate
+            {
+                _openForms.Remove(key);
+                form.Dispose();
+                if (onClosed != null) onClosed();
+            };
+            form.Show();
+            Log.Info("[harness] 命名规则设置已非模态打开（栏 " + safeTab + "）");
         }
 
         public void ApplyPrefix(string prefix, bool remove)

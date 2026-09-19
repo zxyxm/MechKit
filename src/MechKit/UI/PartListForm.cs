@@ -204,12 +204,7 @@ namespace MechKit.UI
             button.Margin = new Padding(0, 2, 0, 2);
             button.Click += delegate
             {
-                using (var form = new NamingRuleForm(_host))
-                {
-                    form.ShowDialog(this);
-                }
-
-                summary.Text = DescribeRule();
+                _host.ShowNamingRuleDialog(0, delegate { summary.Text = DescribeRule(); });
             };
 
             row.Controls.Add(summary, 0, 0);

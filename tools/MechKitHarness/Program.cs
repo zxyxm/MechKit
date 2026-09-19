@@ -108,10 +108,27 @@ namespace MechKit.Harness
 
         private void Show(Form form)
         {
-            using (form)
+            form.FormClosed += delegate { form.Dispose(); };
+            form.Show(this);
+            form.BringToFront();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            foreach (Form owned in OwnedForms)
             {
-                form.ShowDialog(this);
+                try
+                {
+                    owned.Close();
+                    owned.Dispose();
+                }
+                catch
+                {
+                    // 离线宿主退出时忽略已经关闭的预览窗口。
+                }
             }
+
+            base.OnFormClosed(e);
         }
 
         /// <summary>

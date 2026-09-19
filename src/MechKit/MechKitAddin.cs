@@ -36,6 +36,8 @@ namespace MechKit
         private AddinSettings _settings;
         private SldWorks _events;
         private bool _disconnecting;
+        private readonly Dictionary<string, Form> _openForms =
+            new Dictionary<string, Form>(StringComparer.OrdinalIgnoreCase);
 
         public MechKitAddin()
         {
@@ -91,6 +93,7 @@ namespace MechKit
 
             try
             {
+                CloseOpenForms();
                 DetachEvents();
 
                 if (_taskPane != null)
@@ -273,10 +276,7 @@ namespace MechKit
 
         public void ShowBatchExportDialog()
         {
-            using (var form = new BatchExportForm(this))
-            {
-                ShowDialog(form);
-            }
+            ShowModeless("batch-export", delegate { return new BatchExportForm(this); });
         }
 
         /// <summary>
@@ -423,10 +423,7 @@ namespace MechKit
             try
             {
                 Log.Info("打开明细汇总窗口。");
-                using (var form = new PartListForm(this))
-                {
-                    ShowDialog(form);
-                }
+                ShowModeless("part-list", delegate { return new PartListForm(this); });
             }
             catch (Exception ex)
             {
@@ -438,19 +435,20 @@ namespace MechKit
 
         public void ShowSettingsDialog()
         {
-            using (var form = new SettingsForm(this))
-            {
-                ShowDialog(form);
-            }
+            ShowModeless("settings", delegate { return new SettingsForm(this); });
         }
 
         /// <summary>打开命名规则设置：0 = 加工件栏，1 = 标准件栏。</summary>
         public void ShowNamingRuleDialog(int tabIndex)
         {
-            using (var form = new NamingRuleForm(this, tabIndex))
-            {
-                ShowDialog(form);
-            }
+            ShowNamingRuleDialog(tabIndex, null);
+        }
+
+        public void ShowNamingRuleDialog(int tabIndex, Action onClosed)
+        {
+            var safeTab = tabIndex == 1 ? 1 : 0;
+            ShowModeless("naming-" + safeTab,
+                delegate { return new NamingRuleForm(this, safeTab); }, onClosed);
         }
 
         /// <summary>
@@ -681,18 +679,12 @@ namespace MechKit
 
         public void ShowPropertyToolDialog()
         {
-            using (var form = new PropertyToolForm(this))
-            {
-                ShowDialog(form);
-            }
+            ShowModeless("property-tool", delegate { return new PropertyToolForm(this); });
         }
 
         public void ShowAboutDialog()
         {
-            using (var form = new AboutForm(this))
-            {
-                ShowDialog(form);
-            }
+            ShowModeless("about", delegate { return new AboutForm(this); });
         }
 
         public void ToggleTaskPane()
@@ -858,16 +850,85 @@ namespace MechKit
             }
         }
 
-        private void ShowDialog(Form form)
+        /// <summary>
+        /// 非模态打开功能窗口。窗口之间和 SOLIDWORKS 主界面互不锁定；
+        /// 同一功能重复点击时激活已有窗口，不重复创建。
+        /// </summary>
+        private void ShowModeless(string key, Func<Form> factory)
         {
+            ShowModeless(key, factory, null);
+        }
+
+        private void ShowModeless(string key, Func<Form> factory, Action onClosed)
+        {
+            Form existing;
+            if (_openForms.TryGetValue(key, out existing) && existing != null && !existing.IsDisposed)
+            {
+                if (onClosed != null)
+                {
+                    existing.FormClosed += delegate
+                    {
+                        if (!_disconnecting) onClosed();
+                    };
+                }
+                if (existing.WindowState == FormWindowState.Minimized)
+                {
+                    existing.WindowState = FormWindowState.Normal;
+                }
+                if (!existing.Visible)
+                {
+                    existing.Show();
+                }
+                existing.BringToFront();
+                existing.Activate();
+                return;
+            }
+
+            var form = factory();
+            _openForms[key] = form;
+            form.FormClosed += delegate
+            {
+                Form current;
+                if (_openForms.TryGetValue(key, out current) && ReferenceEquals(current, form))
+                {
+                    _openForms.Remove(key);
+                }
+                form.Dispose();
+                if (onClosed != null && !_disconnecting)
+                {
+                    onClosed();
+                }
+            };
+
             var handle = MainWindowHandle;
             if (handle != IntPtr.Zero)
             {
-                form.ShowDialog(new SwWindow(handle));
+                form.Show(new SwWindow(handle));
             }
             else
             {
-                form.ShowDialog();
+                form.Show();
+            }
+        }
+
+        private void CloseOpenForms()
+        {
+            var forms = new List<Form>(_openForms.Values);
+            _openForms.Clear();
+            foreach (var form in forms)
+            {
+                try
+                {
+                    if (form != null && !form.IsDisposed)
+                    {
+                        form.Close();
+                        form.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("关闭 MechKit 窗口失败：" + ex.Message);
+                }
             }
         }
 

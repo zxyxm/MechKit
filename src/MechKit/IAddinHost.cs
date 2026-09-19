@@ -27,6 +27,9 @@ namespace MechKit
         /// <summary>打开命名规则设置（tabIndex 0 = 加工件，1 = 标准件）。</summary>
         void ShowNamingRuleDialog(int tabIndex);
 
+        /// <summary>非模态打开命名规则，并在窗口关闭后通知调用页刷新。</summary>
+        void ShowNamingRuleDialog(int tabIndex, Action onClosed);
+
         /// <summary>给选中的零件/子装配体加前缀（remove=true 时去掉已知前缀）。</summary>
         void ApplyPrefix(string prefix, bool remove);
 

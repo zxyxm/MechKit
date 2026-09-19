@@ -193,12 +193,7 @@ namespace MechKit.UI
             naming.Margin = new Padding(8, 0, 0, 0);
             naming.Click += delegate
             {
-                using (var form = new NamingRuleForm(_host))
-                {
-                    form.ShowDialog(this);
-                }
-
-                LoadFromSettings();
+                _host.ShowNamingRuleDialog(0, LoadFromSettings);
             };
             actions.Controls.Add(save);
             actions.Controls.Add(naming);
@@ -435,12 +430,7 @@ namespace MechKit.UI
             naming.Margin = new Padding(8, 2, 0, 0);
             naming.Click += delegate
             {
-                using (var form = new NamingRuleForm(_host))
-                {
-                    form.ShowDialog(this);
-                }
-
-                LoadFromSettings();
+                _host.ShowNamingRuleDialog(0, LoadFromSettings);
             };
 
             buttons.Controls.Add(detect);
