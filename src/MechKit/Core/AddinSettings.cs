@@ -216,8 +216,8 @@ namespace MechKit.Core
         }
 
         /// <summary>
-        /// BOM“位置”列显示的装配体层级。0 = 仅顶层装配体，1~5 = 展开对应层数，
-        /// -1 = 一直显示到零件所属的最小子装配体。
+        /// BOM“位置”列显示的三级组织结构。0 = 总装，1 = 总装/部装，
+        /// -1 = 总装/部装/零件或小装配体的完整路径。
         /// </summary>
         public int BomAssemblyLevel
         {

@@ -18,6 +18,8 @@ namespace MechKit.UI
         private readonly TextBox _prefixes;
         private readonly CheckBox _requirePattern;
         private readonly ComboBox _assemblyLevel;
+        private readonly ComboBox _standardLocationField;
+        private readonly ComboBox _machinedLocationField;
         private readonly ComboBox _standardNameField;
         private readonly ComboBox _standardMaterialField;
         private readonly ComboBox _standardProcessField;
@@ -27,6 +29,7 @@ namespace MechKit.UI
         private readonly ComboBox _machinedProcessField;
         private readonly ComboBox _machinedRemarkField;
         private readonly Label _status;
+        private bool _syncingAssemblyLevel;
 
         public SettingsForm(IAddinHost host)
         {
@@ -37,7 +40,9 @@ namespace MechKit.UI
             _toolbox = Theme.CreateTextBox();
             _prefixes = Theme.CreateTextBox();
             _requirePattern = new CheckBox();
-            _assemblyLevel = new ComboBox();
+            _assemblyLevel = CreateAssemblyLevelCombo(false);
+            _standardLocationField = CreateAssemblyLevelCombo(true);
+            _machinedLocationField = CreateAssemblyLevelCombo(true);
             _standardNameField = CreateFieldSourceCombo();
             _standardMaterialField = CreateFieldSourceCombo();
             _standardProcessField = CreateFieldSourceCombo();
@@ -49,6 +54,7 @@ namespace MechKit.UI
             _status = Theme.CreateValueLabel("就绪");
 
             BuildLayout();
+            WireAssemblyLevelSync();
             LoadFromSettings();
         }
 
@@ -141,22 +147,25 @@ namespace MechKit.UI
             layout.Controls.Add(heading, 0, 0);
             layout.SetColumnSpan(heading, 2);
 
-            _assemblyLevel.DropDownStyle = ComboBoxStyle.DropDownList;
-            _assemblyLevel.Font = Theme.Body;
-            _assemblyLevel.Dock = DockStyle.Left;
-            _assemblyLevel.Width = 270;
-            _assemblyLevel.Items.AddRange(new object[]
-            {
-                "仅顶层装配体",
-                "展开到第 1 级子装配体",
-                "展开到第 2 级子装配体",
-                "展开到第 3 级子装配体",
-                "展开到第 4 级子装配体",
-                "展开到第 5 级子装配体",
-                "完整路径（到最小单位）"
-            });
             layout.Controls.Add(BomLabel("位置显示层级"), 0, 1);
-            layout.Controls.Add(_assemblyLevel, 1, 1);
+            var levelEditor = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Theme.Surface,
+                Margin = new Padding(0)
+            };
+            _assemblyLevel.Width = 360;
+            _assemblyLevel.Margin = new Padding(0, 5, 12, 5);
+            var levelHint = Theme.CreateValueLabel("与下方标准件、加工件的“位置”字段同步");
+            levelHint.AutoSize = true;
+            levelHint.Font = Theme.Small;
+            levelHint.ForeColor = Theme.Muted;
+            levelHint.Margin = new Padding(0, 10, 0, 0);
+            levelEditor.Controls.Add(_assemblyLevel);
+            levelEditor.Controls.Add(levelHint);
+            layout.Controls.Add(levelEditor, 1, 1);
 
             _requirePattern.Text = "只收录加工件（日期段开头）与标准件（已配置前缀开头）";
             _requirePattern.AutoSize = true;
@@ -230,11 +239,11 @@ namespace MechKit.UI
             }
 
             AddMappingRow(table, 1, "标准件",
-                BuildFixedCombo("自动序号"), BuildFixedCombo("装配位置"), BuildFixedCombo("标准件"),
+                BuildFixedCombo("自动序号"), _standardLocationField, BuildFixedCombo("标准件"),
                 _standardNameField, _standardMaterialField, _standardProcessField,
                 BuildFixedCombo("统计数量"), _standardRemarkField);
             AddMappingRow(table, 2, "加工件",
-                BuildFixedCombo("自动序号"), BuildFixedCombo("装配位置"), BuildFixedCombo("加工件"),
+                BuildFixedCombo("自动序号"), _machinedLocationField, BuildFixedCombo("加工件"),
                 _machinedNameField, _machinedMaterialField, _machinedProcessField,
                 BuildFixedCombo("统计数量"), _machinedRemarkField);
 
@@ -266,6 +275,53 @@ namespace MechKit.UI
             combo.Items.Add(text);
             combo.SelectedIndex = 0;
             return combo;
+        }
+
+        private static ComboBox CreateAssemblyLevelCombo(bool compact)
+        {
+            var combo = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = compact ? Theme.Small : Theme.Body
+            };
+            combo.Items.AddRange(compact
+                ? new object[] { "一级·总装", "二级·部装", "三级·完整" }
+                : new object[]
+                {
+                    "一级：总装（最大的装配体）",
+                    "二级：总装 > 部装（含子装配体）",
+                    "三级：总装 > 部装 > 零件/小装配体（完整路径）"
+                });
+            return combo;
+        }
+
+        /// <summary>顶部层级与两类 BOM 的“位置”字段双向同步。</summary>
+        private void WireAssemblyLevelSync()
+        {
+            _assemblyLevel.SelectedIndexChanged += delegate { SyncAssemblyLevel(_assemblyLevel); };
+            _standardLocationField.SelectedIndexChanged += delegate { SyncAssemblyLevel(_standardLocationField); };
+            _machinedLocationField.SelectedIndexChanged += delegate { SyncAssemblyLevel(_machinedLocationField); };
+        }
+
+        private void SyncAssemblyLevel(ComboBox source)
+        {
+            if (_syncingAssemblyLevel || source == null || source.SelectedIndex < 0)
+            {
+                return;
+            }
+
+            _syncingAssemblyLevel = true;
+            try
+            {
+                var index = source.SelectedIndex;
+                _assemblyLevel.SelectedIndex = index;
+                _standardLocationField.SelectedIndex = index;
+                _machinedLocationField.SelectedIndex = index;
+            }
+            finally
+            {
+                _syncingAssemblyLevel = false;
+            }
         }
 
         private static ComboBox CreateFieldSourceCombo()
@@ -558,6 +614,7 @@ namespace MechKit.UI
             _prefixes.Text = settings.BomPrefixes;
             _requirePattern.Checked = settings.BomRequirePattern;
             _assemblyLevel.SelectedIndex = AssemblyLevelToIndex(settings.BomAssemblyLevel);
+            SyncAssemblyLevel(_assemblyLevel);
             SelectFieldSource(_standardNameField, settings.BomStandardNameField);
             SelectFieldSource(_standardMaterialField, settings.BomStandardMaterialField);
             SelectFieldSource(_standardProcessField, settings.BomStandardProcessField);
@@ -647,12 +704,14 @@ namespace MechKit.UI
 
         private static int AssemblyLevelToIndex(int value)
         {
-            return value < 0 ? 6 : Math.Min(value, 5);
+            if (value <= 0) return value < 0 ? 2 : 0;
+            return value == 1 ? 1 : 2;
         }
 
         private static int AssemblyLevelFromIndex(int index)
         {
-            return index >= 6 || index < 0 ? -1 : index;
+            if (index <= 0) return 0;
+            return index == 1 ? 1 : -1;
         }
 
         /// <summary>把随包的焊件轮廓库一键迁移到 SOLIDWORKS（会弹一次 UAC）。</summary>

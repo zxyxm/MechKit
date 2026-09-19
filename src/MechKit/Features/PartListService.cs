@@ -45,7 +45,7 @@ namespace MechKit.Features
         /// <summary>打开零件读取自定义属性（图号、材料、来源）。较慢但更准确。</summary>
         public bool ReadCustomProperties { get; set; }
 
-        /// <summary>“位置”列的装配层级：0 仅顶层，正数展开对应级数，-1 显示完整父装配路径。</summary>
+        /// <summary>“位置”列的组织层级：0 总装，1 总装/部装，-1 显示完整父装配路径。</summary>
         public int AssemblyLevel { get; set; }
 
         public string StandardNameField { get; set; }
