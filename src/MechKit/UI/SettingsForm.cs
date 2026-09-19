@@ -18,6 +18,14 @@ namespace MechKit.UI
         private readonly TextBox _prefixes;
         private readonly CheckBox _requirePattern;
         private readonly ComboBox _assemblyLevel;
+        private readonly ComboBox _standardNameField;
+        private readonly ComboBox _standardMaterialField;
+        private readonly ComboBox _standardProcessField;
+        private readonly ComboBox _standardRemarkField;
+        private readonly ComboBox _machinedNameField;
+        private readonly ComboBox _machinedMaterialField;
+        private readonly ComboBox _machinedProcessField;
+        private readonly ComboBox _machinedRemarkField;
         private readonly Label _status;
 
         public SettingsForm(IAddinHost host)
@@ -30,6 +38,14 @@ namespace MechKit.UI
             _prefixes = Theme.CreateTextBox();
             _requirePattern = new CheckBox();
             _assemblyLevel = new ComboBox();
+            _standardNameField = CreateFieldSourceCombo();
+            _standardMaterialField = CreateFieldSourceCombo();
+            _standardProcessField = CreateFieldSourceCombo();
+            _standardRemarkField = CreateFieldSourceCombo();
+            _machinedNameField = CreateFieldSourceCombo();
+            _machinedMaterialField = CreateFieldSourceCombo();
+            _machinedProcessField = CreateFieldSourceCombo();
+            _machinedRemarkField = CreateFieldSourceCombo();
             _status = Theme.CreateValueLabel("就绪");
 
             BuildLayout();
@@ -107,20 +123,17 @@ namespace MechKit.UI
 
             var layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Top,
-                Height = 300,
+                Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 7,
+                RowCount = 5,
                 BackColor = Theme.Surface
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
 
             var heading = Theme.CreateLabel("BOM 表格格式", Theme.BodyBold, Theme.Text);
@@ -145,29 +158,16 @@ namespace MechKit.UI
             layout.Controls.Add(BomLabel("位置显示层级"), 0, 1);
             layout.Controls.Add(_assemblyLevel, 1, 1);
 
-            var separator = Theme.CreateValueLabel("下划线  _");
-            separator.Dock = DockStyle.Left;
-            separator.Width = 270;
-            layout.Controls.Add(BomLabel("字段分隔符"), 0, 2);
-            layout.Controls.Add(separator, 1, 2);
-
-            _prefixes.Dock = DockStyle.Left;
-            _prefixes.Width = 420;
-            layout.Controls.Add(BomLabel("标准件前缀"), 0, 3);
-            layout.Controls.Add(_prefixes, 1, 3);
-
             _requirePattern.Text = "只收录加工件（日期段开头）与标准件（已配置前缀开头）";
             _requirePattern.AutoSize = true;
             _requirePattern.ForeColor = Theme.Text;
             _requirePattern.Margin = new Padding(0, 8, 0, 0);
-            layout.Controls.Add(BomLabel("收录范围"), 0, 4);
-            layout.Controls.Add(_requirePattern, 1, 4);
+            layout.Controls.Add(BomLabel("收录范围"), 0, 2);
+            layout.Controls.Add(_requirePattern, 1, 2);
 
-            var headers = Theme.CreateValueLabel("序号｜位置｜属性｜零件名｜材料｜工艺｜数量｜备注");
-            headers.Dock = DockStyle.Fill;
-            headers.ForeColor = Theme.Muted;
-            layout.Controls.Add(BomLabel("表头顺序"), 0, 5);
-            layout.Controls.Add(headers, 1, 5);
+            var mapping = BuildFieldMappingTable();
+            layout.Controls.Add(BomLabel("表头字段映射"), 0, 3);
+            layout.Controls.Add(mapping, 1, 3);
 
             var actions = new FlowLayoutPanel
             {
@@ -193,10 +193,107 @@ namespace MechKit.UI
             };
             actions.Controls.Add(save);
             actions.Controls.Add(naming);
-            layout.Controls.Add(actions, 1, 6);
+            layout.Controls.Add(actions, 1, 4);
 
             panel.Controls.Add(layout);
             return panel;
+        }
+
+        private Control BuildFieldMappingTable()
+        {
+            var table = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 158,
+                ColumnCount = 9,
+                RowCount = 3,
+                BackColor = Color.FromArgb(248, 249, 250),
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single,
+                Padding = new Padding(0)
+            };
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72f));
+            for (var i = 0; i < 8; i++)
+            {
+                table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12.5f));
+            }
+            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
+            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
+
+            var headers = new[] { "", "序号", "位置", "属性", "零件名", "材料", "工艺", "数量", "备注" };
+            for (var column = 0; column < headers.Length; column++)
+            {
+                var label = Theme.CreateLabel(headers[column], Theme.Small, Theme.Text);
+                label.Dock = DockStyle.Fill;
+                label.TextAlign = ContentAlignment.MiddleCenter;
+                table.Controls.Add(label, column, 0);
+            }
+
+            AddMappingRow(table, 1, "标准件",
+                BuildFixedCombo("自动序号"), BuildFixedCombo("装配位置"), BuildFixedCombo("标准件"),
+                _standardNameField, _standardMaterialField, _standardProcessField,
+                BuildFixedCombo("统计数量"), _standardRemarkField);
+            AddMappingRow(table, 2, "加工件",
+                BuildFixedCombo("自动序号"), BuildFixedCombo("装配位置"), BuildFixedCombo("加工件"),
+                _machinedNameField, _machinedMaterialField, _machinedProcessField,
+                BuildFixedCombo("统计数量"), _machinedRemarkField);
+
+            return table;
+        }
+
+        private static void AddMappingRow(TableLayoutPanel table, int row, string title,
+            params Control[] controls)
+        {
+            var label = Theme.CreateLabel(title, Theme.BodyBold, Theme.Text);
+            label.Dock = DockStyle.Fill;
+            label.TextAlign = ContentAlignment.MiddleCenter;
+            table.Controls.Add(label, 0, row);
+            for (var i = 0; i < controls.Length; i++)
+            {
+                controls[i].Dock = DockStyle.Fill;
+                controls[i].Margin = new Padding(2, 10, 2, 10);
+                table.Controls.Add(controls[i], i + 1, row);
+            }
+        }
+
+        private static ComboBox BuildFixedCombo(string text)
+        {
+            var combo = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = Theme.Small
+            };
+            combo.Items.Add(text);
+            combo.SelectedIndex = 0;
+            return combo;
+        }
+
+        private static ComboBox CreateFieldSourceCombo()
+        {
+            var combo = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = Theme.Small
+            };
+            combo.Items.AddRange(new object[]
+            {
+                "自动规则",
+                "完整文件名",
+                "第1段",
+                "第2段",
+                "第3段",
+                "第4段",
+                "第5段",
+                "第6段",
+                "第7段",
+                "第8段",
+                "属性:名称",
+                "属性:材料",
+                "属性:工艺",
+                "属性:备注",
+                "留空"
+            });
+            return combo;
         }
 
         private static Label BomLabel(string text)
@@ -441,6 +538,14 @@ namespace MechKit.UI
             _prefixes.Text = settings.BomPrefixes;
             _requirePattern.Checked = settings.BomRequirePattern;
             _assemblyLevel.SelectedIndex = AssemblyLevelToIndex(settings.BomAssemblyLevel);
+            SelectFieldSource(_standardNameField, settings.BomStandardNameField);
+            SelectFieldSource(_standardMaterialField, settings.BomStandardMaterialField);
+            SelectFieldSource(_standardProcessField, settings.BomStandardProcessField);
+            SelectFieldSource(_standardRemarkField, settings.BomStandardRemarkField);
+            SelectFieldSource(_machinedNameField, settings.BomMachinedNameField);
+            SelectFieldSource(_machinedMaterialField, settings.BomMachinedMaterialField);
+            SelectFieldSource(_machinedProcessField, settings.BomMachinedProcessField);
+            SelectFieldSource(_machinedRemarkField, settings.BomMachinedRemarkField);
         }
 
         private void DetectAll()
@@ -462,8 +567,60 @@ namespace MechKit.UI
             settings.BomPrefixes = _prefixes.Text.Trim();
             settings.BomRequirePattern = _requirePattern.Checked;
             settings.BomAssemblyLevel = AssemblyLevelFromIndex(_assemblyLevel.SelectedIndex);
+            settings.BomStandardNameField = FieldSourceCode(_standardNameField);
+            settings.BomStandardMaterialField = FieldSourceCode(_standardMaterialField);
+            settings.BomStandardProcessField = FieldSourceCode(_standardProcessField);
+            settings.BomStandardRemarkField = FieldSourceCode(_standardRemarkField);
+            settings.BomMachinedNameField = FieldSourceCode(_machinedNameField);
+            settings.BomMachinedMaterialField = FieldSourceCode(_machinedMaterialField);
+            settings.BomMachinedProcessField = FieldSourceCode(_machinedProcessField);
+            settings.BomMachinedRemarkField = FieldSourceCode(_machinedRemarkField);
             settings.Save();
             _status.Text = "设置已保存。";
+        }
+
+        private static string FieldSourceCode(ComboBox combo)
+        {
+            var index = combo == null ? 0 : combo.SelectedIndex;
+            if (index <= 0) return "auto";
+            if (index == 1) return "whole";
+            if (index >= 2 && index <= 9) return "segment:" + (index - 1);
+            switch (index)
+            {
+                case 10: return "property:name";
+                case 11: return "property:material";
+                case 12: return "property:process";
+                case 13: return "property:remark";
+                case 14: return "empty";
+                default: return "auto";
+            }
+        }
+
+        private static void SelectFieldSource(ComboBox combo, string code)
+        {
+            if (combo == null)
+            {
+                return;
+            }
+
+            var value = (code ?? "auto").Trim().ToLowerInvariant();
+            var index = 0;
+            if (value == "whole") index = 1;
+            else if (value == "property:name") index = 10;
+            else if (value == "property:material") index = 11;
+            else if (value == "property:process") index = 12;
+            else if (value == "property:remark") index = 13;
+            else if (value == "empty") index = 14;
+            else if (value.StartsWith("segment:", StringComparison.Ordinal))
+            {
+                int segment;
+                if (int.TryParse(value.Substring("segment:".Length), out segment) && segment >= 1 && segment <= 8)
+                {
+                    index = segment + 1;
+                }
+            }
+
+            combo.SelectedIndex = index;
         }
 
         private static int AssemblyLevelToIndex(int value)

@@ -563,7 +563,15 @@ namespace MechKit.UI
                 DetectVendorParts = _detectVendor.Checked,
                 ExcludeSuppressed = _excludeSuppressed.Checked,
                 ReadCustomProperties = _readProperties.Checked,
-                AssemblyLevel = _host.Settings.BomAssemblyLevel
+                AssemblyLevel = _host.Settings.BomAssemblyLevel,
+                StandardNameField = _host.Settings.BomStandardNameField,
+                StandardMaterialField = _host.Settings.BomStandardMaterialField,
+                StandardProcessField = _host.Settings.BomStandardProcessField,
+                StandardRemarkField = _host.Settings.BomStandardRemarkField,
+                MachinedNameField = _host.Settings.BomMachinedNameField,
+                MachinedMaterialField = _host.Settings.BomMachinedMaterialField,
+                MachinedProcessField = _host.Settings.BomMachinedProcessField,
+                MachinedRemarkField = _host.Settings.BomMachinedRemarkField
             };
 
             // 命名规则（来源 / 截断 / 分段 / 前缀 / 收录过滤）统一由「命名规则设置」管理

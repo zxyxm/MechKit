@@ -19,6 +19,14 @@ namespace MechKit.Features
             ExcludeSuppressed = true;
             ReadCustomProperties = true;
             AssemblyLevel = -1;
+            StandardNameField = "segment:3";
+            StandardMaterialField = "segment:2";
+            StandardProcessField = "segment:1";
+            StandardRemarkField = "property:remark";
+            MachinedNameField = "segment:3";
+            MachinedMaterialField = "segment:2";
+            MachinedProcessField = "property:process";
+            MachinedRemarkField = "property:remark";
         }
 
         public NamingOptions Naming { get; set; }
@@ -39,6 +47,15 @@ namespace MechKit.Features
 
         /// <summary>“位置”列的装配层级：0 仅顶层，正数展开对应级数，-1 显示完整父装配路径。</summary>
         public int AssemblyLevel { get; set; }
+
+        public string StandardNameField { get; set; }
+        public string StandardMaterialField { get; set; }
+        public string StandardProcessField { get; set; }
+        public string StandardRemarkField { get; set; }
+        public string MachinedNameField { get; set; }
+        public string MachinedMaterialField { get; set; }
+        public string MachinedProcessField { get; set; }
+        public string MachinedRemarkField { get; set; }
     }
 
     /// <summary>明细表中的一行（同一零件 + 同一配置合并计数）。</summary>
@@ -213,6 +230,7 @@ namespace MechKit.Features
             {
                 row.Name = options.Naming.ResolveName(path, name => Lookup(properties, name));
             }
+            ApplyConfiguredFields(row, path, properties, options);
 
             return row;
         }
@@ -258,6 +276,7 @@ namespace MechKit.Features
                 {
                     row.Name = options.Naming.ResolveName(path, name => Lookup(properties, name));
                 }
+                ApplyConfiguredFields(row, path, properties, options);
                 rows.Add(row);
             }
 
@@ -685,6 +704,7 @@ namespace MechKit.Features
             {
                 row.Name = context.Options.Naming.ResolveName(displayPath, name => Lookup(properties, name));
             }
+            ApplyConfiguredFields(row, displayPath, properties, context.Options);
 
             context.Rows[key] = row;
         }
@@ -785,6 +805,77 @@ namespace MechKit.Features
             else
             {
                 row.Name = stem;
+            }
+        }
+
+        /// <summary>按 BOM 设置把文件名段或自定义属性映射到表格列。</summary>
+        private static void ApplyConfiguredFields(PartListRow row, string sourceName,
+            Dictionary<string, string> properties, PartListOptions options)
+        {
+            if (row == null || options == null)
+            {
+                return;
+            }
+
+            var standard = string.Equals(row.Classification, "标准件", StringComparison.Ordinal);
+            row.Name = ResolveConfiguredField(
+                standard ? options.StandardNameField : options.MachinedNameField,
+                row.Name, sourceName, properties);
+            row.Material = ResolveConfiguredField(
+                standard ? options.StandardMaterialField : options.MachinedMaterialField,
+                row.Material, sourceName, properties);
+            row.Process = ResolveConfiguredField(
+                standard ? options.StandardProcessField : options.MachinedProcessField,
+                row.Process, sourceName, properties);
+            row.Remark = ResolveConfiguredField(
+                standard ? options.StandardRemarkField : options.MachinedRemarkField,
+                row.Remark, sourceName, properties);
+        }
+
+        private static string ResolveConfiguredField(string setting, string automaticValue,
+            string sourceName, Dictionary<string, string> properties)
+        {
+            var source = string.IsNullOrWhiteSpace(setting) ? "auto" : setting.Trim().ToLowerInvariant();
+            if (source == "auto")
+            {
+                return automaticValue ?? string.Empty;
+            }
+
+            if (source == "empty")
+            {
+                return string.Empty;
+            }
+
+            var stem = NamingOptions.GetFileNameWithoutExtension(sourceName).Trim();
+            if (source == "whole")
+            {
+                return stem;
+            }
+
+            if (source.StartsWith("segment:", StringComparison.Ordinal))
+            {
+                int number;
+                if (int.TryParse(source.Substring("segment:".Length), out number) && number > 0)
+                {
+                    var parts = stem.Split(new[] { '_' }, StringSplitOptions.None);
+                    return number <= parts.Length ? parts[number - 1].Trim() : string.Empty;
+                }
+
+                return string.Empty;
+            }
+
+            switch (source)
+            {
+                case "property:name":
+                    return First(properties, "名称", "零件名称", "Description", "Title", "Name");
+                case "property:material":
+                    return First(properties, "材料", "材质", "Material", "材质牌号");
+                case "property:process":
+                    return First(properties, "工艺", "加工工艺", "制造工艺", "Process");
+                case "property:remark":
+                    return First(properties, "备注", "说明", "Remark", "Notes");
+                default:
+                    return automaticValue ?? string.Empty;
             }
         }
 

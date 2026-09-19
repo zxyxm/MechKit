@@ -375,7 +375,15 @@ namespace MechKit
                 DetectVendorParts = _settings.DetectVendorParts,
                 ExcludeSuppressed = true,
                 ReadCustomProperties = _settings.PartListReadProperties,
-                AssemblyLevel = _settings.BomAssemblyLevel
+                AssemblyLevel = _settings.BomAssemblyLevel,
+                StandardNameField = _settings.BomStandardNameField,
+                StandardMaterialField = _settings.BomStandardMaterialField,
+                StandardProcessField = _settings.BomStandardProcessField,
+                StandardRemarkField = _settings.BomStandardRemarkField,
+                MachinedNameField = _settings.BomMachinedNameField,
+                MachinedMaterialField = _settings.BomMachinedMaterialField,
+                MachinedProcessField = _settings.BomMachinedProcessField,
+                MachinedRemarkField = _settings.BomMachinedRemarkField
             };
 
             options.Naming = NamingOptionsFactory.FromSettings(_settings);

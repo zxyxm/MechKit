@@ -211,6 +211,56 @@ namespace MechKit.Core
             set { SetInt("BomAssemblyLevel", value); }
         }
 
+        // BOM 可编辑列的取值来源：auto / whole / segment:1..8 /
+        // property:name|material|process|remark / empty。
+        public string BomStandardNameField
+        {
+            get { return Get("BomStandardNameField", "segment:3"); }
+            set { Set("BomStandardNameField", value); }
+        }
+
+        public string BomStandardMaterialField
+        {
+            get { return Get("BomStandardMaterialField", "segment:2"); }
+            set { Set("BomStandardMaterialField", value); }
+        }
+
+        public string BomStandardProcessField
+        {
+            get { return Get("BomStandardProcessField", "segment:1"); }
+            set { Set("BomStandardProcessField", value); }
+        }
+
+        public string BomStandardRemarkField
+        {
+            get { return Get("BomStandardRemarkField", "property:remark"); }
+            set { Set("BomStandardRemarkField", value); }
+        }
+
+        public string BomMachinedNameField
+        {
+            get { return Get("BomMachinedNameField", "segment:3"); }
+            set { Set("BomMachinedNameField", value); }
+        }
+
+        public string BomMachinedMaterialField
+        {
+            get { return Get("BomMachinedMaterialField", "segment:2"); }
+            set { Set("BomMachinedMaterialField", value); }
+        }
+
+        public string BomMachinedProcessField
+        {
+            get { return Get("BomMachinedProcessField", "property:process"); }
+            set { Set("BomMachinedProcessField", value); }
+        }
+
+        public string BomMachinedRemarkField
+        {
+            get { return Get("BomMachinedRemarkField", "property:remark"); }
+            set { Set("BomMachinedRemarkField", value); }
+        }
+
         public static AddinSettings Load()
         {
             var settings = new AddinSettings();
