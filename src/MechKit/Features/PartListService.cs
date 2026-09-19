@@ -709,7 +709,31 @@ namespace MechKit.Features
 
                 if (nameIndex >= 0 && nameIndex < parts.Length && !string.IsNullOrWhiteSpace(row.Name))
                 {
-                    parts[nameIndex] = row.Name.Trim();
+                    var selectedIndexes = new List<int>();
+                    if (naming.MachinedSegmentBomNameFlags != null &&
+                        naming.MachinedSegmentBomNameFlags.Length == naming.MachinedSegments.Length)
+                    {
+                        for (var i = 0; i < naming.MachinedSegmentBomNameFlags.Length && i < parts.Length; i++)
+                        {
+                            if (naming.MachinedSegmentBomNameFlags[i])
+                            {
+                                selectedIndexes.Add(i);
+                            }
+                        }
+                    }
+
+                    var editedValues = row.Name.Trim().Split(new[] { '_' }, StringSplitOptions.None);
+                    if (selectedIndexes.Count > 1 && editedValues.Length == selectedIndexes.Count)
+                    {
+                        for (var i = 0; i < selectedIndexes.Count; i++)
+                        {
+                            parts[selectedIndexes[i]] = editedValues[i].Trim();
+                        }
+                    }
+                    else
+                    {
+                        parts[nameIndex] = row.Name.Trim();
+                    }
                     return SanitizeComponentName(string.Join(separator.ToString(), parts));
                 }
             }
@@ -1148,8 +1172,14 @@ namespace MechKit.Features
             }
 
             var standard = string.Equals(row.Classification, "标准件", StringComparison.Ordinal);
+            var nameField = standard ? options.StandardNameField : options.MachinedNameField;
+            if (!standard && options.Naming != null && options.Naming.UsesCompositeMachinedBomName())
+            {
+                // 勾选“并入 BOM 名称”后，命名规则的组合结果优先于单段字段映射。
+                nameField = "auto";
+            }
             row.Name = ResolveConfiguredField(
-                standard ? options.StandardNameField : options.MachinedNameField,
+                nameField,
                 row.Name, sourceName, properties, standard);
             row.Material = ResolveConfiguredField(
                 standard ? options.StandardMaterialField : options.MachinedMaterialField,

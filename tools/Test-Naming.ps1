@@ -76,8 +76,10 @@ $startsWithDate = $namingType.GetMethod('StartsWithDate')
 $prefixProperty = $namingType.GetProperty('BomPrefixes')
 $requirePatternProperty = $namingType.GetProperty('RequireBomPattern')
 $machinedSegmentsProperty = $namingType.GetProperty('MachinedSegments')
+$machinedBomNameFlagsProperty = $namingType.GetProperty('MachinedSegmentBomNameFlags')
 $parsePrefixes = $factoryType.GetMethod('ParsePrefixes')
 $parseMachinedSegments = $factoryType.GetMethod('ParseMachinedSegments')
+$parseMachinedBomNameFlags = $factoryType.GetMethod('ParseMachinedSegmentBomNameFlags')
 $serializeMachinedSegments = $factoryType.GetMethod('SerializeMachinedSegments')
 $isMachinedName = $namingType.GetMethod('IsMachinedName')
 $presetProperty = $namingType.GetProperty('MachinedMaterialProcessPresets')
@@ -195,6 +197,11 @@ foreach ($case in $cases.orderedSegmentCases) {
     $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
     $segments = $parseMachinedSegments.Invoke($null, @((Get-Field $case 'layout')))
     $machinedSegmentsProperty.SetValue($options, $segments)
+    $flagArguments = New-Object 'object[]' 2
+    $flagArguments[0] = [string](Get-Field $case 'bomNameFlags')
+    $flagArguments[1] = $segments
+    $machinedBomNameFlagsProperty.SetValue($options,
+        $parseMachinedBomNameFlags.Invoke($null, $flagArguments))
 
     $emptyLookup = New-Lookup $null
     $file = Get-Field $case 'file'
@@ -249,6 +256,11 @@ foreach ($case in $cases.componentRenameCases) {
     $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
     $segments = $parseMachinedSegments.Invoke($null, @((Get-Field $case 'layout')))
     $machinedSegmentsProperty.SetValue($options, $segments)
+    $flagArguments = New-Object 'object[]' 2
+    $flagArguments[0] = [string](Get-Field $case 'bomNameFlags')
+    $flagArguments[1] = $segments
+    $machinedBomNameFlagsProperty.SetValue($options,
+        $parseMachinedBomNameFlags.Invoke($null, $flagArguments))
 
     $row = [Activator]::CreateInstance($partListRowType, $true)
     $partListRowType.GetProperty('Classification').SetValue($row, (Get-Field $case 'classification'))

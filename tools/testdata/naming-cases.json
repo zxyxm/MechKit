@@ -155,7 +155,7 @@
       "file": "C:\\work\\20260908_扫码枪安装板_6061_01.sldprt",
       "expectedName": "扫码枪安装板",
       "expectedMaterial": "6061",
-      "expectedLayout": "date,name,material,serial",
+      "expectedLayout": "date,name,material,version",
       "isMachined": true
     },
     {
@@ -164,7 +164,7 @@
       "file": "C:\\work\\20260908_钣金_SPCC_电柜门_A.sldprt",
       "expectedName": "电柜门",
       "expectedMaterial": "SPCC",
-      "expectedLayout": "date,custom,material,name,serial",
+      "expectedLayout": "date,custom,material,name,version",
       "isMachined": true
     },
     {
@@ -173,7 +173,17 @@
       "file": "C:\\work\\20260908_5052_侧板_02.sldprt",
       "expectedName": "侧板",
       "expectedMaterial": "5052",
-      "expectedLayout": "date,material,name,serial",
+      "expectedLayout": "date,material,name,version",
+      "isMachined": true
+    },
+    {
+      "name": "version and assembly note included in BOM name",
+      "layout": "date,material,name,version,assemblynote",
+      "bomNameFlags": "0|0|1|1|1",
+      "file": "C:\\work\\20260919_6061_板1_A_左装.sldprt",
+      "expectedName": "板1_A_左装",
+      "expectedMaterial": "6061",
+      "expectedLayout": "date,material,name,version,assemblynote",
       "isMachined": true
     }
   ],
@@ -227,6 +237,17 @@
       "material": "5052",
       "process": "钣金",
       "expected": "20260919-5052-新盖子-B-Y"
+    },
+    {
+      "name": "machined composite BOM name updates selected segments",
+      "classification": "加工件",
+      "layout": "date,material,name,version,assemblynote",
+      "bomNameFlags": "0|0|1|1|1",
+      "file": "C:\\work\\20260919_6061_板1_A_左装.sldprt",
+      "partName": "新板_B_右装",
+      "material": "6061",
+      "process": "cnc",
+      "expected": "20260919_6061_新板_B_右装"
     },
     {
       "name": "standard prefix middle model",

@@ -56,8 +56,9 @@ namespace MechKit.Core
         Date = 0,
         Material = 1,
         Name = 2,
-        Serial = 3,
-        Custom = 4
+        Version = 3,
+        AssemblyNote = 4,
+        Custom = 5
     }
 
     internal sealed class MaterialProcessPreset
@@ -87,10 +88,11 @@ namespace MechKit.Core
                 MachinedSegmentKind.Date,
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
-                MachinedSegmentKind.Serial,
-                MachinedSegmentKind.Custom
+                MachinedSegmentKind.Version,
+                MachinedSegmentKind.AssemblyNote
             };
-            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty, "拓展代号" };
+            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty, string.Empty };
+            MachinedSegmentBomNameFlags = new[] { false, false, true, false, false };
             MachinedMaterialProcessPresets = new Dictionary<string, MaterialProcessPreset>(StringComparer.OrdinalIgnoreCase);
             PartNumberProperties = new[] { "图号", "零件号", "零件代号", "代号", "PartNumber", "Part Number", "Number", "DrawingNo" };
             NameProperties = new[] { "名称", "零件名称", "Description", "Title", "Name" };
@@ -124,6 +126,9 @@ namespace MechKit.Core
 
         /// <summary>加工件段的自定义显示名称；与 MachinedSegments 下标一致。</summary>
         public string[] MachinedSegmentLabels { get; set; }
+
+        /// <summary>每个加工件段是否并入 BOM“零件名”列；与 MachinedSegments 下标一致。</summary>
+        public bool[] MachinedSegmentBomNameFlags { get; set; }
 
         /// <summary>加工件材料段到材料/工艺的映射。</summary>
         public Dictionary<string, MaterialProcessPreset> MachinedMaterialProcessPresets { get; set; }
@@ -296,7 +301,7 @@ namespace MechKit.Core
 
             var configuredNameSegment = IndexOfSegment(MachinedSegmentKind.Name);
             var fromSegment = UseNameSegments && IsMachinedName(fileName) && configuredNameSegment >= 0
-                ? PickSegment(fileName, configuredNameSegment + 1)
+                ? ResolveMachinedBomName(fileName)
                 : PickSegment(fileName, NameSegment);
             if (UseNameSegments && !string.IsNullOrEmpty(fromSegment))
             {
@@ -362,8 +367,59 @@ namespace MechKit.Core
             var fileName = GetFileNameWithoutExtension(filePath);
             var configuredNameSegment = IndexOfSegment(MachinedSegmentKind.Name);
             return IsMachinedName(fileName) && configuredNameSegment >= 0
-                ? PickSegment(fileName, configuredNameSegment + 1)
+                ? ResolveMachinedBomName(fileName)
                 : string.Empty;
+        }
+
+        /// <summary>是否选择了名称段以外的字段并入 BOM 零件名。</summary>
+        public bool UsesCompositeMachinedBomName()
+        {
+            if (MachinedSegments == null || MachinedSegmentBomNameFlags == null ||
+                MachinedSegments.Length != MachinedSegmentBomNameFlags.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < MachinedSegments.Length; i++)
+            {
+                if (MachinedSegmentBomNameFlags[i] && MachinedSegments[i] != MachinedSegmentKind.Name)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private string ResolveMachinedBomName(string fileName)
+        {
+            var parts = SplitSegments(fileName);
+            var values = new List<string>();
+            var hasExplicitFlags = MachinedSegments != null && MachinedSegmentBomNameFlags != null &&
+                                   MachinedSegments.Length == MachinedSegmentBomNameFlags.Length;
+
+            if (MachinedSegments != null)
+            {
+                for (var i = 0; i < MachinedSegments.Length && i < parts.Length; i++)
+                {
+                    var include = hasExplicitFlags
+                        ? MachinedSegmentBomNameFlags[i]
+                        : MachinedSegments[i] == MachinedSegmentKind.Name;
+                    var value = parts[i].Trim();
+                    if (include && !IsPlaceholder(value))
+                    {
+                        values.Add(value);
+                    }
+                }
+            }
+
+            if (values.Count > 0)
+            {
+                return string.Join("_", values.ToArray());
+            }
+
+            var nameIndex = IndexOfSegment(MachinedSegmentKind.Name);
+            return nameIndex >= 0 ? PickSegment(fileName, nameIndex + 1) : string.Empty;
         }
 
         /// <summary>按加工件第2段预设同时解析材料和工艺。</summary>

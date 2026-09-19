@@ -26,6 +26,8 @@ namespace MechKit.Core
             naming.MachinedSegments = ParseMachinedSegments(settings.MachinedSegments);
             naming.MachinedSegmentLabels = ParseMachinedSegmentLabels(
                 settings.MachinedSegmentLabels, naming.MachinedSegments.Length);
+            naming.MachinedSegmentBomNameFlags = ParseMachinedSegmentBomNameFlags(
+                settings.MachinedSegmentBomNameFlags, naming.MachinedSegments);
             naming.MachinedMaterialProcessPresets = ParseMaterialProcessPresets(
                 settings.MachinedMaterialProcessRules);
             naming.BomPrefixes = ParsePrefixes(settings.BomPrefixes);
@@ -128,7 +130,10 @@ namespace MechKit.Core
                     case "date": kind = MachinedSegmentKind.Date; break;
                     case "material": kind = MachinedSegmentKind.Material; break;
                     case "name": kind = MachinedSegmentKind.Name; break;
-                    case "serial": kind = MachinedSegmentKind.Serial; break;
+                    case "serial":
+                    case "version": kind = MachinedSegmentKind.Version; break;
+                    case "assembly":
+                    case "assemblynote": kind = MachinedSegmentKind.AssemblyNote; break;
                     case "custom": kind = MachinedSegmentKind.Custom; break;
                     default: continue;
                 }
@@ -141,8 +146,8 @@ namespace MechKit.Core
                 result.Add(MachinedSegmentKind.Date);
                 result.Add(MachinedSegmentKind.Material);
                 result.Add(MachinedSegmentKind.Name);
-                result.Add(MachinedSegmentKind.Serial);
-                result.Add(MachinedSegmentKind.Custom);
+                result.Add(MachinedSegmentKind.Version);
+                result.Add(MachinedSegmentKind.AssemblyNote);
             }
 
             // 时间段是加工件规则的固定锚点：无论旧配置里位于何处、重复几次或缺失，
@@ -188,7 +193,8 @@ namespace MechKit.Core
                         case MachinedSegmentKind.Date: result.Add("时间"); break;
                         case MachinedSegmentKind.Material: result.Add("材料"); break;
                         case MachinedSegmentKind.Name: result.Add("零件名称"); break;
-                        case MachinedSegmentKind.Serial: result.Add("变更序号"); break;
+                        case MachinedSegmentKind.Version: result.Add("版本号"); break;
+                        case MachinedSegmentKind.AssemblyNote: result.Add("装配说明"); break;
                         default:
                             var label = labels != null && index < labels.Count
                                 ? labels[index]
@@ -243,6 +249,40 @@ namespace MechKit.Core
                 }
             }
 
+            return string.Join("|", result.ToArray());
+        }
+
+        public static bool[] ParseMachinedSegmentBomNameFlags(string text,
+            IList<MachinedSegmentKind> segments)
+        {
+            var count = segments == null ? 0 : segments.Count;
+            var result = new bool[count];
+            var tokens = (text ?? string.Empty).Split('|');
+            for (var i = 0; i < count; i++)
+            {
+                if (i < tokens.Length && !string.IsNullOrWhiteSpace(tokens[i]))
+                {
+                    var token = tokens[i].Trim();
+                    result[i] = token == "1" || token.Equals("true", StringComparison.OrdinalIgnoreCase);
+                }
+                else
+                {
+                    result[i] = segments[i] == MachinedSegmentKind.Name;
+                }
+            }
+            return result;
+        }
+
+        public static string SerializeMachinedSegmentBomNameFlags(IEnumerable<bool> flags)
+        {
+            var result = new List<string>();
+            if (flags != null)
+            {
+                foreach (var flag in flags)
+                {
+                    result.Add(flag ? "1" : "0");
+                }
+            }
             return string.Join("|", result.ToArray());
         }
 

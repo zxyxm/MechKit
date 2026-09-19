@@ -138,15 +138,22 @@ namespace MechKit.Core
         /// <summary>加工件段顺序，例如 date,material,name,serial。</summary>
         public string MachinedSegments
         {
-            get { return Get("MachinedSegments", "date,material,name,serial,custom"); }
+            get { return Get("MachinedSegments", "date,material,name,version,assemblynote"); }
             set { Set("MachinedSegments", value); }
         }
 
         /// <summary>与加工件段一一对应的自定义显示名称，使用竖线分隔并转义。</summary>
         public string MachinedSegmentLabels
         {
-            get { return Get("MachinedSegmentLabels", "||||拓展代号"); }
+            get { return Get("MachinedSegmentLabels", "||||"); }
             set { Set("MachinedSegmentLabels", value); }
+        }
+
+        /// <summary>加工件各段是否并入 BOM 零件名，使用 | 分隔。</summary>
+        public string MachinedSegmentBomNameFlags
+        {
+            get { return Get("MachinedSegmentBomNameFlags", "0|0|1|0|0"); }
+            set { Set("MachinedSegmentBomNameFlags", value); }
         }
 
         /// <summary>加工件第2段到“材料-工艺”的预设映射；每行一条 key=材料-工艺。</summary>
@@ -381,6 +388,28 @@ namespace MechKit.Core
                         NamingOptionsFactory.NormalizeMaterialProcessPresetFormat(
                             settings.MachinedMaterialProcessRules);
                     settings.NamingPresetVersion = 2;
+                }
+
+                // v3：第 4 / 5 段规范为版本号和装配说明，并允许选择是否并入 BOM 零件名。
+                if (settings.NamingPresetVersion < 3)
+                {
+                    var oldLayout = (settings.MachinedSegments ?? string.Empty).Trim();
+                    if (string.Equals(oldLayout, "date,material,name,serial,custom",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        settings.MachinedSegments = "date,material,name,version,assemblynote";
+                        settings.MachinedSegmentLabels = "||||";
+                    }
+                    else
+                    {
+                        settings.MachinedSegments = oldLayout.Replace("serial", "version");
+                    }
+                    var migratedSegments = NamingOptionsFactory.ParseMachinedSegments(settings.MachinedSegments);
+                    settings.MachinedSegmentBomNameFlags =
+                        NamingOptionsFactory.SerializeMachinedSegmentBomNameFlags(
+                            NamingOptionsFactory.ParseMachinedSegmentBomNameFlags(
+                                string.Empty, migratedSegments));
+                    settings.NamingPresetVersion = 3;
                 }
             }
             catch (Exception ex)
