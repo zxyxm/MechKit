@@ -205,7 +205,7 @@ namespace MechKit.Harness
             Log.Info("[harness] 选项卡预览图已保存：" + target);
         }
 
-        /// <summary>直接打开指定窗口，便于命令行预览：--settings / --partlist / --export / --property</summary>
+        /// <summary>直接打开指定窗口，便于命令行预览：--settings / --partlist / --export / --naming / --standard</summary>
         public void OpenNamed(string name)
         {
             switch ((name ?? string.Empty).ToLowerInvariant())
@@ -227,6 +227,9 @@ namespace MechKit.Harness
                     break;
                 case "--naming":
                     Show(new NamingRuleForm(_host));
+                    break;
+                case "--standard":
+                    Show(new NamingRuleForm(_host, 1));
                     break;
             }
         }

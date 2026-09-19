@@ -190,5 +190,63 @@ namespace MechKit.Core
                 ? string.Empty
                 : string.Join(" ", new List<string>(prefixes).ToArray())));
         }
+
+        public static Dictionary<string, string> ParsePrefixDescriptions(string text)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in (text ?? string.Empty).Split('|'))
+            {
+                var separator = entry.IndexOf('=');
+                if (separator <= 0)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var prefix = Uri.UnescapeDataString(entry.Substring(0, separator)).Trim();
+                    var description = Uri.UnescapeDataString(entry.Substring(separator + 1)).Trim();
+                    if (prefix.Length > 0)
+                    {
+                        result[prefix] = description;
+                    }
+                }
+                catch
+                {
+                    // 单条旧数据损坏时忽略，不影响其余前缀。
+                }
+            }
+
+            return result;
+        }
+
+        public static string SerializePrefixDescriptions(IEnumerable<string> prefixes,
+            IDictionary<string, string> descriptions)
+        {
+            var result = new List<string>();
+            if (prefixes == null)
+            {
+                return string.Empty;
+            }
+
+            foreach (var prefix in prefixes)
+            {
+                if (string.IsNullOrWhiteSpace(prefix))
+                {
+                    continue;
+                }
+
+                string description;
+                if (descriptions == null || !descriptions.TryGetValue(prefix.Trim(), out description))
+                {
+                    description = string.Empty;
+                }
+
+                result.Add(Uri.EscapeDataString(prefix.Trim()) + "=" +
+                           Uri.EscapeDataString((description ?? string.Empty).Trim()));
+            }
+
+            return string.Join("|", result.ToArray());
+        }
     }
 }

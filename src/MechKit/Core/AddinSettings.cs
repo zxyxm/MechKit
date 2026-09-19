@@ -194,6 +194,13 @@ namespace MechKit.Core
             set { Set("BomPrefixes", value); }
         }
 
+        /// <summary>标准件前缀说明，使用 URI 转义的 key=value|key=value 格式保存。</summary>
+        public string BomPrefixDescriptions
+        {
+            get { return Get("BomPrefixDescriptions", string.Empty); }
+            set { Set("BomPrefixDescriptions", value); }
+        }
+
         /// <summary>是否只收录「前缀_日期_材料_名称」这种命名的零件。</summary>
         public bool BomRequirePattern
         {

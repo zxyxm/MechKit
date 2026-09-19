@@ -9,7 +9,7 @@ namespace MechKit.UI
     /// <summary>
     /// 命名规则设置：分成「加工件」「标准件」两栏（选项卡），互不挤压。
     ///   · 加工件：可增删、排序的分段规则（时间段固定第一）、图号来源与截断
-    ///   · 标准件：只维护前缀的增加与删除；实际套用前缀统一在选项卡/任务面板完成
+    ///   · 标准件：纵向维护前缀与说明；实际套用前缀统一在选项卡/任务面板完成
     /// 底部是实时预览：输入一个零件名，立刻看到解析结果与是否进 BOM。
     /// </summary>
     internal sealed class NamingRuleForm : Form
@@ -28,7 +28,9 @@ namespace MechKit.UI
         // 标准件栏
         private readonly TextBox _prefixes;
         private readonly TextBox _newPrefix;
-        private readonly FlowLayoutPanel _usedPrefixPanel;
+        private readonly TextBox _newPrefixDescription;
+        private readonly TableLayoutPanel _usedPrefixPanel;
+        private readonly Dictionary<string, string> _prefixDescriptions;
 
         // 预览
         private readonly TextBox _sample;
@@ -55,7 +57,9 @@ namespace MechKit.UI
             _pattern = Theme.CreateTextBox();
             _prefixes = Theme.CreateTextBox();
             _newPrefix = Theme.CreateTextBox();
-            _usedPrefixPanel = new FlowLayoutPanel();
+            _newPrefixDescription = Theme.CreateTextBox();
+            _usedPrefixPanel = new TableLayoutPanel();
+            _prefixDescriptions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             _sample = Theme.CreateTextBox();
             _preview = Theme.CreateValueLabel(string.Empty);
 
@@ -509,9 +513,9 @@ namespace MechKit.UI
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 106f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 320f));
 
             var title = Theme.CreateLabel("标准件前缀管理", Theme.BodyBold, Theme.Text);
             title.Dock = DockStyle.Fill;
@@ -522,12 +526,14 @@ namespace MechKit.UI
             var addRow = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 4,
+                ColumnCount = 6,
                 RowCount = 1,
                 BackColor = Theme.Surface
             };
             addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96f));
-            addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300f));
+            addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
+            addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52f));
+            addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260f));
             addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92f));
             addRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
@@ -536,11 +542,25 @@ namespace MechKit.UI
             _newPrefix.Dock = DockStyle.Fill;
             _newPrefix.Margin = new Padding(0, 6, 10, 6);
 
+            var descriptionCaption = Theme.CreateFieldLabel("说明");
+            descriptionCaption.Dock = DockStyle.Fill;
+            _newPrefixDescription.Dock = DockStyle.Fill;
+            _newPrefixDescription.Margin = new Padding(0, 6, 10, 6);
+
             var addButton = Theme.CreatePrimaryButton("＋ 增加");
             addButton.Dock = DockStyle.Fill;
             addButton.Margin = new Padding(0, 5, 10, 5);
             addButton.Click += delegate { AddTypedPrefix(); };
             _newPrefix.KeyDown += delegate(object sender, KeyEventArgs args)
+            {
+                if (args.KeyCode == Keys.Enter)
+                {
+                    AddTypedPrefix();
+                    args.Handled = true;
+                    args.SuppressKeyPress = true;
+                }
+            };
+            _newPrefixDescription.KeyDown += delegate(object sender, KeyEventArgs args)
             {
                 if (args.KeyCode == Keys.Enter)
                 {
@@ -556,18 +576,22 @@ namespace MechKit.UI
             addHint.ForeColor = Theme.Muted;
             addRow.Controls.Add(addCaption, 0, 0);
             addRow.Controls.Add(_newPrefix, 1, 0);
-            addRow.Controls.Add(addButton, 2, 0);
-            addRow.Controls.Add(addHint, 3, 0);
+            addRow.Controls.Add(descriptionCaption, 2, 0);
+            addRow.Controls.Add(_newPrefixDescription, 3, 0);
+            addRow.Controls.Add(addButton, 4, 0);
+            addRow.Controls.Add(addHint, 5, 0);
             layout.Controls.Add(addRow, 0, 1);
 
-            var currentCaption = Theme.CreateLabel("当前前缀（点 × 删除）", Theme.Body, Theme.Text);
+            var currentCaption = Theme.CreateLabel("当前前缀与说明（说明可直接编辑，点 × 删除）", Theme.Body, Theme.Text);
             currentCaption.Dock = DockStyle.Fill;
             currentCaption.TextAlign = ContentAlignment.BottomLeft;
             currentCaption.Margin = new Padding(0, 4, 0, 3);
             layout.Controls.Add(currentCaption, 0, 2);
             _usedPrefixPanel.Dock = DockStyle.Fill;
             _usedPrefixPanel.AutoScroll = true;
-            _usedPrefixPanel.WrapContents = true;
+            _usedPrefixPanel.ColumnCount = 1;
+            _usedPrefixPanel.RowCount = 0;
+            _usedPrefixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             _usedPrefixPanel.BackColor = Theme.Surface;
             _usedPrefixPanel.Margin = new Padding(0, 0, 0, 4);
             _usedPrefixPanel.Padding = new Padding(0, 2, 0, 2);
@@ -653,7 +677,7 @@ namespace MechKit.UI
             return panel;
         }
 
-        /// <summary>按当前前缀列表重建按钮：每个前缀一个「名字 ×」按钮，点一下删除。</summary>
+        /// <summary>按当前前缀列表重建纵向“前缀标签 + 说明 + 删除”行。</summary>
         private void UpdatePrefixButtons()
         {
             if (_syncing)
@@ -670,22 +694,66 @@ namespace MechKit.UI
                     _usedPrefixPanel.Controls.Remove(control);
                     control.Dispose();
                 }
+                _usedPrefixPanel.RowStyles.Clear();
+                _usedPrefixPanel.RowCount = 0;
 
                 var prefixes = NamingOptionsFactory.ParsePrefixes(_prefixes.Text);
                 if (prefixes.Length == 0)
                 {
-                    _usedPrefixPanel.Controls.Add(Theme.CreateLabel("（还没有前缀，请在上方输入后点击“增加”）", Theme.Small, Theme.Muted));
+                    _usedPrefixPanel.RowCount = 1;
+                    _usedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
+                    var empty = Theme.CreateLabel("（还没有前缀，请在上方输入前缀和说明后点击“增加”）", Theme.Small, Theme.Muted);
+                    empty.Dock = DockStyle.Fill;
+                    _usedPrefixPanel.Controls.Add(empty, 0, 0);
                 }
 
-                foreach (var prefix in prefixes)
+                for (var index = 0; index < prefixes.Length; index++)
                 {
+                    var prefix = prefixes[index];
                     var value = prefix;
-                    var button = Theme.CreateSecondaryButton(value + "  ×");
-                    button.Width = 90;
-                    button.Height = 26;
-                    button.Margin = new Padding(0, 0, 6, 6);
-                    button.Click += delegate { RemovePrefix(value); };
-                    _usedPrefixPanel.Controls.Add(button);
+                    var row = new TableLayoutPanel
+                    {
+                        Dock = DockStyle.Fill,
+                        ColumnCount = 3,
+                        RowCount = 1,
+                        BackColor = Theme.Surface,
+                        Margin = new Padding(0, 0, 0, 6)
+                    };
+                    row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120f));
+                    row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                    row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42f));
+
+                    var tag = Theme.CreateValueLabel(value);
+                    tag.Dock = DockStyle.Fill;
+                    tag.TextAlign = ContentAlignment.MiddleCenter;
+                    tag.BackColor = Color.FromArgb(232, 244, 255);
+                    tag.ForeColor = Theme.Accent;
+                    tag.BorderStyle = BorderStyle.FixedSingle;
+                    tag.Margin = new Padding(0, 3, 8, 3);
+
+                    string savedDescription;
+                    _prefixDescriptions.TryGetValue(value, out savedDescription);
+                    var description = Theme.CreateTextBox();
+                    description.Text = savedDescription ?? string.Empty;
+                    description.Dock = DockStyle.Fill;
+                    description.Margin = new Padding(0, 3, 8, 3);
+                    description.TextChanged += delegate
+                    {
+                        _prefixDescriptions[value] = description.Text;
+                    };
+
+                    var delete = Theme.CreateSecondaryButton("×");
+                    delete.Dock = DockStyle.Fill;
+                    delete.Margin = new Padding(0, 3, 0, 3);
+                    delete.Click += delegate { RemovePrefix(value); };
+
+                    row.Controls.Add(tag, 0, 0);
+                    row.Controls.Add(description, 1, 0);
+                    row.Controls.Add(delete, 2, 0);
+
+                    _usedPrefixPanel.RowCount = index + 1;
+                    _usedPrefixPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+                    _usedPrefixPanel.Controls.Add(row, 0, index);
                 }
             }
             finally
@@ -703,13 +771,15 @@ namespace MechKit.UI
             }
         }
 
-        private void AddPrefix(string prefix)
+        private void AddPrefix(string prefix, string description)
         {
             var prefixes = new List<string>(NamingOptionsFactory.ParsePrefixes(_prefixes.Text));
             if (!prefixes.Contains(prefix))
             {
                 prefixes.Add(prefix);
             }
+
+            _prefixDescriptions[prefix] = (description ?? string.Empty).Trim();
 
             _prefixes.Text = NamingOptionsFactory.SerializePrefixes(prefixes);
         }
@@ -731,8 +801,9 @@ namespace MechKit.UI
                 return;
             }
 
-            AddPrefix(prefix);
+            AddPrefix(prefix, _newPrefixDescription.Text);
             _newPrefix.Clear();
+            _newPrefixDescription.Clear();
             _newPrefix.Focus();
         }
 
@@ -740,6 +811,7 @@ namespace MechKit.UI
         {
             var prefixes = new List<string>(NamingOptionsFactory.ParsePrefixes(_prefixes.Text));
             prefixes.Remove(prefix);
+            _prefixDescriptions.Remove(prefix);
             _prefixes.Text = NamingOptionsFactory.SerializePrefixes(prefixes);
         }
 
@@ -753,6 +825,17 @@ namespace MechKit.UI
             _segmentLabels.AddRange(NamingOptionsFactory.ParseMachinedSegmentLabels(
                 s.MachinedSegmentLabels, _machinedSegments.Count));
             RebuildSegmentRows();
+            _prefixDescriptions.Clear();
+            foreach (var pair in NamingOptionsFactory.ParsePrefixDescriptions(s.BomPrefixDescriptions))
+            {
+                _prefixDescriptions[pair.Key] = pair.Value;
+            }
+            if (_prefixDescriptions.Count == 0)
+            {
+                _prefixDescriptions["电机"] = "电机、伺服电机、减速电机等";
+                _prefixDescriptions["电气"] = "传感器、开关及其他电气元件";
+                _prefixDescriptions["淘宝"] = "淘宝或其他平台采购件";
+            }
             _prefixes.Text = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(s.BomPrefixes));
             _partNumberSource.SelectedIndex = Math.Max(0, Math.Min(2, s.PartNumberSource));
@@ -775,6 +858,10 @@ namespace MechKit.UI
             });
             _segmentLabels.AddRange(new[] { string.Empty, string.Empty, string.Empty, string.Empty });
             RebuildSegmentRows();
+            _prefixDescriptions.Clear();
+            _prefixDescriptions["电机"] = "电机、伺服电机、减速电机等";
+            _prefixDescriptions["电气"] = "传感器、开关及其他电气元件";
+            _prefixDescriptions["淘宝"] = "淘宝或其他平台采购件";
             _prefixes.Text = "电机 电气 淘宝";
             _partNumberSource.SelectedIndex = 0;
             _cutRule.SelectedIndex = 0;
@@ -798,6 +885,8 @@ namespace MechKit.UI
             s.NameSegment = SegmentPosition(MachinedSegmentKind.Name);
             s.BomPrefixes = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(_prefixes.Text));
+            s.BomPrefixDescriptions = NamingOptionsFactory.SerializePrefixDescriptions(
+                NamingOptionsFactory.ParsePrefixes(_prefixes.Text), _prefixDescriptions);
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();
