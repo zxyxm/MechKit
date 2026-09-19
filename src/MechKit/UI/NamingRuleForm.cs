@@ -20,6 +20,7 @@ namespace MechKit.UI
         private readonly TextBox _separator;
         private readonly TableLayoutPanel _segmentPanel;
         private readonly List<MachinedSegmentKind> _machinedSegments;
+        private readonly List<string> _segmentLabels;
         private readonly ComboBox _partNumberSource;
         private readonly ComboBox _cutRule;
         private readonly TextBox _pattern;
@@ -47,6 +48,7 @@ namespace MechKit.UI
             _separator = Theme.CreateTextBox();
             _segmentPanel = new TableLayoutPanel();
             _machinedSegments = new List<MachinedSegmentKind>();
+            _segmentLabels = new List<string>();
             _partNumberSource = new ComboBox();
             _cutRule = new ComboBox();
             _pattern = Theme.CreateTextBox();
@@ -225,6 +227,7 @@ namespace MechKit.UI
                 }
 
                 _machinedSegments.Add(MachinedSegmentKind.Custom);
+                _segmentLabels.Add("自定义段");
                 RebuildSegmentRows();
             };
             var addRow = new FlowLayoutPanel
@@ -267,6 +270,16 @@ namespace MechKit.UI
 
         private void RebuildSegmentRows()
         {
+            while (_segmentLabels.Count < _machinedSegments.Count)
+            {
+                _segmentLabels.Add(string.Empty);
+            }
+
+            while (_segmentLabels.Count > _machinedSegments.Count)
+            {
+                _segmentLabels.RemoveAt(_segmentLabels.Count - 1);
+            }
+
             _segmentPanel.SuspendLayout();
             try
             {
@@ -336,7 +349,20 @@ namespace MechKit.UI
                 {
                     "材料段", "零件名称段", "扩展序号段", "自定义段"
                 });
-                selector.SelectedIndex = SegmentSelectorIndex(kind);
+                selector.DropDownStyle = kind == MachinedSegmentKind.Custom
+                    ? ComboBoxStyle.DropDown
+                    : ComboBoxStyle.DropDownList;
+                if (kind == MachinedSegmentKind.Custom)
+                {
+                    selector.Text = string.IsNullOrWhiteSpace(_segmentLabels[index])
+                        ? "自定义段"
+                        : _segmentLabels[index];
+                }
+                else
+                {
+                    selector.SelectedIndex = SegmentSelectorIndex(kind);
+                }
+
                 var capturedIndex = index;
                 selector.SelectedIndexChanged += delegate
                 {
@@ -345,8 +371,22 @@ namespace MechKit.UI
                         return;
                     }
 
-                    _machinedSegments[capturedIndex] = SegmentKindFromSelector(selector.SelectedIndex);
+                    var selectedKind = SegmentKindFromSelector(selector.SelectedIndex);
+                    _machinedSegments[capturedIndex] = selectedKind;
+                    _segmentLabels[capturedIndex] = selectedKind == MachinedSegmentKind.Custom
+                        ? "自定义段"
+                        : string.Empty;
                     RebuildSegmentRows();
+                };
+                selector.TextChanged += delegate
+                {
+                    if (capturedIndex < _machinedSegments.Count &&
+                        _machinedSegments[capturedIndex] == MachinedSegmentKind.Custom &&
+                        selector.SelectedIndex < 0)
+                    {
+                        _segmentLabels[capturedIndex] = selector.Text;
+                        UpdatePreview();
+                    }
                 };
             }
 
@@ -392,8 +432,11 @@ namespace MechKit.UI
             }
 
             var item = _machinedSegments[index];
+            var label = _segmentLabels[index];
             _machinedSegments.RemoveAt(index);
+            _segmentLabels.RemoveAt(index);
             _machinedSegments.Insert(target, item);
+            _segmentLabels.Insert(target, label);
             RebuildSegmentRows();
         }
 
@@ -406,6 +449,7 @@ namespace MechKit.UI
             }
 
             _machinedSegments.RemoveAt(index);
+            _segmentLabels.RemoveAt(index);
             RebuildSegmentRows();
         }
 
@@ -439,7 +483,7 @@ namespace MechKit.UI
                 case MachinedSegmentKind.Material: return "材料牌号，例如 6061 / 5052 / 304";
                 case MachinedSegmentKind.Name: return "解析为零件名称";
                 case MachinedSegmentKind.Serial: return "扩展序号或版本号，可选";
-                default: return "自定义占位段，不参与字段解析";
+                default: return "可直接输入自定义段名称；此段不参与字段解析";
             }
         }
 
@@ -704,6 +748,9 @@ namespace MechKit.UI
             _separator.Text = string.IsNullOrEmpty(s.SegmentSeparator) ? "_" : s.SegmentSeparator;
             _machinedSegments.Clear();
             _machinedSegments.AddRange(NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments));
+            _segmentLabels.Clear();
+            _segmentLabels.AddRange(NamingOptionsFactory.ParseMachinedSegmentLabels(
+                s.MachinedSegmentLabels, _machinedSegments.Count));
             RebuildSegmentRows();
             _prefixes.Text = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(s.BomPrefixes));
@@ -717,6 +764,7 @@ namespace MechKit.UI
         {
             _separator.Text = "_";
             _machinedSegments.Clear();
+            _segmentLabels.Clear();
             _machinedSegments.AddRange(new[]
             {
                 MachinedSegmentKind.Date,
@@ -724,6 +772,7 @@ namespace MechKit.UI
                 MachinedSegmentKind.Name,
                 MachinedSegmentKind.Serial
             });
+            _segmentLabels.AddRange(new[] { string.Empty, string.Empty, string.Empty, string.Empty });
             RebuildSegmentRows();
             _prefixes.Text = "电机 电气 淘宝";
             _partNumberSource.SelectedIndex = 0;
@@ -743,6 +792,7 @@ namespace MechKit.UI
             var s = _host.Settings;
             s.SegmentSeparator = string.IsNullOrEmpty(_separator.Text) ? "_" : _separator.Text;
             s.MachinedSegments = NamingOptionsFactory.SerializeMachinedSegments(_machinedSegments);
+            s.MachinedSegmentLabels = NamingOptionsFactory.SerializeMachinedSegmentLabels(_segmentLabels);
             s.MaterialSegment = SegmentPosition(MachinedSegmentKind.Material);
             s.NameSegment = SegmentPosition(MachinedSegmentKind.Name);
             s.BomPrefixes = NamingOptionsFactory.SerializePrefixes(
@@ -754,7 +804,7 @@ namespace MechKit.UI
             s.Save();
 
             Log.Info("命名规则已保存：加工件=" +
-                NamingOptionsFactory.DescribeMachinedSegments(_machinedSegments) +
+                NamingOptionsFactory.DescribeMachinedSegments(_machinedSegments, _segmentLabels) +
                 "；标准件前缀=" + s.BomPrefixes);
             Close();
         }
@@ -820,6 +870,7 @@ namespace MechKit.UI
                     MaterialSegment = SegmentPosition(MachinedSegmentKind.Material),
                     NameSegment = SegmentPosition(MachinedSegmentKind.Name),
                     MachinedSegments = _machinedSegments.ToArray(),
+                    MachinedSegmentLabels = _segmentLabels.ToArray(),
                     BomPrefixes = NamingOptionsFactory.ParsePrefixes(_prefixes.Text),
                     RequireBomPattern = _host.Settings.BomRequirePattern
                 };

@@ -83,6 +83,7 @@ namespace MechKit.Core
                 MachinedSegmentKind.Name,
                 MachinedSegmentKind.Serial
             };
+            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty };
             PartNumberProperties = new[] { "图号", "零件号", "零件代号", "代号", "PartNumber", "Part Number", "Number", "DrawingNo" };
             NameProperties = new[] { "名称", "零件名称", "Description", "Title", "Name" };
             MaterialProperties = new[] { "材料", "材质", "Material", "材质牌号" };
@@ -112,6 +113,9 @@ namespace MechKit.Core
 
         /// <summary>加工件段定义；顺序对应文件名中从左到右的位置。</summary>
         public MachinedSegmentKind[] MachinedSegments { get; set; }
+
+        /// <summary>加工件段的自定义显示名称；与 MachinedSegments 下标一致。</summary>
+        public string[] MachinedSegmentLabels { get; set; }
 
         /// <summary>BOM 收录用的名称前缀，例如 电机 / 电气 / 淘宝。用下划线分隔各段。</summary>
         public string[] BomPrefixes { get; set; }
@@ -511,7 +515,8 @@ namespace MechKit.Core
 
             var segments = UseNameSegments
                 ? string.Format("；按「{0}」分段（{1}）",
-                    SegmentSeparator, NamingOptionsFactory.DescribeMachinedSegments(MachinedSegments))
+                    SegmentSeparator, NamingOptionsFactory.DescribeMachinedSegments(
+                        MachinedSegments, MachinedSegmentLabels))
                 : string.Empty;
 
             return string.Format("图号：{0} / {1}{2}", source, cut, segments);

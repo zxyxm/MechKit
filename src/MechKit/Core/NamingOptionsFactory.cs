@@ -25,6 +25,8 @@ namespace MechKit.Core
             naming.NameSegment = -1;
             naming.MaterialSegment = settings.MaterialSegment;
             naming.MachinedSegments = ParseMachinedSegments(settings.MachinedSegments);
+            naming.MachinedSegmentLabels = ParseMachinedSegmentLabels(
+                settings.MachinedSegmentLabels, naming.MachinedSegments.Length);
             naming.BomPrefixes = ParsePrefixes(settings.BomPrefixes);
             naming.RequireBomPattern = settings.BomRequirePattern;
             return naming;
@@ -83,7 +85,14 @@ namespace MechKit.Core
 
         public static string DescribeMachinedSegments(IEnumerable<MachinedSegmentKind> segments)
         {
+            return DescribeMachinedSegments(segments, null);
+        }
+
+        public static string DescribeMachinedSegments(IEnumerable<MachinedSegmentKind> segments,
+            IList<string> labels)
+        {
             var result = new List<string>();
+            var index = 0;
             if (segments != null)
             {
                 foreach (var segment in segments)
@@ -94,12 +103,61 @@ namespace MechKit.Core
                         case MachinedSegmentKind.Material: result.Add("材料"); break;
                         case MachinedSegmentKind.Name: result.Add("零件名称"); break;
                         case MachinedSegmentKind.Serial: result.Add("扩展序号"); break;
-                        default: result.Add("自定义"); break;
+                        default:
+                            var label = labels != null && index < labels.Count
+                                ? labels[index]
+                                : string.Empty;
+                            result.Add(string.IsNullOrWhiteSpace(label) ? "自定义" : label.Trim());
+                            break;
                     }
+
+                    index++;
                 }
             }
 
             return string.Join(" → ", result.ToArray());
+        }
+
+        public static string[] ParseMachinedSegmentLabels(string text, int count)
+        {
+            var result = new List<string>();
+            foreach (var token in (text ?? string.Empty).Split('|'))
+            {
+                try
+                {
+                    result.Add(Uri.UnescapeDataString(token));
+                }
+                catch
+                {
+                    result.Add(token);
+                }
+            }
+
+            while (result.Count < count)
+            {
+                result.Add(string.Empty);
+            }
+
+            if (result.Count > count)
+            {
+                result.RemoveRange(count, result.Count - count);
+            }
+
+            return result.ToArray();
+        }
+
+        public static string SerializeMachinedSegmentLabels(IEnumerable<string> labels)
+        {
+            var result = new List<string>();
+            if (labels != null)
+            {
+                foreach (var label in labels)
+                {
+                    result.Add(Uri.EscapeDataString((label ?? string.Empty).Trim()));
+                }
+            }
+
+            return string.Join("|", result.ToArray());
         }
 
         /// <summary>解析前缀列表；界面使用空格分隔，并兼容旧的逗号 / 分号 / 顿号。</summary>

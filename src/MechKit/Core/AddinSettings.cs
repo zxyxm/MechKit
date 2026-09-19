@@ -123,6 +123,13 @@ namespace MechKit.Core
             set { Set("MachinedSegments", value); }
         }
 
+        /// <summary>与加工件段一一对应的自定义显示名称，使用竖线分隔并转义。</summary>
+        public string MachinedSegmentLabels
+        {
+            get { return Get("MachinedSegmentLabels", string.Empty); }
+            set { Set("MachinedSegmentLabels", value); }
+        }
+
         public bool PartListOnlyMachined
         {
             get { return GetBool("PartListOnlyMachined", true); }

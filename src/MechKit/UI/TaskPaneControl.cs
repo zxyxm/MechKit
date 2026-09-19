@@ -185,6 +185,7 @@ namespace MechKit.UI
             quick.Naming.NameSegment = options.Naming.NameSegment;
             quick.Naming.MaterialSegment = options.Naming.MaterialSegment;
             quick.Naming.MachinedSegments = options.Naming.MachinedSegments;
+            quick.Naming.MachinedSegmentLabels = options.Naming.MachinedSegmentLabels;
 
             _status.Text = "正在统计零件数量…";
             Application.DoEvents();
