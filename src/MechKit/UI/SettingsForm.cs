@@ -43,14 +43,14 @@ namespace MechKit.UI
             _assemblyLevel = CreateAssemblyLevelCombo(false);
             _standardLocationField = CreateAssemblyLevelCombo(true);
             _machinedLocationField = CreateAssemblyLevelCombo(true);
-            _standardNameField = CreateFieldSourceCombo();
-            _standardMaterialField = CreateFieldSourceCombo();
-            _standardProcessField = CreateFieldSourceCombo();
-            _standardRemarkField = CreateFieldSourceCombo();
-            _machinedNameField = CreateFieldSourceCombo();
-            _machinedMaterialField = CreateFieldSourceCombo();
-            _machinedProcessField = CreateFieldSourceCombo();
-            _machinedRemarkField = CreateFieldSourceCombo();
+            _standardNameField = CreateFieldSourceCombo(true);
+            _standardMaterialField = CreateFieldSourceCombo(true);
+            _standardProcessField = CreateFieldSourceCombo(true);
+            _standardRemarkField = CreateFieldSourceCombo(true);
+            _machinedNameField = CreateFieldSourceCombo(false);
+            _machinedMaterialField = CreateFieldSourceCombo(false);
+            _machinedProcessField = CreateFieldSourceCombo(false);
+            _machinedRemarkField = CreateFieldSourceCombo(false);
             _status = Theme.CreateValueLabel("就绪");
 
             BuildLayout();
@@ -64,7 +64,7 @@ namespace MechKit.UI
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             StartPosition = FormStartPosition.CenterParent;
-            WindowLayout.Attach(this, _host.Settings, new Size(980, 680), new Size(880, 580));
+            WindowLayout.Attach(this, _host.Settings, new Size(1180, 700), new Size(1040, 600));
 
             var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
             var title = Theme.CreateLabel("设置", Theme.Title, Color.White);
@@ -221,9 +221,10 @@ namespace MechKit.UI
                 Padding = new Padding(0)
             };
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72f));
-            for (var i = 0; i < 8; i++)
+            var widths = new[] { 9f, 9f, 10f, 15f, 15f, 15f, 10f, 17f };
+            for (var i = 0; i < widths.Length; i++)
             {
-                table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12.5f));
+                table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, widths[i]));
             }
             table.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
@@ -324,32 +325,53 @@ namespace MechKit.UI
             }
         }
 
-        private static ComboBox CreateFieldSourceCombo()
+        private static ComboBox CreateFieldSourceCombo(bool standard)
         {
             var combo = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = Theme.Small
+                Font = Theme.Small,
+                DropDownWidth = 290
             };
-            combo.Items.AddRange(new object[]
-            {
-                "自动规则",
-                "完整文件名",
-                "第1段",
-                "第2段",
-                "第3段",
-                "第4段",
-                "第5段",
-                "第6段",
-                "第7段",
-                "第8段",
-                "属性:名称",
-                "属性:材料",
-                "属性:工艺",
-                "属性:备注",
-                "留空",
-                "第3段及以后"
-            });
+            combo.Items.AddRange(standard
+                ? new object[]
+                {
+                    "自动·标准规则",
+                    "完整文件名",
+                    "标准[1] 前缀/工艺",
+                    "标准[2] 中文名",
+                    "标准[3] 型号首段",
+                    "标准[4] 型号续段",
+                    "标准[5] 扩展段",
+                    "标准[6] 扩展段",
+                    "标准[7] 扩展段",
+                    "标准[8] 扩展段",
+                    "属性·名称",
+                    "属性·材料",
+                    "属性·工艺",
+                    "属性·备注",
+                    "留空",
+                    "标准[3+] 完整型号"
+                }
+                : new object[]
+                {
+                    "自动·加工规则",
+                    "完整文件名",
+                    "加工[1] 日期",
+                    "加工[2] 材料",
+                    "加工[3] 零件名",
+                    "加工[4] 扩展序号",
+                    "加工[5] 扩展段",
+                    "加工[6] 扩展段",
+                    "加工[7] 扩展段",
+                    "加工[8] 扩展段",
+                    "属性·名称",
+                    "属性·材料",
+                    "属性·工艺",
+                    "属性·备注",
+                    "留空",
+                    "加工[3+] 名称余段"
+                });
             return combo;
         }
 
