@@ -102,7 +102,7 @@ namespace MechKit.UI
             var title = Theme.CreateLabel("预览 BOM", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
 
-            var subtitle = Theme.CreateLabel("按下划线解析字段；双击可编辑零件名、材料、工艺和备注",
+            var subtitle = Theme.CreateLabel("双击可编辑字段；列宽首次自动适配，之后可拖动表头边界调整",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
 
@@ -355,7 +355,8 @@ namespace MechKit.UI
             var nameColumn = new DataGridViewTextBoxColumn
             {
                 HeaderText = "零件名（可编辑）",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                Width = 190,
                 MinimumWidth = 150
             };
             var materialColumn = new DataGridViewTextBoxColumn { HeaderText = "材料（可编辑）", Width = 130 };
@@ -756,10 +757,56 @@ namespace MechKit.UI
                     gridRow.Cells[6].Value = row.Quantity;
                     gridRow.Cells[7].Value = row.Remark;
                 }
+
+                AutoFitGridColumnsOnce();
             }
             finally
             {
                 _grid.ResumeLayout();
+            }
+        }
+
+        /// <summary>
+        /// 数据载入后按当前可见内容自动计算一次列宽，再切回手动模式。
+        /// 用户随后可以自由拖动列边界，不会被 AutoSize 立即改回。
+        /// </summary>
+        private void AutoFitGridColumnsOnce()
+        {
+            if (_grid.Columns.Count == 0)
+            {
+                return;
+            }
+
+            _grid.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
+
+            var minimums = new[] { 50, 150, 76, 150, 105, 105, 60, 130 };
+            var maximums = new[] { 70, 320, 100, 340, 190, 190, 82, 300 };
+            for (var index = 0; index < _grid.Columns.Count; index++)
+            {
+                var column = _grid.Columns[index];
+                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+                column.Resizable = DataGridViewTriState.True;
+                column.MinimumWidth = minimums[index];
+                column.Width = Math.Max(minimums[index], Math.Min(maximums[index], column.Width + 8));
+            }
+
+            // 表格较宽时，把剩余空间优先留给“零件名”和“备注”；较窄时保留横向滚动条。
+            var used = _grid.RowHeadersVisible ? _grid.RowHeadersWidth : 0;
+            foreach (DataGridViewColumn column in _grid.Columns)
+            {
+                used += column.Width;
+            }
+
+            var spare = _grid.ClientSize.Width - used - SystemInformation.VerticalScrollBarWidth - 4;
+            if (spare > 0)
+            {
+                var nameExtra = Math.Min(spare, 180);
+                _grid.Columns[3].Width += nameExtra;
+                spare -= nameExtra;
+                if (spare > 0)
+                {
+                    _grid.Columns[7].Width += spare;
+                }
             }
         }
 
