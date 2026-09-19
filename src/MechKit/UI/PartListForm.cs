@@ -11,7 +11,7 @@ using MechKit.Features;
 namespace MechKit.UI
 {
     /// <summary>
-    /// 明细汇总：读取零件图号与材料，统计装配体中加工件的数量。
+    /// BOM 预览：汇总零件后可直接编辑名称、材料和工艺，并写回零件属性。
     /// </summary>
     internal sealed class PartListForm : Form
     {
@@ -69,9 +69,9 @@ namespace MechKit.UI
             _grid = new DataGridView();
             _logBox = new TextBox();
             _status = Theme.CreateValueLabel("就绪");
-            _runButton = Theme.CreatePrimaryButton("开始汇总");
+            _runButton = Theme.CreatePrimaryButton("刷新预览");
             _exportButton = Theme.CreateSecondaryButton("导出 CSV");
-            _writeBackButton = Theme.CreateSecondaryButton("写回零件属性");
+            _writeBackButton = Theme.CreatePrimaryButton("应用 BOM 修改");
             _closeButton = Theme.CreateSecondaryButton("关闭");
 
             BuildLayout();
@@ -81,7 +81,7 @@ namespace MechKit.UI
 
         private void BuildLayout()
         {
-            Text = "明细汇总 - " + AddinConstants.Title;
+            Text = "预览 BOM - " + AddinConstants.Title;
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             StartPosition = FormStartPosition.CenterParent;
@@ -97,10 +97,10 @@ namespace MechKit.UI
         private Control BuildHeader()
         {
             var panel = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
-            var title = Theme.CreateLabel("明细汇总", Theme.Title, Color.White);
+            var title = Theme.CreateLabel("预览 BOM", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
 
-            var subtitle = Theme.CreateLabel("从零件名解析图号、读取材料，并按装配体统计加工件数量",
+            var subtitle = Theme.CreateLabel("双击表格可编辑名称、材料和工艺；应用后写入零件自定义属性",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
 
@@ -326,14 +326,6 @@ namespace MechKit.UI
             _materialSegment.Margin = new Padding(0, 2, 14, 0);
             _materialSegment.Items.AddRange(new object[] { "材料=倒数第二段", "材料=最后一段", "材料=倒数第三段", "材料不取自名称" });
 
-            var spacer = Theme.CreateLabel("写回属性名", Theme.Small, Theme.Text);
-            spacer.Margin = new Padding(8, 7, 6, 0);
-
-            _partNumberProperty.Width = 70;
-            _partNumberProperty.Margin = new Padding(0, 2, 6, 0);
-            _materialProperty.Width = 70;
-            _materialProperty.Margin = new Padding(0, 2, 0, 0);
-
             row.Controls.Add(_onlyMachined);
             row.Controls.Add(_excludeToolbox);
             row.Controls.Add(_excludeSuppressed);
@@ -342,9 +334,6 @@ namespace MechKit.UI
             row.Controls.Add(_useSegments);
             row.Controls.Add(_segmentSeparator);
             row.Controls.Add(_materialSegment);
-            row.Controls.Add(spacer);
-            row.Controls.Add(_partNumberProperty);
-            row.Controls.Add(_materialProperty);
             return row;
         }
 
@@ -353,22 +342,35 @@ namespace MechKit.UI
             var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Canvas, Padding = new Padding(12, 0, 12, 4) };
 
             _grid.Dock = DockStyle.Fill;
-            _grid.ReadOnly = true;
+            _grid.ReadOnly = false;
             _grid.AllowUserToAddRows = false;
             _grid.AllowUserToDeleteRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            _grid.SelectionMode = DataGridViewSelectionMode.CellSelect;
             _grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
             Theme.StyleGrid(_grid);
-            _grid.Columns.AddRange(
-                new DataGridViewTextBoxColumn { HeaderText = "序号", Width = 50 },
-                new DataGridViewTextBoxColumn { HeaderText = "图号", Width = 140 },
-                new DataGridViewTextBoxColumn { HeaderText = "名称", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 120 },
-                new DataGridViewTextBoxColumn { HeaderText = "材料", Width = 120 },
-                new DataGridViewTextBoxColumn { HeaderText = "数量", Width = 60 },
-                new DataGridViewTextBoxColumn { HeaderText = "类型", Width = 70 },
-                new DataGridViewTextBoxColumn { HeaderText = "配置", Width = 90 },
-                new DataGridViewTextBoxColumn { HeaderText = "文件名", Width = 180 });
+            var sequenceColumn = new DataGridViewTextBoxColumn { HeaderText = "序号", Width = 50, ReadOnly = true };
+            var partNumberColumn = new DataGridViewTextBoxColumn { HeaderText = "图号", Width = 140, ReadOnly = true };
+            var nameColumn = new DataGridViewTextBoxColumn
+            {
+                HeaderText = "名称（可编辑）",
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                MinimumWidth = 150
+            };
+            var materialColumn = new DataGridViewTextBoxColumn { HeaderText = "材料（可编辑）", Width = 130 };
+            var processColumn = new DataGridViewTextBoxColumn { HeaderText = "工艺（可编辑）", Width = 130 };
+            var quantityColumn = new DataGridViewTextBoxColumn { HeaderText = "数量", Width = 60, ReadOnly = true };
+            var typeColumn = new DataGridViewTextBoxColumn { HeaderText = "类型", Width = 70, ReadOnly = true };
+            var configurationColumn = new DataGridViewTextBoxColumn { HeaderText = "配置", Width = 90, ReadOnly = true };
+            var fileColumn = new DataGridViewTextBoxColumn { HeaderText = "文件名", Width = 180, ReadOnly = true };
+
+            var editableColor = Color.FromArgb(255, 252, 226);
+            nameColumn.DefaultCellStyle.BackColor = editableColor;
+            materialColumn.DefaultCellStyle.BackColor = editableColor;
+            processColumn.DefaultCellStyle.BackColor = editableColor;
+
+            _grid.Columns.AddRange(sequenceColumn, partNumberColumn, nameColumn, materialColumn,
+                processColumn, quantityColumn, typeColumn, configurationColumn, fileColumn);
 
             panel.Controls.Add(_grid);
             return panel;
@@ -437,11 +439,16 @@ namespace MechKit.UI
         {
             _runButton.Click += delegate { RunSummary(); };
             _exportButton.Click += delegate { ExportCsv(); };
-            _writeBackButton.Click += delegate { WriteBackProperties(); };
+            _writeBackButton.Click += delegate { ApplyBomChanges(); };
             _closeButton.Click += delegate { Close(); };
 
             _sourceDocument.CheckedChanged += delegate { UpdateSourceState(); };
             _cutRule.SelectedIndexChanged += delegate { UpdateSourceState(); };
+
+            Shown += delegate
+            {
+                BeginInvoke((MethodInvoker)delegate { RunSummary(); });
+            };
 
             FormClosing += delegate(object sender, FormClosingEventArgs e)
             {
@@ -478,6 +485,9 @@ namespace MechKit.UI
 
             _partNumberProperty.Text = settings.PartNumberProperty;
             _materialProperty.Text = settings.MaterialProperty;
+
+            _exportButton.Enabled = false;
+            _writeBackButton.Enabled = false;
 
             UpdateSourceState();
         }
@@ -675,21 +685,104 @@ namespace MechKit.UI
                 for (var i = 0; i < rows.Count; i++)
                 {
                     var row = rows[i];
+                    row.MarkBomClean();
                     var index = _grid.Rows.Add();
                     var gridRow = _grid.Rows[index];
                     gridRow.Cells[0].Value = i + 1;
                     gridRow.Cells[1].Value = row.PartNumber;
                     gridRow.Cells[2].Value = row.Name;
                     gridRow.Cells[3].Value = row.Material;
-                    gridRow.Cells[4].Value = row.Quantity;
-                    gridRow.Cells[5].Value = row.Classification;
-                    gridRow.Cells[6].Value = row.Configuration;
-                    gridRow.Cells[7].Value = row.FileName;
+                    gridRow.Cells[4].Value = row.Process;
+                    gridRow.Cells[5].Value = row.Quantity;
+                    gridRow.Cells[6].Value = row.Classification;
+                    gridRow.Cells[7].Value = row.Configuration;
+                    gridRow.Cells[8].Value = row.FileName;
                 }
             }
             finally
             {
                 _grid.ResumeLayout();
+            }
+        }
+
+        /// <summary>把表格中尚未失去焦点的编辑值同步回 BOM 行对象。</summary>
+        private void PullGridEdits()
+        {
+            _grid.EndEdit();
+            var count = Math.Min(_rows.Count, _grid.Rows.Count);
+            for (var i = 0; i < count; i++)
+            {
+                var gridRow = _grid.Rows[i];
+                _rows[i].Name = Convert.ToString(gridRow.Cells[2].Value).Trim();
+                _rows[i].Material = Convert.ToString(gridRow.Cells[3].Value).Trim();
+                _rows[i].Process = Convert.ToString(gridRow.Cells[4].Value).Trim();
+            }
+        }
+
+        private void ApplyBomChanges()
+        {
+            if (_running || _rows.Count == 0)
+            {
+                return;
+            }
+
+            PullGridEdits();
+            var changed = 0;
+            foreach (var row in _rows)
+            {
+                if (row.HasBomEdits)
+                {
+                    changed++;
+                }
+            }
+
+            if (changed == 0)
+            {
+                MessageBox.Show(this, "BOM 表中没有需要应用的修改。", AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var message = string.Format(
+                "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」并保存。" +
+                System.Environment.NewLine + System.Environment.NewLine +
+                "本轮不会重命名零件文件，因此不会破坏装配引用。是否继续？", changed);
+            if (MessageBox.Show(this, message, AddinConstants.Title,
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            _running = true;
+            _runButton.Enabled = false;
+            _exportButton.Enabled = false;
+            _writeBackButton.Enabled = false;
+            _status.Text = "正在应用 BOM 修改…";
+
+            try
+            {
+                var updated = PartListService.ApplyBomEdits(_host.SwApp, _rows, AppendLog);
+                _status.Text = string.Format("已应用 {0} / {1} 个零件。", updated, changed);
+                Log.Info(string.Format("BOM 编辑已应用：{0} / {1} 个零件。", updated, changed));
+
+                if (updated < changed)
+                {
+                    MessageBox.Show(this, "部分零件未能保存，请查看窗口下方处理日志。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("应用 BOM 修改失败", ex);
+                MessageBox.Show(this, "应用失败：" + ex.Message, AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _running = false;
+                _runButton.Enabled = true;
+                _exportButton.Enabled = _rows.Count > 0;
+                _writeBackButton.Enabled = _rows.Count > 0;
             }
         }
 
@@ -700,6 +793,7 @@ namespace MechKit.UI
                 return;
             }
 
+            PullGridEdits();
             using (var dialog = new FolderBrowserDialog())
             {
                 dialog.Description = "选择明细表的保存目录";

@@ -46,6 +46,9 @@ namespace MechKit.Features
 
         public string Material { get; set; }
 
+        /// <summary>零件自定义属性中的加工工艺，例如车、铣、焊接、表面处理。</summary>
+        public string Process { get; set; }
+
         public int Quantity { get; set; }
 
         /// <summary>加工件 / 标准件 / 外购件 / 虚拟件。</summary>
@@ -54,6 +57,29 @@ namespace MechKit.Features
         public string FilePath { get; set; }
 
         public string Configuration { get; set; }
+
+        public string OriginalName { get; private set; }
+
+        public string OriginalMaterial { get; private set; }
+
+        public string OriginalProcess { get; private set; }
+
+        public bool HasBomEdits
+        {
+            get
+            {
+                return !string.Equals(Name ?? string.Empty, OriginalName ?? string.Empty, StringComparison.Ordinal) ||
+                       !string.Equals(Material ?? string.Empty, OriginalMaterial ?? string.Empty, StringComparison.Ordinal) ||
+                       !string.Equals(Process ?? string.Empty, OriginalProcess ?? string.Empty, StringComparison.Ordinal);
+            }
+        }
+
+        public void MarkBomClean()
+        {
+            OriginalName = Name ?? string.Empty;
+            OriginalMaterial = Material ?? string.Empty;
+            OriginalProcess = Process ?? string.Empty;
+        }
 
         public string FileName
         {
@@ -149,14 +175,18 @@ namespace MechKit.Features
             }
 
             var segmentMaterial = options.Naming.ResolveMaterialFromSegments(path);
+            var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
 
             return new PartListRow
             {
                 PartNumber = options.Naming.ResolvePartNumber(path, name => Lookup(properties, name)),
                 Name = options.Naming.ResolveName(path, name => Lookup(properties, name)),
-                Material = !string.IsNullOrEmpty(segmentMaterial)
+                Material = !string.IsNullOrEmpty(propertyMaterial)
+                    ? propertyMaterial
+                    : !string.IsNullOrEmpty(segmentMaterial)
                     ? segmentMaterial
                     : options.Naming.ResolveMaterial(modelMaterial, name => Lookup(properties, name)),
+                Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
                 Quantity = 1,
                 Classification = Classify(context, path, path, properties),
                 FilePath = path,
@@ -176,6 +206,7 @@ namespace MechKit.Features
                 var properties = GetProperties(context, file);
                 var path = file;
                 var segmentMaterial = options.Naming.ResolveMaterialFromSegments(path);
+                var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
 
                 if (!options.Naming.MatchesBomPattern(Path.GetFileName(path)))
                 {
@@ -186,9 +217,12 @@ namespace MechKit.Features
                 {
                     PartNumber = options.Naming.ResolvePartNumber(path, name => Lookup(properties, name)),
                     Name = options.Naming.ResolveName(path, name => Lookup(properties, name)),
-                    Material = !string.IsNullOrEmpty(segmentMaterial)
+                    Material = !string.IsNullOrEmpty(propertyMaterial)
+                        ? propertyMaterial
+                        : !string.IsNullOrEmpty(segmentMaterial)
                         ? segmentMaterial
                         : options.Naming.ResolveMaterial(string.Empty, name => Lookup(properties, name)),
+                    Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
                     Quantity = 1,
                     Classification = Classify(context, path, path, properties),
                     FilePath = path,
@@ -231,7 +265,7 @@ namespace MechKit.Features
             var path = Path.Combine(folder, fileName);
 
             var builder = new StringBuilder();
-            builder.AppendLine("序号,图号,名称,材料,数量,类型,配置,文件名");
+            builder.AppendLine("序号,图号,名称,材料,工艺,数量,类型,配置,文件名");
 
             for (var i = 0; i < rows.Count; i++)
             {
@@ -240,6 +274,7 @@ namespace MechKit.Features
                        .Append(Csv(row.PartNumber)).Append(',')
                        .Append(Csv(row.Name)).Append(',')
                        .Append(Csv(row.Material)).Append(',')
+                       .Append(Csv(row.Process)).Append(',')
                        .Append(row.Quantity).Append(',')
                        .Append(Csv(row.Classification)).Append(',')
                        .Append(Csv(row.Configuration)).Append(',')
@@ -317,6 +352,120 @@ namespace MechKit.Features
                 catch (Exception ex)
                 {
                     Log.Error("写回属性失败：" + row.FilePath, ex);
+                    log("✗ 出错：" + row.FileName + " - " + ex.Message);
+                }
+                finally
+                {
+                    if (opened && doc != null)
+                    {
+                        try
+                        {
+                            swApp.CloseDoc(doc.GetTitle());
+                        }
+                        catch
+                        {
+                            // 忽略关闭异常
+                        }
+                    }
+
+                    PropertyService.Release(doc);
+                }
+            }
+
+            return updated;
+        }
+
+        /// <summary>
+        /// 把 BOM 预览中编辑过的名称、材料、工艺写入零件文档级自定义属性。
+        /// 名称只写属性，不重命名文件，避免破坏装配引用。
+        /// </summary>
+        public static int ApplyBomEdits(ISldWorks swApp, IList<PartListRow> rows, Action<string> log)
+        {
+            var updated = 0;
+            if (swApp == null || rows == null)
+            {
+                return updated;
+            }
+
+            foreach (var row in rows)
+            {
+                if (row == null || !row.HasBomEdits)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(row.FilePath) || !File.Exists(row.FilePath))
+                {
+                    log("✗ 无法写入虚拟件或文件不存在：" + (row.FileName ?? row.Name));
+                    continue;
+                }
+
+                ModelDoc2 doc = null;
+                var opened = false;
+                try
+                {
+                    doc = SwUtils.FindOpenDocument(swApp, row.FilePath);
+                    if (doc == null)
+                    {
+                        int errors = 0;
+                        int warnings = 0;
+                        doc = swApp.OpenDoc6(row.FilePath, SwUtils.DocTypeFromPath(row.FilePath),
+                            (int)swOpenDocOptions_e.swOpenDocOptions_Silent, string.Empty,
+                            ref errors, ref warnings) as ModelDoc2;
+                        opened = doc != null;
+                    }
+
+                    if (doc == null)
+                    {
+                        log("✗ 无法打开：" + row.FileName);
+                        continue;
+                    }
+
+                    var ok = true;
+                    if (!string.Equals(row.Name ?? string.Empty, row.OriginalName ?? string.Empty,
+                            StringComparison.Ordinal))
+                    {
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("名称", PropertyTypes.Text, row.Name ?? string.Empty), true);
+                    }
+
+                    if (!string.Equals(row.Material ?? string.Empty, row.OriginalMaterial ?? string.Empty,
+                            StringComparison.Ordinal))
+                    {
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("材料", PropertyTypes.Text, row.Material ?? string.Empty), true);
+                    }
+
+                    if (!string.Equals(row.Process ?? string.Empty, row.OriginalProcess ?? string.Empty,
+                            StringComparison.Ordinal))
+                    {
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("工艺", PropertyTypes.Text, row.Process ?? string.Empty), true);
+                    }
+
+                    if (!ok)
+                    {
+                        log("✗ 写入失败：" + row.FileName);
+                        continue;
+                    }
+
+                    int saveErrors = 0;
+                    int saveWarnings = 0;
+                    var saved = doc.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                        ref saveErrors, ref saveWarnings);
+                    if (!saved || saveErrors != 0)
+                    {
+                        log(string.Format("✗ 保存失败：{0}（错误 {1}）", row.FileName, saveErrors));
+                        continue;
+                    }
+
+                    row.MarkBomClean();
+                    updated++;
+                    log("✓ 已应用：" + row.FileName);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("应用 BOM 修改失败：" + row.FilePath, ex);
                     log("✗ 出错：" + row.FileName + " - " + ex.Message);
                 }
                 finally
@@ -469,14 +618,18 @@ namespace MechKit.Features
             }
 
             var segmentMaterial = context.Options.Naming.ResolveMaterialFromSegments(displayPath);
+            var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
 
             row = new PartListRow
             {
                 PartNumber = context.Options.Naming.ResolvePartNumber(displayPath, name => Lookup(properties, name)),
                 Name = context.Options.Naming.ResolveName(displayPath, name => Lookup(properties, name)),
-                Material = !string.IsNullOrEmpty(segmentMaterial)
+                Material = !string.IsNullOrEmpty(propertyMaterial)
+                    ? propertyMaterial
+                    : !string.IsNullOrEmpty(segmentMaterial)
                     ? segmentMaterial
                     : context.Options.Naming.ResolveMaterial(modelMaterial, name => Lookup(properties, name)),
+                Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
                 Quantity = 1,
                 Classification = isVirtual ? "虚拟件" : Classify(context, path, ruleName, properties),
                 FilePath = path,
