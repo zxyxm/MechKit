@@ -18,6 +18,9 @@ namespace MechKit.UI
         private readonly IAddinHost _host;
         private readonly RadioButton _sourceDocument;
         private readonly RadioButton _sourceFolder;
+        private readonly Button _selectComponentButton;
+        private readonly Button _clearComponentButton;
+        private readonly Label _scopeLabel;
         private readonly TextBox _folderBox;
         private readonly CheckBox _recursive;
         private readonly ComboBox _partNumberSource;
@@ -44,6 +47,9 @@ namespace MechKit.UI
         private readonly Button _closeButton;
 
         private List<PartListRow> _rows = new List<PartListRow>();
+        private Component2 _selectedComponent;
+        private string _selectedComponentName = string.Empty;
+        private bool _changingScope;
         private bool _running;
 
         public PartListForm(IAddinHost host)
@@ -51,6 +57,9 @@ namespace MechKit.UI
             _host = host;
             _sourceDocument = new RadioButton();
             _sourceFolder = new RadioButton();
+            _selectComponentButton = Theme.CreatePrimaryButton("选择部件");
+            _clearComponentButton = Theme.CreateSecondaryButton("全部装配体");
+            _scopeLabel = Theme.CreateValueLabel("BOM 范围：全部装配体");
             _folderBox = Theme.CreateTextBox();
             _recursive = new CheckBox();
             _partNumberSource = new ComboBox();
@@ -113,23 +122,24 @@ namespace MechKit.UI
 
         private Control BuildSetupPanel()
         {
-            var panel = new Panel { Dock = DockStyle.Top, Height = 172, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
+            var panel = new Panel { Dock = DockStyle.Top, Height = 206, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
 
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3,
+                RowCount = 4,
                 BackColor = Theme.Surface
             };
-            // 三行按比例分配，窗口/DPI 变化时不会把最后一行挤出可视区
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 30f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 30f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 40f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 22f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 22f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 24f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 32f));
 
             layout.Controls.Add(BuildSourceRow(), 0, 0);
-            layout.Controls.Add(BuildNamingSummaryRow(), 0, 1);
-            layout.Controls.Add(BuildFilterRow(), 0, 2);
+            layout.Controls.Add(BuildFolderSourceRow(), 0, 1);
+            layout.Controls.Add(BuildNamingSummaryRow(), 0, 2);
+            layout.Controls.Add(BuildFilterRow(), 0, 3);
 
             panel.Controls.Add(layout);
             return panel;
@@ -145,14 +155,45 @@ namespace MechKit.UI
                 BackColor = Theme.Surface
             };
 
-            _sourceDocument.Text = "当前文档";
-            _sourceFolder.Text = "文件夹";
-            foreach (var button in new[] { _sourceDocument, _sourceFolder })
+            _sourceDocument.Text = "当前装配体";
+            _sourceDocument.Font = Theme.Body;
+            _sourceDocument.AutoSize = true;
+            _sourceDocument.Margin = new Padding(0, 9, 12, 0);
+
+            _selectComponentButton.Width = 104;
+            _selectComponentButton.Margin = new Padding(0, 4, 8, 0);
+            _clearComponentButton.Width = 104;
+            _clearComponentButton.Margin = new Padding(0, 4, 12, 0);
+            _scopeLabel.AutoSize = true;
+            _scopeLabel.ForeColor = Theme.Text;
+            _scopeLabel.Margin = new Padding(0, 10, 0, 0);
+
+            var hint = Theme.CreateLabel("先在装配树或图形区选中零件/子装配体，再点「选择部件」",
+                Theme.Small, Theme.Muted);
+            hint.Margin = new Padding(16, 10, 0, 0);
+
+            row.Controls.Add(_sourceDocument);
+            row.Controls.Add(_selectComponentButton);
+            row.Controls.Add(_clearComponentButton);
+            row.Controls.Add(_scopeLabel);
+            row.Controls.Add(hint);
+            return row;
+        }
+
+        private Control BuildFolderSourceRow()
+        {
+            var row = new FlowLayoutPanel
             {
-                button.Font = Theme.Body;
-                button.AutoSize = true;
-                button.Margin = new Padding(0, 9, 10, 0);
-            }
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Theme.Surface
+            };
+
+            _sourceFolder.Text = "文件夹";
+            _sourceFolder.Font = Theme.Body;
+            _sourceFolder.AutoSize = true;
+            _sourceFolder.Margin = new Padding(0, 9, 10, 0);
 
             _folderBox.Width = 300;
             _folderBox.Margin = new Padding(0, 6, 6, 0);
@@ -170,7 +211,6 @@ namespace MechKit.UI
             var hint = Theme.CreateLabel("（文件夹模式汇总零件清单，不做装配体计数）", Theme.Small, Theme.Muted);
             hint.Margin = new Padding(10, 10, 0, 0);
 
-            row.Controls.Add(_sourceDocument);
             row.Controls.Add(_sourceFolder);
             row.Controls.Add(_folderBox);
             row.Controls.Add(browse);
@@ -413,7 +453,7 @@ namespace MechKit.UI
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104f));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 122f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
@@ -444,12 +484,32 @@ namespace MechKit.UI
         private void WireEvents()
         {
             _runButton.Click += delegate { RunSummary(); };
+            _selectComponentButton.Click += delegate { SelectComponentScope(); };
+            _clearComponentButton.Click += delegate { ClearComponentScope(true); };
             _exportButton.Click += delegate { ExportCsv(); };
             _writeBackButton.Click += delegate { ApplyBomChanges(); };
             _renameComponentsButton.Click += delegate { ApplyBomChangesAndRename(); };
             _closeButton.Click += delegate { Close(); };
 
-            _sourceDocument.CheckedChanged += delegate { UpdateSourceState(); };
+            _sourceDocument.CheckedChanged += delegate
+            {
+                if (_sourceDocument.Checked && !_changingScope)
+                {
+                    _sourceFolder.Checked = false;
+                    ClearComponentScope(false);
+                }
+                UpdateSourceState();
+            };
+            _sourceFolder.CheckedChanged += delegate
+            {
+                if (_sourceFolder.Checked)
+                {
+                    _changingScope = true;
+                    try { _sourceDocument.Checked = false; }
+                    finally { _changingScope = false; }
+                }
+                UpdateSourceState();
+            };
             _cutRule.SelectedIndexChanged += delegate { UpdateSourceState(); };
 
             Shown += delegate
@@ -537,9 +597,101 @@ namespace MechKit.UI
             var useFolder = _sourceFolder.Checked;
             _folderBox.Enabled = useFolder;
             _recursive.Enabled = useFolder;
+            _selectComponentButton.Enabled = !useFolder && !_running && _host.SwApp != null;
+            _clearComponentButton.Enabled = !useFolder && !_running && _selectedComponent != null;
             _patternBox.Enabled = _cutRule.SelectedIndex == 4;
             _patternBox.BackColor = _patternBox.Enabled ? Color.White : Color.FromArgb(242, 243, 245);
             _renameComponentsButton.Enabled = !useFolder && !_running && _rows.Count > 0 && _host.SwApp != null;
+        }
+
+        private void SelectComponentScope()
+        {
+            if (_running)
+            {
+                return;
+            }
+
+            var doc = SwUtils.ActiveDoc(_host.SwApp);
+            if (doc == null || doc.GetType() != SwUtils.DocAssembly)
+            {
+                MessageBox.Show(this, "请先打开装配体，并在装配树或图形区选中一个零件或子装配体。",
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var selection = doc.SelectionManager as SelectionMgr;
+            Component2 component = null;
+            if (selection != null)
+            {
+                for (var i = 1; i <= selection.GetSelectedObjectCount2(-1); i++)
+                {
+                    try
+                    {
+                        component = selection.GetSelectedObject6(i, -1) as Component2;
+                    }
+                    catch
+                    {
+                        component = null;
+                    }
+                    if (component != null)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (component == null)
+            {
+                MessageBox.Show(this, "没有检测到已选部件。请先在装配树或图形区选中零件/子装配体，再点“选择部件”。",
+                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            _changingScope = true;
+            try
+            {
+                _sourceFolder.Checked = false;
+                _sourceDocument.Checked = true;
+                _selectedComponent = component;
+                _selectedComponentName = PartListService.DisplayNameForComponent(component);
+            }
+            finally
+            {
+                _changingScope = false;
+            }
+
+            _scopeLabel.Text = "BOM 范围：" +
+                               (string.IsNullOrWhiteSpace(_selectedComponentName)
+                                   ? "选中部件"
+                                   : _selectedComponentName);
+            _exportButton.Text = "导出部件 BOM";
+            UpdateSourceState();
+            RunSummary();
+        }
+
+        private void ClearComponentScope(bool refresh)
+        {
+            _selectedComponent = null;
+            _selectedComponentName = string.Empty;
+            _scopeLabel.Text = "BOM 范围：全部装配体";
+            _exportButton.Text = "导出 CSV";
+
+            if (!_sourceDocument.Checked)
+            {
+                _changingScope = true;
+                try
+                {
+                    _sourceFolder.Checked = false;
+                    _sourceDocument.Checked = true;
+                }
+                finally { _changingScope = false; }
+            }
+
+            UpdateSourceState();
+            if (refresh && IsHandleCreated && _host.SwApp != null)
+            {
+                RunSummary();
+            }
         }
 
         private void OnBrowseFolder(object sender, EventArgs e)
@@ -657,8 +809,17 @@ namespace MechKit.UI
                             return;
                         }
 
-                        AppendLog("统计装配体：" + Path.GetFileName(doc.GetPathName()));
-                        _rows = PartListService.FromAssembly(swApp, assembly, options, AppendLog);
+                        if (_selectedComponent != null)
+                        {
+                            AppendLog("统计选中部件：" + _selectedComponentName);
+                            _rows = PartListService.FromComponent(
+                                swApp, _selectedComponent, options, AppendLog);
+                        }
+                        else
+                        {
+                            AppendLog("统计装配体：" + Path.GetFileName(doc.GetPathName()));
+                            _rows = PartListService.FromAssembly(swApp, assembly, options, AppendLog);
+                        }
                     }
                     else if (docType == SwUtils.DocPart)
                     {
@@ -696,6 +857,7 @@ namespace MechKit.UI
                 _exportButton.Enabled = _rows.Count > 0;
                 _writeBackButton.Enabled = _rows.Count > 0;
                 _renameComponentsButton.Enabled = _rows.Count > 0 && _sourceDocument.Checked;
+                UpdateSourceState();
             }
         }
 
@@ -1000,7 +1162,10 @@ namespace MechKit.UI
 
                 try
                 {
-                    var path = PartListService.ExportCsv(_rows, dialog.SelectedPath, "明细汇总");
+                    var title = string.IsNullOrWhiteSpace(_selectedComponentName)
+                        ? "明细汇总"
+                        : "部件BOM_" + SafeFileName(_selectedComponentName);
+                    var path = PartListService.ExportCsv(_rows, dialog.SelectedPath, title);
                     AppendLog("已导出：" + path);
                     _host.Settings.OutputFolder = dialog.SelectedPath;
                     SaveSettings();
@@ -1019,6 +1184,16 @@ namespace MechKit.UI
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
+        }
+
+        private static string SafeFileName(string value)
+        {
+            var result = (value ?? string.Empty).Trim();
+            foreach (var invalid in Path.GetInvalidFileNameChars())
+            {
+                result = result.Replace(invalid, '_');
+            }
+            return string.IsNullOrWhiteSpace(result) ? "选中部件" : result;
         }
 
         private void WriteBackProperties()

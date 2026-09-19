@@ -165,6 +165,72 @@ namespace MechKit.Features
                 VisitComponent(context, item as Component2, hierarchy);
             }
 
+            return FinalizeRows(context, options);
+        }
+
+        /// <summary>
+        /// 只统计用户在装配树或图形区选中的零件/子装配体。
+        /// 子装配体从其直接子组件开始递归，因此数量相对于该部件重新统计。
+        /// </summary>
+        public static List<PartListRow> FromComponent(ISldWorks swApp, Component2 root,
+            PartListOptions options, Action<string> log)
+        {
+            var context = new CollectContext(swApp, options, log);
+            if (root == null)
+            {
+                return new List<PartListRow>();
+            }
+
+            try
+            {
+                var path = root.GetPathName() ?? string.Empty;
+                var hierarchy = new List<string> { ComponentDisplayName(root, path) };
+                if (root.GetType() == DocAssembly)
+                {
+                    var children = root.GetChildren() as object[];
+                    if (children != null)
+                    {
+                        foreach (var child in children)
+                        {
+                            VisitComponent(context, child as Component2, hierarchy);
+                        }
+                    }
+                }
+                else
+                {
+                    Accumulate(context, root, path, hierarchy);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("统计选中部件失败：" + ex.Message);
+                context.Log("统计选中部件失败：" + ex.Message);
+            }
+
+            return FinalizeRows(context, options);
+        }
+
+        public static string DisplayNameForComponent(Component2 component)
+        {
+            if (component == null)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                return ComponentDisplayName(component, component.GetPathName() ?? string.Empty);
+            }
+            catch
+            {
+                return component.Name2 ?? string.Empty;
+            }
+        }
+
+        private static List<PartListRow> FinalizeRows(CollectContext context,
+            PartListOptions options)
+        {
+            var rows = new List<PartListRow>();
             foreach (var pair in context.Rows)
             {
                 var row = pair.Value;
@@ -179,7 +245,7 @@ namespace MechKit.Features
             SortRows(rows);
             if (context.SkippedByPattern > 0)
             {
-                log(string.Format("按命名规则排除了 {0} 个组件（视为标准件/焊件的子零件）。",
+                context.Log(string.Format("按命名规则排除了 {0} 个组件（视为标准件/焊件的子零件）。",
                     context.SkippedByPattern));
             }
 
