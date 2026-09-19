@@ -231,6 +231,17 @@ namespace MechKit.Harness
         /// <summary>把标准件命名设置窗口渲染成 PNG，用于脱机布局回归。</summary>
         public void SaveStandardPreview(string path)
         {
+            SaveNamingPreview(path, 1, "标准件");
+        }
+
+        /// <summary>把加工件命名设置窗口渲染成 PNG，用于脱机布局回归。</summary>
+        public void SaveMachinedPreview(string path)
+        {
+            SaveNamingPreview(path, 0, "加工件");
+        }
+
+        private void SaveNamingPreview(string path, int tabIndex, string label)
+        {
             var target = Path.GetFullPath(path);
             var directory = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(directory))
@@ -238,7 +249,7 @@ namespace MechKit.Harness
                 Directory.CreateDirectory(directory);
             }
 
-            using (var preview = new NamingRuleForm(_host, 1))
+            using (var preview = new NamingRuleForm(_host, tabIndex))
             {
                 preview.Show(this);
                 Application.DoEvents();
@@ -250,7 +261,7 @@ namespace MechKit.Harness
                 preview.Close();
             }
 
-            Log.Info("[harness] 标准件命名预览图已保存：" + target);
+            Log.Info("[harness] " + label + "命名预览图已保存：" + target);
         }
 
         /// <summary>把统一设置窗口渲染成 PNG，用于 BOM 层级与字段映射布局回归。</summary>
@@ -357,6 +368,15 @@ namespace MechKit.Harness
                     form.Shown += delegate
                     {
                         form.SaveStandardPreview(imagePath);
+                        form.Close();
+                    };
+                }
+                else if (arg.StartsWith("--naming-image=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var imagePath = arg.Substring("--naming-image=".Length).Trim().Trim('"');
+                    form.Shown += delegate
+                    {
+                        form.SaveMachinedPreview(imagePath);
                         form.Close();
                     };
                 }

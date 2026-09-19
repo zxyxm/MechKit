@@ -60,6 +60,12 @@ namespace MechKit.Core
         Custom = 4
     }
 
+    internal sealed class MaterialProcessPreset
+    {
+        public string Material { get; set; }
+        public string Process { get; set; }
+    }
+
     /// <summary>
     /// 图号 / 名称 / 材料的解析规则。
     /// 机械制图习惯：文件名形如「JX-2024-001 支架」，图号取空格前，名称取空格后。
@@ -73,7 +79,7 @@ namespace MechKit.Core
             Pattern = string.Empty;
             Material = MaterialSource.Model;
             UseNameSegments = false;
-            SegmentSeparator = "_";
+            SegmentSeparator = "_-";
             NameSegment = -1;
             MaterialSegment = -2;
             MachinedSegments = new[]
@@ -81,9 +87,11 @@ namespace MechKit.Core
                 MachinedSegmentKind.Date,
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
-                MachinedSegmentKind.Serial
+                MachinedSegmentKind.Serial,
+                MachinedSegmentKind.Custom
             };
-            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty };
+            MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty, "拓展代号" };
+            MachinedMaterialProcessPresets = new Dictionary<string, MaterialProcessPreset>(StringComparer.OrdinalIgnoreCase);
             PartNumberProperties = new[] { "图号", "零件号", "零件代号", "代号", "PartNumber", "Part Number", "Number", "DrawingNo" };
             NameProperties = new[] { "名称", "零件名称", "Description", "Title", "Name" };
             MaterialProperties = new[] { "材料", "材质", "Material", "材质牌号" };
@@ -116,6 +124,9 @@ namespace MechKit.Core
 
         /// <summary>加工件段的自定义显示名称；与 MachinedSegments 下标一致。</summary>
         public string[] MachinedSegmentLabels { get; set; }
+
+        /// <summary>加工件材料段到材料/工艺的映射。</summary>
+        public Dictionary<string, MaterialProcessPreset> MachinedMaterialProcessPresets { get; set; }
 
         /// <summary>BOM 收录用的名称前缀，例如 电机 / 电气 / 淘宝。用下划线分隔各段。</summary>
         public string[] BomPrefixes { get; set; }
@@ -160,7 +171,7 @@ namespace MechKit.Core
                 return StartsWithDate(cleanName);
             }
 
-            var parts = cleanName.Split(SegmentSeparator.ToCharArray(), StringSplitOptions.None);
+            var parts = SplitSegments(cleanName);
             return dateIndex < parts.Length && IsDateSegment(parts[dateIndex]);
         }
 
@@ -355,6 +366,35 @@ namespace MechKit.Core
                 : string.Empty;
         }
 
+        /// <summary>按加工件第2段预设同时解析材料和工艺。</summary>
+        public bool TryResolveMachinedMaterialProcess(string filePath, out string material, out string process)
+        {
+            material = string.Empty;
+            process = string.Empty;
+            if (!UseNameSegments || MachinedMaterialProcessPresets == null)
+            {
+                return false;
+            }
+
+            var fileName = GetFileNameWithoutExtension(filePath);
+            var configuredMaterialSegment = IndexOfSegment(MachinedSegmentKind.Material);
+            if (!IsMachinedName(fileName) || configuredMaterialSegment < 0)
+            {
+                return false;
+            }
+
+            var token = PickSegment(fileName, configuredMaterialSegment + 1);
+            MaterialProcessPreset preset;
+            if (string.IsNullOrEmpty(token) || !MachinedMaterialProcessPresets.TryGetValue(token, out preset))
+            {
+                return false;
+            }
+
+            material = preset.Material ?? string.Empty;
+            process = preset.Process ?? string.Empty;
+            return true;
+        }
+
         private int IndexOfSegment(MachinedSegmentKind kind)
         {
             if (MachinedSegments == null)
@@ -410,7 +450,7 @@ namespace MechKit.Core
                 return string.Empty;
             }
 
-            var parts = fileName.Split(SegmentSeparator.ToCharArray(), StringSplitOptions.None);
+            var parts = SplitSegments(fileName);
             var index = segment > 0 ? segment - 1 : parts.Length + segment;
 
             if (index < 0 || index >= parts.Length)
@@ -420,6 +460,32 @@ namespace MechKit.Core
 
             var value = parts[index].Trim();
             return IsPlaceholder(value) ? string.Empty : value;
+        }
+
+        /// <summary>
+        /// 加工件允许整份名称使用 _ 或 -。以日期后的第一个分隔符为准，
+        /// 避免型号/零件名内部自带短横线时被误拆成额外字段。
+        /// </summary>
+        private string[] SplitSegments(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                return new string[0];
+            }
+
+            var separator = string.IsNullOrEmpty(SegmentSeparator) ? '_' : SegmentSeparator[0];
+            var digits = 0;
+            while (digits < fileName.Length && char.IsDigit(fileName[digits]))
+            {
+                digits++;
+            }
+            if (digits >= 6 && digits < fileName.Length &&
+                (fileName[digits] == '_' || fileName[digits] == '-'))
+            {
+                separator = fileName[digits];
+            }
+
+            return fileName.Split(new[] { separator }, StringSplitOptions.None);
         }
 
         /// <summary>按规则截断文件名，得到图号。</summary>

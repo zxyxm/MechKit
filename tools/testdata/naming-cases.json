@@ -130,6 +130,12 @@
       "expectedMaterial": "SPCC"
     },
     {
+      "name": "hyphen date_material_name",
+      "file": "C:\\work\\20260919-5052-盖子.sldprt",
+      "expectedName": "盖子",
+      "expectedMaterial": "5052"
+    },
+    {
       "name": "single segment",
       "file": "C:\\work\\拨线板.sldprt",
       "expectedName": "拨线板",
@@ -169,6 +175,36 @@
       "expectedMaterial": "5052",
       "expectedLayout": "date,material,name,serial",
       "isMachined": true
+    }
+  ],
+  "presetCases": [
+    {
+      "name": "aluminum cnc underscore",
+      "file": "C:\\work\\20260919_6061_板1.sldprt",
+      "rules": "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工",
+      "expectedMaterial": "6061",
+      "expectedProcess": "cnc"
+    },
+    {
+      "name": "sheet metal hyphen",
+      "file": "C:\\work\\20260919-5052-盖子.sldprt",
+      "rules": "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工",
+      "expectedMaterial": "5052",
+      "expectedProcess": "钣金"
+    },
+    {
+      "name": "shaft 304",
+      "file": "C:\\work\\20260919_轴304_传动轴.sldprt",
+      "rules": "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工",
+      "expectedMaterial": "304",
+      "expectedProcess": "车铣"
+    },
+    {
+      "name": "purchased rework",
+      "file": "C:\\work\\20260919_淘宝_支架.sldprt",
+      "rules": "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工",
+      "expectedMaterial": "-",
+      "expectedProcess": "追加工"
     }
   ],
   "bomCases": [

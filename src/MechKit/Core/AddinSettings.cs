@@ -98,7 +98,7 @@ namespace MechKit.Core
 
         public string SegmentSeparator
         {
-            get { return Get("SegmentSeparator", "_"); }
+            get { return Get("SegmentSeparator", "_-"); }
             set { Set("SegmentSeparator", value); }
         }
 
@@ -119,15 +119,26 @@ namespace MechKit.Core
         /// <summary>加工件段顺序，例如 date,material,name,serial。</summary>
         public string MachinedSegments
         {
-            get { return Get("MachinedSegments", "date,material,name,serial"); }
+            get { return Get("MachinedSegments", "date,material,name,serial,custom"); }
             set { Set("MachinedSegments", value); }
         }
 
         /// <summary>与加工件段一一对应的自定义显示名称，使用竖线分隔并转义。</summary>
         public string MachinedSegmentLabels
         {
-            get { return Get("MachinedSegmentLabels", string.Empty); }
+            get { return Get("MachinedSegmentLabels", "||||拓展代号"); }
             set { Set("MachinedSegmentLabels", value); }
+        }
+
+        /// <summary>加工件第2段到“材料,工艺”的预设映射；每行一条 key=材料,工艺。</summary>
+        public string MachinedMaterialProcessRules
+        {
+            get
+            {
+                return Get("MachinedMaterialProcessRules",
+                    "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工");
+            }
+            set { Set("MachinedMaterialProcessRules", value); }
         }
 
         public bool PartListOnlyMachined
@@ -190,7 +201,7 @@ namespace MechKit.Core
         /// <summary>BOM 收录用的名称前缀，空格分隔，例如：电机 电气 淘宝。</summary>
         public string BomPrefixes
         {
-            get { return Get("BomPrefixes", "电机 电气 淘宝"); }
+            get { return Get("BomPrefixes", "淘宝 代理 淘宝追加工"); }
             set { Set("BomPrefixes", value); }
         }
 
@@ -204,8 +215,28 @@ namespace MechKit.Core
         /// <summary>标准件中文中间名，空格分隔，例如：接近开关 磁吸开关。</summary>
         public string BomMiddleNames
         {
-            get { return Get("BomMiddleNames", "接近开关 磁吸开关"); }
+            get { return Get("BomMiddleNames", "接近开关 电机 丝杆"); }
             set { Set("BomMiddleNames", value); }
+        }
+
+        /// <summary>是否强制标准件“中间名 → 前缀”绑定。</summary>
+        public bool StandardPrefixBindingEnabled
+        {
+            get { return GetBool("StandardPrefixBindingEnabled", true); }
+            set { SetBool("StandardPrefixBindingEnabled", value); }
+        }
+
+        /// <summary>标准件绑定规则，格式：中间名=前缀|中间名=前缀。</summary>
+        public string StandardPrefixBindings
+        {
+            get { return Get("StandardPrefixBindings", "电机=代理|接近开关=代理"); }
+            set { Set("StandardPrefixBindings", value); }
+        }
+
+        public int NamingPresetVersion
+        {
+            get { return GetInt("NamingPresetVersion", 0); }
+            set { SetInt("NamingPresetVersion", value); }
         }
 
         /// <summary>是否只收录「前缀_日期_材料_名称」这种命名的零件。</summary>
@@ -259,13 +290,13 @@ namespace MechKit.Core
 
         public string BomMachinedMaterialField
         {
-            get { return Get("BomMachinedMaterialField", "segment:2"); }
+            get { return Get("BomMachinedMaterialField", "auto"); }
             set { Set("BomMachinedMaterialField", value); }
         }
 
         public string BomMachinedProcessField
         {
-            get { return Get("BomMachinedProcessField", "property:process"); }
+            get { return Get("BomMachinedProcessField", "auto"); }
             set { Set("BomMachinedProcessField", value); }
         }
 
@@ -318,6 +349,22 @@ namespace MechKit.Core
                     {
                         settings.BomStandardMaterialField = "tail:3";
                     }
+                }
+
+                if (settings.NamingPresetVersion < 1)
+                {
+                    settings.SegmentSeparator = "_-";
+                    settings.MachinedSegments = "date,material,name,serial,custom";
+                    settings.MachinedSegmentLabels = "||||拓展代号";
+                    settings.MachinedMaterialProcessRules =
+                        "6061=6061,cnc\n5052=5052,钣金\n304=304,cnc\n轴304=304,车铣\n淘宝=-,追加工";
+                    settings.BomPrefixes = "淘宝 代理 淘宝追加工";
+                    settings.BomMiddleNames = "接近开关 电机 丝杆";
+                    settings.StandardPrefixBindingEnabled = true;
+                    settings.StandardPrefixBindings = "电机=代理|接近开关=代理";
+                    settings.BomMachinedMaterialField = "auto";
+                    settings.BomMachinedProcessField = "auto";
+                    settings.NamingPresetVersion = 1;
                 }
             }
             catch (Exception ex)

@@ -24,8 +24,8 @@ namespace MechKit.Features
             StandardProcessField = "segment:1";
             StandardRemarkField = "property:remark";
             MachinedNameField = "segment:3";
-            MachinedMaterialField = "segment:2";
-            MachinedProcessField = "property:process";
+            MachinedMaterialField = "auto";
+            MachinedProcessField = "auto";
             MachinedRemarkField = "property:remark";
         }
 
@@ -225,6 +225,7 @@ namespace MechKit.Features
                 FilePath = path,
                 Configuration = configuration
             };
+            ApplyMachinedFields(row, path, options.Naming);
             ApplyStandardFields(row, path, options.Naming);
             if (string.IsNullOrEmpty(row.Name))
             {
@@ -271,6 +272,7 @@ namespace MechKit.Features
                     FilePath = path,
                     Configuration = string.Empty
                 };
+                ApplyMachinedFields(row, path, options.Naming);
                 ApplyStandardFields(row, path, options.Naming);
                 if (string.IsNullOrEmpty(row.Name))
                 {
@@ -699,6 +701,7 @@ namespace MechKit.Features
                 Configuration = configuration
             };
 
+            ApplyMachinedFields(row, displayPath, context.Options.Naming);
             ApplyStandardFields(row, displayPath, context.Options.Naming);
             if (string.IsNullOrEmpty(row.Name))
             {
@@ -788,7 +791,9 @@ namespace MechKit.Features
             }
 
             var stem = NamingOptions.GetFileNameWithoutExtension(sourceName).Trim();
-            var separator = string.IsNullOrEmpty(naming.SegmentSeparator) ? "_" : naming.SegmentSeparator;
+            // 标准件格式固定为“前缀_中间名_原始名称”。加工件可选的短横线
+            // 不应影响标准件型号（型号本身经常包含短横线）。
+            const string separator = "_";
             var parts = stem.Split(new[] { separator }, StringSplitOptions.None);
             if (parts.Length == 0 || !naming.HasKnownPrefix(parts[0]))
             {
@@ -809,6 +814,23 @@ namespace MechKit.Features
             }
         }
 
+        private static void ApplyMachinedFields(PartListRow row, string sourceName, NamingOptions naming)
+        {
+            if (row == null || naming == null ||
+                !string.Equals(row.Classification, "加工件", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            string material;
+            string process;
+            if (naming.TryResolveMachinedMaterialProcess(sourceName, out material, out process))
+            {
+                row.Material = material;
+                row.Process = process;
+            }
+        }
+
         /// <summary>按 BOM 设置把文件名段或自定义属性映射到表格列。</summary>
         private static void ApplyConfiguredFields(PartListRow row, string sourceName,
             Dictionary<string, string> properties, PartListOptions options)
@@ -821,20 +843,20 @@ namespace MechKit.Features
             var standard = string.Equals(row.Classification, "标准件", StringComparison.Ordinal);
             row.Name = ResolveConfiguredField(
                 standard ? options.StandardNameField : options.MachinedNameField,
-                row.Name, sourceName, properties);
+                row.Name, sourceName, properties, standard);
             row.Material = ResolveConfiguredField(
                 standard ? options.StandardMaterialField : options.MachinedMaterialField,
-                row.Material, sourceName, properties);
+                row.Material, sourceName, properties, standard);
             row.Process = ResolveConfiguredField(
                 standard ? options.StandardProcessField : options.MachinedProcessField,
-                row.Process, sourceName, properties);
+                row.Process, sourceName, properties, standard);
             row.Remark = ResolveConfiguredField(
                 standard ? options.StandardRemarkField : options.MachinedRemarkField,
-                row.Remark, sourceName, properties);
+                row.Remark, sourceName, properties, standard);
         }
 
         private static string ResolveConfiguredField(string setting, string automaticValue,
-            string sourceName, Dictionary<string, string> properties)
+            string sourceName, Dictionary<string, string> properties, bool standard)
         {
             var source = string.IsNullOrWhiteSpace(setting) ? "auto" : setting.Trim().ToLowerInvariant();
             if (source == "auto")
@@ -858,7 +880,7 @@ namespace MechKit.Features
                 int number;
                 if (int.TryParse(source.Substring("segment:".Length), out number) && number > 0)
                 {
-                    var parts = stem.Split(new[] { '_' }, StringSplitOptions.None);
+                    var parts = SplitConfiguredSegments(stem, standard);
                     return number <= parts.Length ? parts[number - 1].Trim() : string.Empty;
                 }
 
@@ -870,7 +892,7 @@ namespace MechKit.Features
                 int number;
                 if (int.TryParse(source.Substring("tail:".Length), out number) && number > 0)
                 {
-                    var parts = stem.Split(new[] { '_' }, StringSplitOptions.None);
+                    var parts = SplitConfiguredSegments(stem, standard);
                     if (number <= parts.Length)
                     {
                         var tail = new string[parts.Length - number + 1];
@@ -895,6 +917,38 @@ namespace MechKit.Features
                 default:
                     return automaticValue ?? string.Empty;
             }
+        }
+
+        /// <summary>
+        /// 标准件始终用下划线；加工件允许整份名称使用下划线或短横线。
+        /// 以日期后的第一个分隔符为准，避免零件名中的短横线被误拆。
+        /// </summary>
+        private static string[] SplitConfiguredSegments(string stem, bool standard)
+        {
+            if (string.IsNullOrEmpty(stem))
+            {
+                return new string[0];
+            }
+
+            if (standard)
+            {
+                return stem.Split(new[] { '_' }, StringSplitOptions.None);
+            }
+
+            var separator = '_';
+            var digits = 0;
+            while (digits < stem.Length && char.IsDigit(stem[digits]))
+            {
+                digits++;
+            }
+
+            if (digits >= 6 && digits < stem.Length &&
+                (stem[digits] == '_' || stem[digits] == '-'))
+            {
+                separator = stem[digits];
+            }
+
+            return stem.Split(new[] { separator }, StringSplitOptions.None);
         }
 
         private static string Classify(CollectContext context, string path, string name, Dictionary<string, string> properties)

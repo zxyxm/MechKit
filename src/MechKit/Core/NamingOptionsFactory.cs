@@ -19,16 +19,66 @@ namespace MechKit.Core
             naming.Pattern = settings.PartNumberPattern;
             naming.Material = (MaterialSource)settings.MaterialSource;
             naming.UseNameSegments = true;
-            // BOM 字段统一以单个下划线分隔，避免不同电脑配置造成列错位。
-            naming.SegmentSeparator = "_";
+            // 加工件允许使用下划线或短横线；标准件仍固定使用下划线。
+            naming.SegmentSeparator = "_-";
             naming.NameSegment = -1;
             naming.MaterialSegment = settings.MaterialSegment;
             naming.MachinedSegments = ParseMachinedSegments(settings.MachinedSegments);
             naming.MachinedSegmentLabels = ParseMachinedSegmentLabels(
                 settings.MachinedSegmentLabels, naming.MachinedSegments.Length);
+            naming.MachinedMaterialProcessPresets = ParseMaterialProcessPresets(
+                settings.MachinedMaterialProcessRules);
             naming.BomPrefixes = ParsePrefixes(settings.BomPrefixes);
             naming.RequireBomPattern = settings.BomRequirePattern;
             return naming;
+        }
+
+        public static Dictionary<string, MaterialProcessPreset> ParseMaterialProcessPresets(string text)
+        {
+            var result = new Dictionary<string, MaterialProcessPreset>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in (text ?? string.Empty).Replace("\r", string.Empty).Split('\n'))
+            {
+                var equal = line.IndexOf('=');
+                if (equal <= 0)
+                {
+                    continue;
+                }
+
+                var key = line.Substring(0, equal).Trim();
+                var values = line.Substring(equal + 1).Split(new[] { ',' }, 2);
+                if (key.Length == 0 || values.Length == 0)
+                {
+                    continue;
+                }
+
+                result[key] = new MaterialProcessPreset
+                {
+                    Material = values[0].Trim(),
+                    Process = values.Length > 1 ? values[1].Trim() : string.Empty
+                };
+            }
+            return result;
+        }
+
+        public static Dictionary<string, string> ParsePrefixBindings(string text)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in (text ?? string.Empty).Split(new[] { '|', '\r', '\n' },
+                StringSplitOptions.RemoveEmptyEntries))
+            {
+                var equal = entry.IndexOf('=');
+                if (equal <= 0)
+                {
+                    continue;
+                }
+                var middle = entry.Substring(0, equal).Trim();
+                var prefix = entry.Substring(equal + 1).Trim();
+                if (middle.Length > 0 && prefix.Length > 0)
+                {
+                    result[middle] = prefix;
+                }
+            }
+            return result;
         }
 
         public static MachinedSegmentKind[] ParseMachinedSegments(string text)
@@ -56,6 +106,7 @@ namespace MechKit.Core
                 result.Add(MachinedSegmentKind.Material);
                 result.Add(MachinedSegmentKind.Name);
                 result.Add(MachinedSegmentKind.Serial);
+                result.Add(MachinedSegmentKind.Custom);
             }
 
             // 时间段是加工件规则的固定锚点：无论旧配置里位于何处、重复几次或缺失，
@@ -101,7 +152,7 @@ namespace MechKit.Core
                         case MachinedSegmentKind.Date: result.Add("时间"); break;
                         case MachinedSegmentKind.Material: result.Add("材料"); break;
                         case MachinedSegmentKind.Name: result.Add("零件名称"); break;
-                        case MachinedSegmentKind.Serial: result.Add("扩展序号"); break;
+                        case MachinedSegmentKind.Serial: result.Add("变更序号"); break;
                         default:
                             var label = labels != null && index < labels.Count
                                 ? labels[index]

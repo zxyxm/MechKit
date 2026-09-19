@@ -24,6 +24,7 @@ namespace MechKit.UI
         private readonly ComboBox _partNumberSource;
         private readonly ComboBox _cutRule;
         private readonly TextBox _pattern;
+        private readonly TextBox _machinedMaterialProcessRules;
 
         // 标准件栏
         private readonly TextBox _prefixes;
@@ -34,6 +35,8 @@ namespace MechKit.UI
         private readonly TextBox _middleNames;
         private readonly TextBox _newMiddleName;
         private readonly TableLayoutPanel _usedMiddleNamePanel;
+        private readonly CheckBox _standardBindingEnabled;
+        private readonly TextBox _standardBindings;
 
         // 预览
         private readonly TextBox _sample;
@@ -58,6 +61,10 @@ namespace MechKit.UI
             _partNumberSource = new ComboBox();
             _cutRule = new ComboBox();
             _pattern = Theme.CreateTextBox();
+            _machinedMaterialProcessRules = Theme.CreateTextBox();
+            _machinedMaterialProcessRules.Multiline = true;
+            _machinedMaterialProcessRules.ScrollBars = ScrollBars.Vertical;
+            _machinedMaterialProcessRules.AcceptsReturn = true;
             _prefixes = Theme.CreateTextBox();
             _newPrefix = Theme.CreateTextBox();
             _newPrefixDescription = Theme.CreateTextBox();
@@ -66,6 +73,8 @@ namespace MechKit.UI
             _middleNames = Theme.CreateTextBox();
             _newMiddleName = Theme.CreateTextBox();
             _usedMiddleNamePanel = new TableLayoutPanel();
+            _standardBindingEnabled = new CheckBox();
+            _standardBindings = Theme.CreateTextBox();
             _sample = Theme.CreateTextBox();
             _preview = Theme.CreateValueLabel(string.Empty);
 
@@ -86,7 +95,7 @@ namespace MechKit.UI
             var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
             var title = Theme.CreateLabel("命名规则设置", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
-            var subtitle = Theme.CreateLabel("加工件用日期开头；标准件格式：前缀_中文中间名_原始名称或型号",
+            var subtitle = Theme.CreateLabel("加工件支持 _ / - 分段；标准件格式：前缀_中文中间名_原始名称或型号",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
             header.Controls.Add(title);
@@ -101,8 +110,8 @@ namespace MechKit.UI
                 RowCount = 2,
                 BackColor = Theme.Canvas
             };
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 68f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 32f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 78f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 22f));
 
             var tabs = (TabControl)BuildTabs();
             var previewPanel = BuildPreviewPanel();
@@ -113,8 +122,8 @@ namespace MechKit.UI
             {
                 var showPreview = tabs.SelectedIndex == 0;
                 previewPanel.Visible = showPreview;
-                layout.RowStyles[0].Height = showPreview ? 68f : 100f;
-                layout.RowStyles[1].Height = showPreview ? 32f : 0f;
+                layout.RowStyles[0].Height = showPreview ? 78f : 100f;
+                layout.RowStyles[1].Height = showPreview ? 22f : 0f;
             };
             tabs.SelectedIndexChanged += delegate { updatePageLayout(); };
             updatePageLayout();
@@ -187,7 +196,7 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Top,
                 ColumnCount = 1,
-                RowCount = 7,
+                RowCount = 8,
                 BackColor = Theme.Surface,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
@@ -199,15 +208,16 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 96f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
 
             var title = Theme.CreateLabel("加工件命名规则（按段顺序进入 BOM）", Theme.BodyBold, Theme.Text);
             title.Dock = DockStyle.Fill;
             title.TextAlign = ContentAlignment.MiddleLeft;
             layout.Controls.Add(title, 0, 0);
             layout.Controls.Add(BuildField("分段符号", _separator,
-                "各段之间的分隔符，默认下划线 _"), 0, 1);
+                "加工件可混用下划线 _ 和短横线 -"), 0, 1);
 
             var segmentCaption = Theme.CreateLabel(
                 "加工件分段（使用 ↑ / ↓ 调整前后顺序）", Theme.Body, Theme.Text);
@@ -252,6 +262,9 @@ namespace MechKit.UI
             addRow.Controls.Add(addSegment);
             layout.Controls.Add(addRow, 0, 4);
 
+            layout.Controls.Add(BuildField("材料/工艺预设", _machinedMaterialProcessRules,
+                "每行：第2段=材料,工艺；例如 6061=6061,cnc"), 0, 5);
+
             _partNumberSource.DropDownStyle = ComboBoxStyle.DropDownList;
             _partNumberSource.Font = Theme.Body;
             _partNumberSource.Items.AddRange(new object[]
@@ -261,7 +274,7 @@ namespace MechKit.UI
                 "只用自定义属性"
             });
             layout.Controls.Add(BuildField("图号来源", _partNumberSource,
-                "图号取文件名，还是零件自定义属性里的图号"), 0, 5);
+                "图号取文件名，还是零件自定义属性里的图号"), 0, 6);
 
             _cutRule.DropDownStyle = ComboBoxStyle.DropDownList;
             _cutRule.Font = Theme.Body;
@@ -274,7 +287,7 @@ namespace MechKit.UI
                 "自定义正则"
             });
             layout.Controls.Add(BuildField("图号截断", _cutRule,
-                "图号需要截断时选一项；一般保持「完整文件名」"), 0, 6);
+                "图号需要截断时选一项；一般保持「完整文件名」"), 0, 7);
 
             viewport.Controls.Add(layout);
             return viewport;
@@ -359,7 +372,7 @@ namespace MechKit.UI
             {
                 selector.Items.AddRange(new object[]
                 {
-                    "材料段", "零件名称段", "扩展序号段", "自定义段"
+                    "材料段", "零件名称段", "变更序号段", "自定义段"
                 });
                 selector.DropDownStyle = kind == MachinedSegmentKind.Custom
                     ? ComboBoxStyle.DropDown
@@ -494,7 +507,7 @@ namespace MechKit.UI
                 case MachinedSegmentKind.Date: return "6–8 位日期；此段用于判定加工件";
                 case MachinedSegmentKind.Material: return "材料牌号，例如 6061 / 5052 / 304";
                 case MachinedSegmentKind.Name: return "解析为零件名称";
-                case MachinedSegmentKind.Serial: return "扩展序号或版本号，可选";
+                case MachinedSegmentKind.Serial: return "变更序号，可选";
                 default: return "可直接输入自定义段名称；此段不参与字段解析";
             }
         }
@@ -512,7 +525,7 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Top,
                 ColumnCount = 1,
-                RowCount = 7,
+                RowCount = 9,
                 BackColor = Theme.Surface,
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
@@ -522,10 +535,12 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 230f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60f));
 
             var title = Theme.CreateLabel("标准件前缀管理", Theme.BodyBold, Theme.Text);
             title.Dock = DockStyle.Fill;
@@ -665,6 +680,37 @@ namespace MechKit.UI
             _usedMiddleNamePanel.Padding = new Padding(0, 2, 0, 2);
             layout.Controls.Add(_usedMiddleNamePanel, 0, 6);
 
+            var bindingTitle = Theme.CreateLabel("前缀绑定（可选）", Theme.BodyBold, Theme.Text);
+            bindingTitle.Dock = DockStyle.Fill;
+            bindingTitle.TextAlign = ContentAlignment.BottomLeft;
+            bindingTitle.Margin = new Padding(0, 6, 0, 4);
+            layout.Controls.Add(bindingTitle, 0, 7);
+
+            var bindingRow = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                BackColor = Theme.Surface
+            };
+            bindingRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 230f));
+            bindingRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360f));
+            bindingRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            _standardBindingEnabled.Text = "启用中间名 → 前缀绑定";
+            _standardBindingEnabled.AutoSize = true;
+            _standardBindingEnabled.Dock = DockStyle.Fill;
+            _standardBindingEnabled.ForeColor = Theme.Text;
+            _standardBindings.Dock = DockStyle.Fill;
+            _standardBindings.Margin = new Padding(0, 8, 12, 8);
+            var bindingHint = Theme.CreateValueLabel("格式：电机=代理|接近开关=代理；关闭后可自由组合");
+            bindingHint.Dock = DockStyle.Fill;
+            bindingHint.Font = Theme.Small;
+            bindingHint.ForeColor = Theme.Muted;
+            bindingRow.Controls.Add(_standardBindingEnabled, 0, 0);
+            bindingRow.Controls.Add(_standardBindings, 1, 0);
+            bindingRow.Controls.Add(bindingHint, 2, 0);
+            layout.Controls.Add(bindingRow, 0, 8);
+
             viewport.Controls.Add(layout);
             return viewport;
         }
@@ -716,7 +762,8 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
             layout.Controls.Add(Theme.CreateLabel("实时预览（改任意一项立刻更新）", Theme.BodyBold, Theme.Text), 0, 0);
-            layout.Controls.Add(BuildField("试一个名字", _sample, "例如 20260908_6061_扫码枪安装板 或 电机_MG996"), 0, 1);
+            layout.Controls.Add(BuildField("试一个名字", _sample,
+                "例如 20260919_6061_板1、20260919-5052-盖子 或 代理_电机_MG996"), 0, 1);
 
             _preview.Dock = DockStyle.Fill;
             _preview.Font = Theme.Mono;
@@ -1001,7 +1048,7 @@ namespace MechKit.UI
         private void LoadFromSettings()
         {
             var s = _host.Settings;
-            _separator.Text = "_";
+            _separator.Text = "_ 或 -";
             _machinedSegments.Clear();
             _machinedSegments.AddRange(NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments));
             _segmentLabels.Clear();
@@ -1013,25 +1060,29 @@ namespace MechKit.UI
             {
                 _prefixDescriptions[pair.Key] = pair.Value;
             }
-            if (_prefixDescriptions.Count == 0)
-            {
-                _prefixDescriptions["电机"] = "电机、伺服电机、减速电机等";
-                _prefixDescriptions["电气"] = "传感器、开关及其他电气元件";
+            if (!_prefixDescriptions.ContainsKey("淘宝"))
                 _prefixDescriptions["淘宝"] = "淘宝或其他平台采购件";
-            }
+            if (!_prefixDescriptions.ContainsKey("代理"))
+                _prefixDescriptions["代理"] = "代理商或正规渠道采购件";
+            if (!_prefixDescriptions.ContainsKey("淘宝追加工"))
+                _prefixDescriptions["淘宝追加工"] = "淘宝采购后需要追加加工";
             _prefixes.Text = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(s.BomPrefixes));
             _middleNames.Text = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(s.BomMiddleNames));
+            _machinedMaterialProcessRules.Text = (s.MachinedMaterialProcessRules ?? string.Empty)
+                .Replace("\r\n", "\n").Replace("\n", "\r\n");
+            _standardBindingEnabled.Checked = s.StandardPrefixBindingEnabled;
+            _standardBindings.Text = s.StandardPrefixBindings;
             _partNumberSource.SelectedIndex = Math.Max(0, Math.Min(2, s.PartNumberSource));
             _cutRule.SelectedIndex = Math.Max(0, Math.Min(4, s.PartNumberCutRule));
             _pattern.Text = s.PartNumberPattern;
-            _sample.Text = "20260908_6061_扫码枪安装板";
+            _sample.Text = "20260919_6061_板1";
         }
 
         private void ResetToDefault()
         {
-            _separator.Text = "_";
+            _separator.Text = "_ 或 -";
             _machinedSegments.Clear();
             _segmentLabels.Clear();
             _machinedSegments.AddRange(new[]
@@ -1039,16 +1090,21 @@ namespace MechKit.UI
                 MachinedSegmentKind.Date,
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
-                MachinedSegmentKind.Serial
+                MachinedSegmentKind.Serial,
+                MachinedSegmentKind.Custom
             });
-            _segmentLabels.AddRange(new[] { string.Empty, string.Empty, string.Empty, string.Empty });
+            _segmentLabels.AddRange(new[] { string.Empty, string.Empty, string.Empty, string.Empty, "拓展代号" });
             RebuildSegmentRows();
             _prefixDescriptions.Clear();
-            _prefixDescriptions["电机"] = "电机、伺服电机、减速电机等";
-            _prefixDescriptions["电气"] = "传感器、开关及其他电气元件";
             _prefixDescriptions["淘宝"] = "淘宝或其他平台采购件";
-            _prefixes.Text = "电机 电气 淘宝";
-            _middleNames.Text = "接近开关 磁吸开关";
+            _prefixDescriptions["代理"] = "代理商或正规渠道采购件";
+            _prefixDescriptions["淘宝追加工"] = "淘宝采购后需要追加加工";
+            _prefixes.Text = "淘宝 代理 淘宝追加工";
+            _middleNames.Text = "接近开关 电机 丝杆";
+            _machinedMaterialProcessRules.Text =
+                "6061=6061,cnc\r\n5052=5052,钣金\r\n304=304,cnc\r\n轴304=304,车铣\r\n淘宝=-,追加工";
+            _standardBindingEnabled.Checked = true;
+            _standardBindings.Text = "电机=代理|接近开关=代理";
             _partNumberSource.SelectedIndex = 0;
             _cutRule.SelectedIndex = 0;
             _pattern.Text = string.Empty;
@@ -1064,7 +1120,7 @@ namespace MechKit.UI
             }
 
             var s = _host.Settings;
-            s.SegmentSeparator = "_";
+            s.SegmentSeparator = "_-";
             s.MachinedSegments = NamingOptionsFactory.SerializeMachinedSegments(_machinedSegments);
             s.MachinedSegmentLabels = NamingOptionsFactory.SerializeMachinedSegmentLabels(_segmentLabels);
             s.MaterialSegment = SegmentPosition(MachinedSegmentKind.Material);
@@ -1075,6 +1131,10 @@ namespace MechKit.UI
                 NamingOptionsFactory.ParsePrefixes(_prefixes.Text), _prefixDescriptions);
             s.BomMiddleNames = NamingOptionsFactory.SerializePrefixes(
                 NamingOptionsFactory.ParsePrefixes(_middleNames.Text));
+            s.MachinedMaterialProcessRules = _machinedMaterialProcessRules.Text.Trim();
+            s.StandardPrefixBindingEnabled = _standardBindingEnabled.Checked;
+            s.StandardPrefixBindings = _standardBindings.Text.Trim();
+            s.NamingPresetVersion = 1;
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();
@@ -1121,6 +1181,42 @@ namespace MechKit.UI
                 }
             }
 
+            foreach (var line in (_machinedMaterialProcessRules.Text ?? string.Empty)
+                .Replace("\r", string.Empty).Split('\n'))
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+                var equal = line.IndexOf('=');
+                var comma = line.IndexOf(',', Math.Max(0, equal + 1));
+                if (equal <= 0 || comma <= equal + 1)
+                {
+                    MessageBox.Show(this,
+                        "材料/工艺预设格式不正确：\r\n" + line +
+                        "\r\n\r\n正确格式示例：6061=6061,cnc",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+            }
+
+            if (_standardBindingEnabled.Checked)
+            {
+                var prefixes = NamingOptionsFactory.ParsePrefixes(_prefixes.Text);
+                var middleNames = NamingOptionsFactory.ParsePrefixes(_middleNames.Text);
+                foreach (var pair in NamingOptionsFactory.ParsePrefixBindings(_standardBindings.Text))
+                {
+                    if (Array.IndexOf(middleNames, pair.Key) < 0 || Array.IndexOf(prefixes, pair.Value) < 0)
+                    {
+                        MessageBox.Show(this,
+                            "绑定规则中的中间名和前缀必须先加入上方列表：\r\n" +
+                            pair.Key + " → " + pair.Value,
+                            AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return false;
+                    }
+                }
+            }
+
             return true;
         }
 
@@ -1148,11 +1244,13 @@ namespace MechKit.UI
                     Cut = (FileNameCutRule)Math.Max(0, _cutRule.SelectedIndex),
                     Pattern = _pattern.Text.Trim(),
                     UseNameSegments = true,
-                    SegmentSeparator = "_",
+                    SegmentSeparator = "_-",
                     MaterialSegment = SegmentPosition(MachinedSegmentKind.Material),
                     NameSegment = SegmentPosition(MachinedSegmentKind.Name),
                     MachinedSegments = _machinedSegments.ToArray(),
                     MachinedSegmentLabels = _segmentLabels.ToArray(),
+                    MachinedMaterialProcessPresets = NamingOptionsFactory.ParseMaterialProcessPresets(
+                        _machinedMaterialProcessRules.Text),
                     BomPrefixes = NamingOptionsFactory.ParsePrefixes(_prefixes.Text),
                     RequireBomPattern = _host.Settings.BomRequirePattern
                 };
@@ -1171,12 +1269,21 @@ namespace MechKit.UI
                     ? "✔ 进 BOM（" + (naming.IsMachinedName(fileName) ? "加工件" : "标准件") + "）"
                     : "✘ 不进 BOM（视为子零件）";
 
+                var material = naming.ResolveMaterialFromSegments(sample);
+                var process = string.Empty;
+                string presetMaterial;
+                if (naming.TryResolveMachinedMaterialProcess(sample, out presetMaterial, out process))
+                {
+                    material = presetMaterial;
+                }
+
                 _preview.Text = string.Format(
-                    "{0}\r\n\r\n图号：{1}\r\n名称：{2}\r\n材料：{3}",
+                    "{0}\r\n\r\n图号：{1}\r\n名称：{2}\r\n材料：{3}\r\n工艺：{4}",
                     inBom,
                     naming.ResolvePartNumber(sample, none),
                     naming.ResolveName(sample, none),
-                    naming.ResolveMaterialFromSegments(sample));
+                    material,
+                    process);
             }
             catch (Exception ex)
             {

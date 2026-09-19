@@ -533,7 +533,19 @@ namespace MechKit
                         continue;
                     }
 
-                    var updated = remove ? StripPrefix(name, known) : AddPrefix(name, prefix, known);
+                    var effectivePrefix = prefix;
+                    if (!remove && _settings.StandardPrefixBindingEnabled)
+                    {
+                        var middle = FindMiddleName(name, known,
+                            NamingOptionsFactory.ParsePrefixes(_settings.BomMiddleNames));
+                        string required;
+                        if (NamingOptionsFactory.ParsePrefixBindings(_settings.StandardPrefixBindings)
+                            .TryGetValue(middle, out required))
+                        {
+                            effectivePrefix = required;
+                        }
+                    }
+                    var updated = remove ? StripPrefix(name, known) : AddPrefix(name, effectivePrefix, known);
                     if (string.Equals(updated, name, StringComparison.Ordinal) || string.IsNullOrEmpty(updated))
                     {
                         continue;
@@ -633,7 +645,17 @@ namespace MechKit
                     }
 
                     var name = component.Name2;
-                    var updated = SetMiddleName(name, middleName, prefixes, knownMiddleNames, remove);
+                    var preparedName = name;
+                    if (!remove && _settings.StandardPrefixBindingEnabled)
+                    {
+                        string requiredPrefix;
+                        if (NamingOptionsFactory.ParsePrefixBindings(_settings.StandardPrefixBindings)
+                            .TryGetValue((middleName ?? string.Empty).Trim(), out requiredPrefix))
+                        {
+                            preparedName = AddPrefix(preparedName, requiredPrefix, prefixes);
+                        }
+                    }
+                    var updated = SetMiddleName(preparedName, middleName, prefixes, knownMiddleNames, remove);
                     if (string.IsNullOrEmpty(updated) || string.Equals(name, updated, StringComparison.Ordinal))
                     {
                         continue;
@@ -698,6 +720,21 @@ namespace MechKit
             if (value.Length > 0) parts.Add(value);
             if (remainder.Length > 0) parts.Add(remainder);
             return string.Join("_", parts.ToArray());
+        }
+
+        private static string FindMiddleName(string name, string[] prefixes, string[] middleNames)
+        {
+            var remainder = StripPrefix(name, prefixes);
+            foreach (var middle in middleNames ?? new string[0])
+            {
+                var marker = (middle ?? string.Empty).Trim();
+                if (string.Equals(remainder, marker, StringComparison.OrdinalIgnoreCase) ||
+                    remainder.StartsWith(marker + "_", StringComparison.OrdinalIgnoreCase))
+                {
+                    return marker;
+                }
+            }
+            return string.Empty;
         }
 
         public void ShowPropertyToolDialog()

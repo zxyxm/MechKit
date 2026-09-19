@@ -77,6 +77,9 @@ $parsePrefixes = $factoryType.GetMethod('ParsePrefixes')
 $parseMachinedSegments = $factoryType.GetMethod('ParseMachinedSegments')
 $serializeMachinedSegments = $factoryType.GetMethod('SerializeMachinedSegments')
 $isMachinedName = $namingType.GetMethod('IsMachinedName')
+$presetProperty = $namingType.GetProperty('MachinedMaterialProcessPresets')
+$parsePresets = $factoryType.GetMethod('ParseMaterialProcessPresets')
+$resolvePreset = $namingType.GetMethod('TryResolveMachinedMaterialProcess')
 
 $failures = New-Object System.Collections.Generic.List[string]
 $checked = 0
@@ -165,7 +168,7 @@ foreach ($case in $cases.materialCases) {
 foreach ($case in $cases.segmentCases) {
     $options = New-NamingOptions 'FileName' 'FirstSpace' ''
     $namingType.GetProperty('UseNameSegments').SetValue($options, $true)
-    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_')
+    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
     $namingType.GetProperty('NameSegment').SetValue($options, -1)
     $namingType.GetProperty('MaterialSegment').SetValue($options, -2)
 
@@ -184,7 +187,7 @@ foreach ($case in $cases.segmentCases) {
 foreach ($case in $cases.orderedSegmentCases) {
     $options = New-NamingOptions 'FileName' 'FirstSpace' ''
     $namingType.GetProperty('UseNameSegments').SetValue($options, $true)
-    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_')
+    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
     $segments = $parseMachinedSegments.Invoke($null, @((Get-Field $case 'layout')))
     $machinedSegmentsProperty.SetValue($options, $segments)
 
@@ -211,6 +214,25 @@ foreach ($case in $cases.orderedSegmentCases) {
             $case.name, $actualMachined, [bool] $case.isMachined)
         $script:failures.Add("ordered BOM / " + $case.name)
     }
+}
+
+# Material/process presets are resolved from machining segment 2 for either
+# supported whole-name separator.
+foreach ($case in $cases.presetCases) {
+    $options = New-NamingOptions 'FileName' 'FirstSpace' ''
+    $namingType.GetProperty('UseNameSegments').SetValue($options, $true)
+    $namingType.GetProperty('SegmentSeparator').SetValue($options, '_-')
+    $presets = $parsePresets.Invoke($null, @((Get-Field $case 'rules')))
+    $presetProperty.SetValue($options, $presets)
+
+    $arguments = New-Object 'object[]' 3
+    $arguments[0] = Get-Field $case 'file'
+    $arguments[1] = ''
+    $arguments[2] = ''
+    $matched = [bool] $resolvePreset.Invoke($options, $arguments)
+    Assert-Equal ("preset matched / " + $case.name) 'True' ([string] $matched)
+    Assert-Equal ("preset material / " + $case.name) $case.expectedMaterial ([string] $arguments[1])
+    Assert-Equal ("preset process / " + $case.name) $case.expectedProcess ([string] $arguments[2])
 }
 
 # BOM rule: machined parts (date first) and standard parts (prefix first) are

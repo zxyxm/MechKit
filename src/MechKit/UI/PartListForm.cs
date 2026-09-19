@@ -313,7 +313,8 @@ namespace MechKit.UI
             _useSegments.AutoSize = true;
             _useSegments.Margin = new Padding(0, 4, 4, 0);
 
-            _segmentSeparator.Width = 26;
+            _segmentSeparator.Width = 52;
+            _segmentSeparator.ReadOnly = true;
             _segmentSeparator.TextAlign = HorizontalAlignment.Center;
             _segmentSeparator.Margin = new Padding(0, 2, 4, 0);
 
@@ -475,7 +476,7 @@ namespace MechKit.UI
             _readProperties.Checked = settings.PartListReadProperties;
             _detectVendor.Checked = settings.DetectVendorParts;
             _useSegments.Checked = settings.UseNameSegments;
-            _segmentSeparator.Text = string.IsNullOrEmpty(settings.SegmentSeparator) ? "_" : settings.SegmentSeparator;
+            _segmentSeparator.Text = "_ / -";
 
             _partNumberProperty.Text = settings.PartNumberProperty;
             _materialProperty.Text = settings.MaterialProperty;
