@@ -56,8 +56,8 @@ namespace MechKit.Core
         Date = 0,
         Material = 1,
         Name = 2,
-        Version = 3,
-        AssemblyNote = 4,
+        Serial = 3,
+        Extension = 4,
         Custom = 5
     }
 
@@ -88,8 +88,8 @@ namespace MechKit.Core
                 MachinedSegmentKind.Date,
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
-                MachinedSegmentKind.Version,
-                MachinedSegmentKind.AssemblyNote
+                MachinedSegmentKind.Serial,
+                MachinedSegmentKind.Extension
             };
             MachinedSegmentLabels = new[] { string.Empty, string.Empty, string.Empty, string.Empty, string.Empty };
             MachinedSegmentBomNameFlags = new[] { false, false, true, false, false };

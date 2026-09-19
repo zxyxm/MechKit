@@ -1147,7 +1147,7 @@ namespace MechKit
                 for (var i = 0; i < middleNameButtons.Count; i++)
                 {
                     middleNameIndices.Add(_commandGroup.AddCommandItem2(middleNameButtons[i], -1,
-                        "给选中的零件 / 子装配体设置中文中间名：" + middleNameButtons[i],
+                        "给选中的零件 / 子装配体设置中间名（中文描述）：" + middleNameButtons[i],
                         middleNameButtons[i], 10 + Math.Min(i, AddinConstants.MaxPrefixCommands - 1),
                         string.Format("OnMiddleNameCommand({0})", i),
                         "OnAlwaysEnable",

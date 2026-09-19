@@ -97,7 +97,7 @@ namespace MechKit.UI
             var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
             var title = Theme.CreateLabel("命名规则设置", Theme.Title, Color.White);
             title.Location = new Point(14, 9);
-            var subtitle = Theme.CreateLabel("加工件支持 _ / - 分段；标准件格式：前缀_中文中间名_原始名称或型号",
+            var subtitle = Theme.CreateLabel("加工件支持 _ / - 分段；标准件格式：前缀_中间名（中文描述）_原始名称/型号",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
             header.Controls.Add(title);
@@ -385,7 +385,7 @@ namespace MechKit.UI
             {
                 selector.Items.AddRange(new object[]
                 {
-                    "材料段", "零件名称段", "版本号段", "装配说明段", "自定义段"
+                    "材料段", "零件名称段", "变更序号段", "拓展代号段", "自定义段"
                 });
                 selector.DropDownStyle = kind == MachinedSegmentKind.Custom
                     ? ComboBoxStyle.DropDown
@@ -522,8 +522,8 @@ namespace MechKit.UI
             switch (kind)
             {
                 case MachinedSegmentKind.Name: return 1;
-                case MachinedSegmentKind.Version: return 2;
-                case MachinedSegmentKind.AssemblyNote: return 3;
+                case MachinedSegmentKind.Serial: return 2;
+                case MachinedSegmentKind.Extension: return 3;
                 case MachinedSegmentKind.Custom: return 4;
                 default: return 0;
             }
@@ -534,8 +534,8 @@ namespace MechKit.UI
             switch (index)
             {
                 case 1: return MachinedSegmentKind.Name;
-                case 2: return MachinedSegmentKind.Version;
-                case 3: return MachinedSegmentKind.AssemblyNote;
+                case 2: return MachinedSegmentKind.Serial;
+                case 3: return MachinedSegmentKind.Extension;
                 case 4: return MachinedSegmentKind.Custom;
                 default: return MachinedSegmentKind.Material;
             }
@@ -548,8 +548,8 @@ namespace MechKit.UI
                 case MachinedSegmentKind.Date: return "6–8 位日期；此段用于判定加工件";
                 case MachinedSegmentKind.Material: return "材料牌号，例如 6061 / 5052 / 304";
                 case MachinedSegmentKind.Name: return "解析为零件名称";
-                case MachinedSegmentKind.Version: return "版本号，例如 A / B / V2";
-                case MachinedSegmentKind.AssemblyNote: return "装配说明，例如 左装 / 右装 / 上层";
+                case MachinedSegmentKind.Serial: return "变更序号，例如 A / B / 01";
+                case MachinedSegmentKind.Extension: return "拓展代号，例如 X / L / 项目代号";
                 default: return "可直接输入自定义段名称";
             }
         }
@@ -1122,7 +1122,7 @@ namespace MechKit.UI
             _partNumberSource.SelectedIndex = Math.Max(0, Math.Min(2, s.PartNumberSource));
             _cutRule.SelectedIndex = Math.Max(0, Math.Min(4, s.PartNumberCutRule));
             _pattern.Text = s.PartNumberPattern;
-            _sample.Text = "20260919_6061_板1_A_左装";
+            _sample.Text = "20260919_6061_板1_A_X";
         }
 
         private void ResetToDefault()
@@ -1136,8 +1136,8 @@ namespace MechKit.UI
                 MachinedSegmentKind.Date,
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
-                MachinedSegmentKind.Version,
-                MachinedSegmentKind.AssemblyNote
+                MachinedSegmentKind.Serial,
+                MachinedSegmentKind.Extension
             });
             _segmentLabels.AddRange(new[] { string.Empty, string.Empty, string.Empty, string.Empty, string.Empty });
             _segmentBomNameFlags.AddRange(new[] { false, false, true, false, false });
@@ -1184,7 +1184,7 @@ namespace MechKit.UI
                 _machinedMaterialProcessRules.Text.Trim());
             s.StandardPrefixBindingEnabled = _standardBindingEnabled.Checked;
             s.StandardPrefixBindings = _standardBindings.Text.Trim();
-            s.NamingPresetVersion = 3;
+            s.NamingPresetVersion = 4;
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();
@@ -1214,8 +1214,8 @@ namespace MechKit.UI
             {
                 MachinedSegmentKind.Material,
                 MachinedSegmentKind.Name,
-                MachinedSegmentKind.Version,
-                MachinedSegmentKind.AssemblyNote
+                MachinedSegmentKind.Serial,
+                MachinedSegmentKind.Extension
             })
             {
                 var count = 0;
@@ -1284,8 +1284,8 @@ namespace MechKit.UI
             {
                 case MachinedSegmentKind.Material: return "材料段";
                 case MachinedSegmentKind.Name: return "零件名称段";
-                case MachinedSegmentKind.Version: return "版本号段";
-                case MachinedSegmentKind.AssemblyNote: return "装配说明段";
+                case MachinedSegmentKind.Serial: return "变更序号段";
+                case MachinedSegmentKind.Extension: return "拓展代号段";
                 default: return "该分段";
             }
         }

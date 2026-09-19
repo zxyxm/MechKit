@@ -131,9 +131,11 @@ namespace MechKit.Core
                     case "material": kind = MachinedSegmentKind.Material; break;
                     case "name": kind = MachinedSegmentKind.Name; break;
                     case "serial":
-                    case "version": kind = MachinedSegmentKind.Version; break;
+                    case "version": kind = MachinedSegmentKind.Serial; break;
+                    case "extension":
+                    case "extensioncode":
                     case "assembly":
-                    case "assemblynote": kind = MachinedSegmentKind.AssemblyNote; break;
+                    case "assemblynote": kind = MachinedSegmentKind.Extension; break;
                     case "custom": kind = MachinedSegmentKind.Custom; break;
                     default: continue;
                 }
@@ -146,8 +148,8 @@ namespace MechKit.Core
                 result.Add(MachinedSegmentKind.Date);
                 result.Add(MachinedSegmentKind.Material);
                 result.Add(MachinedSegmentKind.Name);
-                result.Add(MachinedSegmentKind.Version);
-                result.Add(MachinedSegmentKind.AssemblyNote);
+                result.Add(MachinedSegmentKind.Serial);
+                result.Add(MachinedSegmentKind.Extension);
             }
 
             // 时间段是加工件规则的固定锚点：无论旧配置里位于何处、重复几次或缺失，
@@ -193,8 +195,8 @@ namespace MechKit.Core
                         case MachinedSegmentKind.Date: result.Add("时间"); break;
                         case MachinedSegmentKind.Material: result.Add("材料"); break;
                         case MachinedSegmentKind.Name: result.Add("零件名称"); break;
-                        case MachinedSegmentKind.Version: result.Add("版本号"); break;
-                        case MachinedSegmentKind.AssemblyNote: result.Add("装配说明"); break;
+                        case MachinedSegmentKind.Serial: result.Add("变更序号"); break;
+                        case MachinedSegmentKind.Extension: result.Add("拓展代号"); break;
                         default:
                             var label = labels != null && index < labels.Count
                                 ? labels[index]

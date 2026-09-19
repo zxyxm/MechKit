@@ -138,7 +138,7 @@ namespace MechKit.Core
         /// <summary>加工件段顺序，例如 date,material,name,serial。</summary>
         public string MachinedSegments
         {
-            get { return Get("MachinedSegments", "date,material,name,version,assemblynote"); }
+            get { return Get("MachinedSegments", "date,material,name,serial,extension"); }
             set { Set("MachinedSegments", value); }
         }
 
@@ -410,6 +410,21 @@ namespace MechKit.Core
                             NamingOptionsFactory.ParseMachinedSegmentBomNameFlags(
                                 string.Empty, migratedSegments));
                     settings.NamingPresetVersion = 3;
+                }
+
+                // v4：与 BOM 字段设置统一，第 4 / 5 段回归“变更序号 / 拓展代号”。
+                // 保留 v3 的勾选状态，只迁移字段语义和持久化键名。
+                if (settings.NamingPresetVersion < 4)
+                {
+                    var migratedSegments = NamingOptionsFactory.ParseMachinedSegments(
+                        settings.MachinedSegments);
+                    var migratedFlags = NamingOptionsFactory.ParseMachinedSegmentBomNameFlags(
+                        settings.MachinedSegmentBomNameFlags, migratedSegments);
+                    settings.MachinedSegments =
+                        NamingOptionsFactory.SerializeMachinedSegments(migratedSegments);
+                    settings.MachinedSegmentBomNameFlags =
+                        NamingOptionsFactory.SerializeMachinedSegmentBomNameFlags(migratedFlags);
+                    settings.NamingPresetVersion = 4;
                 }
             }
             catch (Exception ex)
