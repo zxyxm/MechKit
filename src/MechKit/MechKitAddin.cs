@@ -1004,6 +1004,26 @@ namespace MechKit
                 return;
             }
 
+            // 动态命名按钮曾使用 42117 的固定七按钮布局。不同版本的 SOLIDWORKS
+            // 有时不会在同一组 ID 下完整刷新选项卡，因此新版加载时主动清理旧组。
+            foreach (var legacyId in AddinConstants.LegacyCommandGroupIds)
+            {
+                if (legacyId == AddinConstants.CommandGroupId)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    _commandManager.RemoveCommandGroup2(legacyId, false);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn(string.Format("清理旧 CommandManager 命令组 {0} 失败：{1}",
+                        legacyId, ex.Message));
+                }
+            }
+
             var prefixButtons = BuildPrefixButtonList();
             var middleNameButtons = BuildMiddleNameButtonList();
             var expectedIds = new List<int>(AddinConstants.CommandIds);

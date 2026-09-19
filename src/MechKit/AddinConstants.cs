@@ -19,7 +19,11 @@ namespace MechKit
         public const string Description = "MechKit：图号 / 材料 / 加工件数量一键汇总，一键生成 BOM，批量导出与属性批处理";
 
         /// <summary>CommandManager 命令组 ID，需在插件之间保持唯一。</summary>
-        public const int CommandGroupId = 42117;
+        // 42117 是旧版固定按钮布局。动态前缀/中间名加入后改用新 ID，
+        // 避免 SOLIDWORKS 继续复用旧 CommandManager 注册表缓存。
+        public const int CommandGroupId = 42118;
+
+        public static readonly int[] LegacyCommandGroupIds = { 42117 };
 
         /// <summary>前缀快捷按钮最多数量（图标条里为此预留了 12 格）。</summary>
         public const int MaxPrefixCommands = 12;
