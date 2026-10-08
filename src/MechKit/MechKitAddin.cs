@@ -610,19 +610,7 @@ namespace MechKit
                 var known = knownList.ToArray();
                 RenameSelectedComponentFiles(delegate(string name)
                 {
-                    var effectivePrefix = prefix;
-                    if (!remove && _settings.StandardPrefixBindingEnabled)
-                    {
-                        var middle = FindMiddleName(name, known,
-                            NamingOptionsFactory.ParsePrefixes(_settings.BomMiddleNames));
-                        string required;
-                        if (NamingOptionsFactory.ParsePrefixBindings(_settings.StandardPrefixBindings)
-                            .TryGetValue(middle, out required))
-                        {
-                            effectivePrefix = required;
-                        }
-                    }
-                    return remove ? StripPrefix(name, known) : AddPrefix(name, effectivePrefix, known);
+                    return remove ? StripPrefix(name, known) : AddPrefix(name, prefix, known);
                 }, remove ? "去掉前缀" : "添加前缀");
             }
             catch (Exception ex)
@@ -678,17 +666,7 @@ namespace MechKit
                 var knownMiddleNames = NamingOptionsFactory.ParsePrefixes(_settings.BomMiddleNames);
                 RenameSelectedComponentFiles(delegate(string name)
                 {
-                    var preparedName = name;
-                    if (!remove && _settings.StandardPrefixBindingEnabled)
-                    {
-                        string requiredPrefix;
-                        if (NamingOptionsFactory.ParsePrefixBindings(_settings.StandardPrefixBindings)
-                            .TryGetValue((middleName ?? string.Empty).Trim(), out requiredPrefix))
-                        {
-                            preparedName = AddPrefix(preparedName, requiredPrefix, prefixes);
-                        }
-                    }
-                    return SetMiddleName(preparedName, middleName, prefixes, knownMiddleNames, remove);
+                    return SetMiddleName(name, middleName, prefixes, knownMiddleNames, remove);
                 }, remove ? "去掉中间名" : "设置中间名");
             }
             catch (Exception ex)
@@ -1374,6 +1352,11 @@ namespace MechKit
             ShowBatchExportDialog();
         }
 
+        public void OnQuickAnnotation()
+        {
+            ShowModeless("quick-annotation", delegate { return new QuickAnnotationForm(this); });
+        }
+
         public void OnPropertyTool()
         {
             ShowPropertyToolDialog();
@@ -1603,6 +1586,7 @@ namespace MechKit
                 AddinConstants.CmdAssemblyName,
                 AddinConstants.CmdBatchExport,
                 AddinConstants.CmdTaskPane,
+                AddinConstants.CmdQuickAnnotation,
                 AddinConstants.CmdExportConfiguration,
                 AddinConstants.CmdSettings,
                 AddinConstants.CmdAbout
@@ -1733,6 +1717,11 @@ namespace MechKit
                 "工具箱面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",
                 AddinConstants.CmdTaskPane, tabItem));
 
+            indices.Add(group.AddCommandItem2("快捷标注", -1,
+                "为选中工程图尺寸应用 +0.05/0、0/-0.05 或销钉孔 +0.012/0 mm 双边公差",
+                "快捷公差标注", 7, "OnQuickAnnotation", "OnAlwaysEnable",
+                AddinConstants.CmdQuickAnnotation, tabItem));
+
             indices.Add(group.AddCommandItem2("导出配置", -1,
                 "把 MechKit 命名规则、预设与 BOM 设置直接导出到桌面",
                 "导出配置到桌面", 4, "OnExportConfiguration", "OnAlwaysEnable",
@@ -1757,7 +1746,7 @@ namespace MechKit
                     FindConfiguredValueIndex(_settings.MachinedLevel2Values, machinedLevel2Buttons[i]);
                 machinedLevel2Indices.Add(group.AddCommandItem2(machinedLevel2Buttons[i], -1,
                     "把选中加工件的材料字段设置为 " + machinedLevel2Buttons[i],
-                    "加工件材料：" + machinedLevel2Buttons[i], 10 + i,
+                    "加工件材料：" + machinedLevel2Buttons[i], 24,
                     string.Format("OnMachinedLevel2Command({0})", i), "OnAlwaysEnable",
                     userId, tabItem));
             }
@@ -1780,7 +1769,7 @@ namespace MechKit
                 {
                     prefixIndices.Add(group.AddCommandItem2(prefixButtons[i], -1,
                         "给选中的零件 / 子装配体加前缀：" + prefixButtons[i],
-                        prefixButtons[i], 10 + i,   // 图标条：第 10 格是分隔线，前缀从第 11 格起
+                        prefixButtons[i], 22,
                         string.Format("OnPrefixCommand({0})", i),
                         "OnAlwaysEnable",
                         AddinConstants.PrefixCommandUserIdBase + i, tabItem));
@@ -1798,7 +1787,7 @@ namespace MechKit
                 {
                     middleNameIndices.Add(group.AddCommandItem2(middleNameButtons[i], -1,
                         "给选中的零件 / 子装配体设置中间名（中文描述）：" + middleNameButtons[i],
-                        middleNameButtons[i], 10 + Math.Min(i, AddinConstants.MaxPrefixCommands - 1),
+                        middleNameButtons[i], 23,
                         string.Format("OnMiddleNameCommand({0})", i),
                         "OnAlwaysEnable",
                         AddinConstants.MiddleNameCommandUserIdBase + i, tabItem));
@@ -1823,8 +1812,7 @@ namespace MechKit
                 return null;
             }
 
-            // 加载时主动显示独立工具栏，避免 CommandManager 标签布局损坏时没有入口。
-            // 保存命名规则触发的重建不强制显示，否则用户关闭过的工具栏会再次弹出。
+            // 启动时默认隐藏独立工具栏，命令仍通过 CommandManager 选项卡提供。
             if (keepStoredLayout)
             {
                 foreach (var templateType in new[]
@@ -1834,7 +1822,7 @@ namespace MechKit
                     (int)swDocTemplateTypes_e.swDocTemplateTypeDRAWING
                 })
                 {
-                    group.SetToolbarVisibility(true, templateType);
+                    group.SetToolbarVisibility(false, templateType);
                 }
             }
 
@@ -1940,11 +1928,9 @@ namespace MechKit
                     var standardStyles = new List<int>();
                     AppendCommandTabItem(standardIds, standardStyles, fixedIndices[3],
                         (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-                    AppendCommandTabItems(standardIds, standardStyles, prefixIndices,
-                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
-                    AppendCommandTabItems(standardIds, standardStyles, middleNameIndices,
-                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
                     AddMixedCommandTabBox(tab, standardIds, standardStyles);
+                    AddFourColumnCommandBoxes(tab, prefixIndices);
+                    AddFourColumnCommandBoxes(tab, middleNameIndices);
 
                     // 第三类“参考件”以及右侧工具功能。
                     var trailing = new List<int>();
@@ -2369,6 +2355,17 @@ namespace MechKit
                     tab.RemoveCommandTabBox(box);
                     throw new InvalidOperationException("SOLIDWORKS 拒绝向 MechKit 选项卡加入命令按钮。");
                 }
+            }
+        }
+
+        private void AddFourColumnCommandBoxes(CommandTab tab, IList<int> indices)
+        {
+            if (indices == null) return;
+            for (var start = 0; start < indices.Count; start += 4)
+            {
+                var chunk = new List<int>();
+                for (var i = start; i < Math.Min(start + 4, indices.Count); i++) chunk.Add(indices[i]);
+                AddCommandTabBox(tab, chunk, (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
             }
         }
 

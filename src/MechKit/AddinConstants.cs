@@ -21,7 +21,7 @@ namespace MechKit
         /// <summary>CommandManager 命令组 ID，需在插件之间保持唯一。</summary>
         // 42117 是旧版固定按钮布局。动态前缀/中间名加入后改用新 ID，
         // 避免 SOLIDWORKS 继续复用旧 CommandManager 注册表缓存。
-        public const int CommandGroupId = 42121;
+        public const int CommandGroupId = 42161;
 
         /// <summary>
         /// 命令组 ID 的可轮换数量（42121 ~ 42121 + Count - 1）。
@@ -31,7 +31,7 @@ namespace MechKit
         /// </summary>
         public const int CommandGroupIdCount = 20;
 
-        public static readonly int[] LegacyCommandGroupIds = { 42117, 42118, 42119, 42120 };
+        public static readonly int[] LegacyCommandGroupIds = { 42117, 42118, 42119, 42120, 42121, 42141 };
 
         /// <summary>前缀快捷按钮最多数量（图标条里为此预留了 12 格）。</summary>
         public const int MaxPrefixCommands = 12;
@@ -82,6 +82,7 @@ namespace MechKit
         public const int CmdPartNamingRule = 3;
         public const int CmdStandardPrefix = 4;
         public const int CmdBatchExport = 5;
+        public const int CmdQuickAnnotation = 12;
         // 6 曾用于“属性工具”，保留空号，避免旧版 SOLIDWORKS 命令映射串位。
         public const int CmdTaskPane = 7;
         // 8 曾用于“个人配置”；新“设置”使用新 ID，强制 SOLIDWORKS 刷新旧按钮文字与布局。
@@ -93,7 +94,7 @@ namespace MechKit
         public static readonly int[] CommandIds =
         {
             CmdGenerateBom, CmdPartList, CmdPartNamingRule, CmdStandardPrefix, CmdReferencePart,
-            CmdBatchExport, CmdTaskPane, CmdExportConfiguration, CmdSettings, CmdAbout
+            CmdBatchExport, CmdQuickAnnotation, CmdTaskPane, CmdExportConfiguration, CmdSettings, CmdAbout
         };
 
         /// <summary>图标条里的固定图标数量；“导出配置”复用批量导出的导出图标。</summary>

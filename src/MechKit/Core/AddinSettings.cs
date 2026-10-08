@@ -65,7 +65,7 @@ namespace MechKit.Core
 
         public string ExportFormats
         {
-            get { return Get("ExportFormats", ".pdf"); }
+            get { return Get("ExportFormats", ".pdf,.stp"); }
             set { Set("ExportFormats", value); }
         }
 
@@ -297,7 +297,7 @@ namespace MechKit.Core
         /// <summary>是否强制标准件“中间名 → 前缀”绑定。</summary>
         public bool StandardPrefixBindingEnabled
         {
-            get { return GetBool("StandardPrefixBindingEnabled", true); }
+            get { return false; }
             set { SetBool("StandardPrefixBindingEnabled", value); }
         }
 

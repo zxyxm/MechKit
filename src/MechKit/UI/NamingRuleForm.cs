@@ -332,7 +332,7 @@ namespace MechKit.UI
             _machinedLevel2Panel.ColumnCount = 1;
             _machinedLevel2Panel.RowCount = 0;
             _machinedLevel2Panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            _machinedLevel2Panel.BackColor = Color.Transparent;
+            _machinedLevel2Panel.BackColor = Color.FromArgb(226, 246, 226);
             _machinedLevel2Panel.Margin = new Padding(0, 2, 0, 2);
             section.Controls.Add(_machinedLevel2Panel, 0, 2);
 
@@ -1319,7 +1319,7 @@ namespace MechKit.UI
                     _usedPrefixPanel.Controls.Add(row, 0, index);
                 }
 
-                _usedPrefixPanel.RowCount = Math.Max(1, prefixes.Length);
+                ArrangeFieldCards(_usedPrefixPanel, Color.FromArgb(255, 246, 210), prefixes.Length);
             }
             finally
             {
@@ -1453,13 +1453,68 @@ namespace MechKit.UI
                     _usedMiddleNamePanel.Controls.Add(row, 0, index);
                 }
 
-                _usedMiddleNamePanel.RowCount = Math.Max(1, names.Length);
+                ArrangeFieldCards(_usedMiddleNamePanel, Color.FromArgb(224, 240, 255), names.Length);
             }
             finally
             {
                 _usedMiddleNamePanel.ResumeLayout();
                 _syncing = false;
             }
+        }
+
+        private static void ArrangeFieldCards(TableLayoutPanel panel, Color color, int count)
+        {
+            panel.ColumnCount = 4;
+            panel.ColumnStyles.Clear();
+            for (var column = 0; column < 4; column++)
+                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+            panel.BackColor = color;
+            panel.Padding = new Padding(6);
+            panel.RowStyles.Clear();
+            panel.RowCount = Math.Max(1, (count + 3) / 4);
+            for (var rowIndex = 0; rowIndex < panel.RowCount; rowIndex++)
+                panel.RowStyles.Add(new RowStyle(SizeType.Absolute, count == 0 ? 42f : 112f));
+            var index = 0;
+            foreach (var control in GetControls(panel))
+            {
+                if (count == 0) { panel.SetColumnSpan(control, 4); continue; }
+                var card = control as TableLayoutPanel;
+                if (card == null) continue;
+                var label = card.GetControlFromPosition(0, 0);
+                var description = card.GetControlFromPosition(1, 0);
+                var checkbox = card.GetControlFromPosition(2, 0);
+                var delete = card.GetControlFromPosition(3, 0);
+                card.SuspendLayout();
+                card.Controls.Clear();
+                card.ColumnStyles.Clear();
+                card.RowStyles.Clear();
+                card.ColumnCount = 3;
+                card.RowCount = 2;
+                card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                card.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, TextWidth("选项卡", Theme.Small, 24)));
+                card.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28f));
+                card.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+                card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                card.BackColor = color;
+                card.Padding = new Padding(5);
+                card.Margin = new Padding(4);
+                label.AutoSize = false;
+                label.BackColor = color;
+                label.Font = Theme.BodyBold;
+                checkbox.Font = Theme.Small;
+                description.Margin = new Padding(0, 4, 0, 2);
+                var text = description as TextBox;
+                if (text != null) { text.Multiline = true; text.ScrollBars = ScrollBars.Vertical; }
+                card.Controls.Add(label, 0, 0);
+                card.Controls.Add(checkbox, 1, 0);
+                card.Controls.Add(delete, 2, 0);
+                card.Controls.Add(description, 0, 1);
+                card.SetColumnSpan(description, 3);
+                card.ResumeLayout();
+                panel.SetCellPosition(card, new TableLayoutPanelCellPosition(index % 4, index / 4));
+                index++;
+            }
+            panel.RowCount = Math.Max(1, (count + 3) / 4);
         }
 
         private void AddTypedMiddleName()
@@ -1692,8 +1747,8 @@ namespace MechKit.UI
             s.MachinedTabLevel3Values = SerializeSelectedValues(
                 NamingOptionsFactory.ParsePrefixes(_machinedLevel3Values.Text),
                 _machinedTabLevel3Values);
-            s.StandardPrefixBindingEnabled = _standardBindingEnabled.Checked;
-            s.StandardPrefixBindings = _standardBindings.Text.Trim();
+            s.StandardPrefixBindingEnabled = false;
+            s.StandardPrefixBindings = string.Empty;
             s.NamingPresetVersion = 14;
             s.PartNumberSource = _partNumberSource.SelectedIndex;
             s.PartNumberCutRule = _cutRule.SelectedIndex;
@@ -1782,23 +1837,6 @@ namespace MechKit.UI
                         "\r\n\r\n正确示例：6061=6061|cnc|本色氧化",
                         AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
-                }
-            }
-
-            if (_standardBindingEnabled.Checked)
-            {
-                var prefixes = NamingOptionsFactory.ParsePrefixes(_prefixes.Text);
-                var middleNames = NamingOptionsFactory.ParsePrefixes(_middleNames.Text);
-                foreach (var pair in NamingOptionsFactory.ParsePrefixBindings(_standardBindings.Text))
-                {
-                    if (Array.IndexOf(middleNames, pair.Key) < 0 || Array.IndexOf(prefixes, pair.Value) < 0)
-                    {
-                        MessageBox.Show(this,
-                            "绑定规则中的中间名和前缀必须先加入上方列表：\r\n" +
-                            pair.Key + " → " + pair.Value,
-                            AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return false;
-                    }
                 }
             }
 

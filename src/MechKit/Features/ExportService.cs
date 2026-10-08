@@ -55,7 +55,7 @@ namespace MechKit.Features
     internal static class ExportFormats
     {
         public static readonly ExportFormat Pdf =
-            new ExportFormat(".pdf", "PDF (.pdf)", true, true, true);
+            new ExportFormat(".pdf", "PDF (.pdf，工程图)", false, false, true);
 
         public static readonly ExportFormat Dwg =
             new ExportFormat(".dwg", "DWG (.dwg)", false, false, true);
@@ -64,7 +64,7 @@ namespace MechKit.Features
             new ExportFormat(".dxf", "DXF (.dxf)", false, false, true);
 
         public static readonly ExportFormat Step =
-            new ExportFormat(".step", "STEP (.step)", true, true, false);
+            new ExportFormat(".stp", "STEP (.stp)", true, true, false);
 
         public static readonly ExportFormat Iges =
             new ExportFormat(".igs", "IGES (.igs)", true, true, false);
@@ -76,6 +76,10 @@ namespace MechKit.Features
 
         public static ExportFormat Find(string extension)
         {
+            if (string.Equals(extension, ".step", StringComparison.OrdinalIgnoreCase))
+            {
+                return Step;
+            }
             foreach (var format in All)
             {
                 if (string.Equals(format.Extension, extension, StringComparison.OrdinalIgnoreCase))
@@ -95,6 +99,7 @@ namespace MechKit.Features
             Files = new List<string>();
             Formats = new List<ExportFormat>();
             CreateReport = true;
+            AutoPair = true;
         }
 
         public List<string> Files { get; private set; }
@@ -111,6 +116,8 @@ namespace MechKit.Features
         public bool Overwrite { get; set; }
 
         public bool CreateReport { get; set; }
+
+        public bool AutoPair { get; set; }
     }
 
     internal sealed class BatchExportReport
@@ -159,12 +166,13 @@ namespace MechKit.Features
 
     internal sealed class ExportDetail
     {
-        public ExportDetail(string source, string target, bool success, string message)
+        public ExportDetail(string source, string target, bool success, string message, bool skipped = false)
         {
             Source = source;
             Target = target;
             Success = success;
             Message = message;
+            Skipped = skipped;
         }
 
         public string Source { get; private set; }
@@ -174,6 +182,8 @@ namespace MechKit.Features
         public bool Success { get; private set; }
 
         public string Message { get; private set; }
+
+        public bool Skipped { get; private set; }
     }
 
     /// <summary>
@@ -186,7 +196,8 @@ namespace MechKit.Features
             Action<string> log, Func<bool> isCancelled, Action<int, int> onProgress = null)
         {
             var report = new BatchExportReport();
-            report.TotalFiles = options.Files.Count;
+            var files = ResolveFiles(options.Files, options.AutoPair, log);
+            report.TotalFiles = files.Count;
 
             if (options.Formats.Count == 0)
             {
@@ -203,12 +214,13 @@ namespace MechKit.Features
             AppPaths.Ensure(options.OutputFolder);
 
             var index = 0;
-            foreach (var file in options.Files)
+            var targets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in files)
             {
                 index++;
                 if (onProgress != null)
                 {
-                    onProgress(index, options.Files.Count);
+                    onProgress(index, files.Count);
                 }
 
                 if (isCancelled())
@@ -221,7 +233,7 @@ namespace MechKit.Features
                 if (docType == 0)
                 {
                     report.Skipped++;
-                    report.Details.Add(new ExportDetail(file, string.Empty, false, "不支持的文件类型"));
+                    report.Details.Add(new ExportDetail(file, string.Empty, false, "不支持的文件类型", true));
                     log("跳过（类型不支持）：" + Path.GetFileName(file));
                     continue;
                 }
@@ -238,7 +250,7 @@ namespace MechKit.Features
                 if (formats.Count == 0)
                 {
                     report.Skipped++;
-                    report.Details.Add(new ExportDetail(file, string.Empty, false, "没有适用于该文档类型的格式"));
+                    report.Details.Add(new ExportDetail(file, string.Empty, false, "没有适用于该文档类型的格式", true));
                     log(string.Format("跳过（{0} 不支持所选格式）：{1}",
                         SwUtils.DocTypeName(docType), Path.GetFileName(file)));
                     continue;
@@ -259,12 +271,22 @@ namespace MechKit.Features
 
                     try
                     {
-                        if (!options.Overwrite && File.Exists(target))
+                        string previousSource;
+                        if (targets.TryGetValue(target, out previousSource))
+                        {
+                            message = "输出文件名冲突，未覆盖：" + previousSource;
+                        }
+                        else if (!options.Overwrite && File.Exists(target))
                         {
                             message = "目标文件已存在，已跳过";
+                            report.Skipped++;
+                            report.Details.Add(new ExportDetail(file, target, false, message, true));
+                            log("跳过：" + target);
+                            continue;
                         }
                         else
                         {
+                            targets.Add(target, file);
                             AppPaths.Ensure(Path.GetDirectoryName(target));
                             success = ExportOne(swApp, file, docType, format, target, out message);
                         }
@@ -361,6 +383,8 @@ namespace MechKit.Features
                     return false;
                 }
 
+                // 避免仅导出用户当前选中的面或实体。
+                doc.ClearSelection2(true);
                 var ok = extension.SaveAs3(target,
                     (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
                     (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
@@ -437,6 +461,9 @@ namespace MechKit.Features
                     return string.Empty;
                 }
 
+                if (string.Equals(directory.TrimEnd('\\', '/'), root.TrimEnd('\\', '/'),
+                    StringComparison.OrdinalIgnoreCase)) return string.Empty;
+
                 if (directory.Length >= normalizedRoot.Length &&
                     directory.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
                 {
@@ -463,7 +490,7 @@ namespace MechKit.Features
             {
                 builder.Append(Csv(detail.Source)).Append(',')
                        .Append(Csv(detail.Target)).Append(',')
-                       .Append(detail.Success ? "成功" : "失败").Append(',')
+                       .Append(detail.Skipped ? "跳过" : detail.Success ? "成功" : "失败").Append(',')
                        .Append(Csv(detail.Message)).AppendLine();
             }
 
@@ -488,6 +515,43 @@ namespace MechKit.Features
             }
 
             return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        /// <summary>补齐同目录同名的模型与工程图，并按完整路径去重。</summary>
+        public static List<string> ResolveFiles(IEnumerable<string> sources, bool autoPair, Action<string> log)
+        {
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var source in sources)
+            {
+                if (string.IsNullOrWhiteSpace(source) || !SwUtils.IsSolidWorksFile(source))
+                {
+                    continue;
+                }
+
+                var file = Path.GetFullPath(source);
+                if (seen.Add(file)) result.Add(file);
+                if (!autoPair || !File.Exists(file)) continue;
+
+                var type = SwUtils.DocTypeFromPath(file);
+                var extensions = type == SwUtils.DocDrawing
+                    ? new[] { ".sldprt", ".sldasm" } : new[] { ".slddrw" };
+                var found = false;
+                foreach (var extension in extensions)
+                {
+                    var companion = Path.ChangeExtension(file, extension);
+                    if (!File.Exists(companion)) continue;
+                    found = true;
+                    if (seen.Add(companion))
+                    {
+                        result.Add(companion);
+                        log("自动匹配：" + companion);
+                    }
+                }
+                if (!found) log("未找到同目录同名的配套" +
+                    (type == SwUtils.DocDrawing ? "模型：" : "工程图：") + file);
+            }
+            return result;
         }
 
         /// <summary>按扩展名和类型筛选出可导出的文件。</summary>

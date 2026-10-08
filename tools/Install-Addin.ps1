@@ -296,6 +296,21 @@ Remove-KeyTree -Root ([Microsoft.Win32.Registry]::CurrentUser) -SubKey "SOFTWARE
 $clsidPath = "SOFTWARE\Classes\CLSID\$($meta.Guid)"
 $ok = $true
 
+# COM can choose an older registration with a higher assembly version.
+# Remove stale version entries before registering this payload.
+$inprocKey = New-MachineKey -SubKey "$clsidPath\InprocServer32"
+if ($inprocKey) {
+    try {
+        foreach ($registeredVersion in $inprocKey.GetSubKeyNames()) {
+            if ($registeredVersion -match '^\d+\.\d+\.\d+\.\d+$' -and
+                $registeredVersion -ne $meta.Version) {
+                $inprocKey.DeleteSubKeyTree($registeredVersion, $false)
+            }
+        }
+    }
+    finally { $inprocKey.Close() }
+}
+
 $ok = (Set-MachineValue -SubKey $clsidPath -Name '' -Value $meta.ProgId) -and $ok
 $ok = (Set-MachineValue -SubKey "$clsidPath\InprocServer32" -Name '' -Value $mscoree) -and $ok
 $ok = (Set-MachineValue -SubKey "$clsidPath\InprocServer32" -Name 'ThreadingModel' -Value 'Both') -and $ok

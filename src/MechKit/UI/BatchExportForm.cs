@@ -6,6 +6,8 @@ using System.IO;
 using System.Windows.Forms;
 using MechKit.Core;
 using MechKit.Features;
+using SolidWorks.Interop.sldworks;
+using Environment = System.Environment;
 
 namespace MechKit.UI
 {
@@ -13,11 +15,16 @@ namespace MechKit.UI
     internal sealed class BatchExportForm : Form
     {
         private readonly IAddinHost _host;
-        private readonly ListBox _fileList;
+        private readonly TreeView _fileTree;
+        private readonly List<string> _files = new List<string>();
+        private bool _checkingTree;
         private readonly TextBox _outputBox;
+        private readonly TextBox _subfolderBox;
+        private string _assemblyOutputRoot;
         private readonly CheckBox _keepTree;
         private readonly CheckBox _overwrite;
         private readonly CheckBox _report;
+        private readonly CheckBox _autoPair;
         private readonly CheckedListBox _formatList;
         private readonly TextBox _logBox;
         private readonly ProgressBar _progress;
@@ -41,11 +48,14 @@ namespace MechKit.UI
         public BatchExportForm(IAddinHost host, IList<string> initialFiles)
         {
             _host = host;
-            _fileList = new ListBox();
+            _fileTree = new TreeView();
             _outputBox = Theme.CreateTextBox();
+            _subfolderBox = Theme.CreateTextBox();
+            _subfolderBox.Text = "导出图纸";
             _keepTree = new CheckBox();
             _overwrite = new CheckBox();
             _report = new CheckBox();
+            _autoPair = new CheckBox();
             _formatList = new CheckedListBox();
             _logBox = new TextBox();
             _progress = new ProgressBar();
@@ -55,8 +65,9 @@ namespace MechKit.UI
 
             BuildLayout();
             WireEvents();
-            LoadDefaults();
-            AddInitialFiles(initialFiles);
+            LoadDefaults(false);
+            if (initialFiles != null && initialFiles.Count > 0) AddInitialFiles(initialFiles);
+            else LoadCurrentAssembly();
         }
 
         private void AddInitialFiles(IList<string> files)
@@ -72,15 +83,10 @@ namespace MechKit.UI
                 {
                     continue;
                 }
-                if (_fileList.Items.Contains(file))
-                {
-                    continue;
-                }
-
-                _fileList.Items.Add(file);
+                AddFile(file);
             }
 
-            if (_fileList.Items.Count == 0)
+            if (_files.Count == 0)
             {
                 return;
             }
@@ -88,7 +94,7 @@ namespace MechKit.UI
             // 以带入文件的目录作为“保持目录结构”的相对根。
             try
             {
-                _sourceRoot = Path.GetDirectoryName((string)_fileList.Items[0]) ?? string.Empty;
+                _sourceRoot = Path.GetDirectoryName(_files[0]) ?? string.Empty;
             }
             catch
             {
@@ -96,7 +102,89 @@ namespace MechKit.UI
             }
 
             _status.Text = string.Format("已从 BOM 带入 {0} 个文件，选好格式后点“开始导出”。",
-                _fileList.Items.Count);
+                _files.Count);
+        }
+
+        private void LoadCurrentAssembly()
+        {
+            try
+            {
+                var doc = _host.SwApp == null ? null : _host.SwApp.IActiveDoc2;
+                if (doc == null)
+                {
+                    _status.Text = "请打开装配体，或添加文件 / 文件夹。";
+                    return;
+                }
+                var path = doc.GetPathName();
+                _sourceRoot = string.IsNullOrEmpty(path) ? string.Empty : Path.GetDirectoryName(path);
+                var root = new TreeNode(string.IsNullOrEmpty(path) ? doc.GetTitle() : Path.GetFileName(path))
+                { Tag = path, ToolTipText = path, Checked = false };
+                _fileTree.Nodes.Add(root);
+                if (!string.IsNullOrEmpty(path)) _files.Add(path);
+                var assembly = doc as AssemblyDoc;
+                if (assembly != null)
+                {
+                    var children = assembly.GetComponents(true) as object[];
+                    if (children != null)
+                        foreach (var child in children) AddComponentNode(root, child as Component2);
+                }
+                root.ExpandAll();
+                AppendLog("已载入当前装配体：" + (string.IsNullOrEmpty(path) ? doc.GetTitle() : path));
+                UpdateStatus();
+            }
+            catch (Exception ex)
+            {
+                AppendLog("读取当前装配体失败：" + ex.Message);
+            }
+        }
+
+        private void AddComponentNode(TreeNode parent, Component2 component)
+        {
+            if (component == null) return;
+            try
+            {
+                var path = component.GetPathName() ?? string.Empty;
+                var name = string.IsNullOrEmpty(path) ? component.Name2 : Path.GetFileName(path);
+                var reference = name.StartsWith("参考", StringComparison.OrdinalIgnoreCase);
+                var suppressed = component.IsSuppressed();
+                var node = new TreeNode(name + (reference ? "（参考，不展开）" : suppressed ? "（已压缩）" : string.Empty))
+                {
+                    Tag = path, ToolTipText = path,
+                    Checked = false,
+                    ForeColor = reference || suppressed ? Theme.Muted : Theme.Text
+                };
+                parent.Nodes.Add(node);
+                if (!string.IsNullOrEmpty(path) && !_files.Contains(path)) _files.Add(path);
+                if (reference || suppressed) return;
+                var children = component.GetChildren() as object[];
+                if (children != null)
+                    foreach (var child in children) AddComponentNode(node, child as Component2);
+            }
+            catch (Exception ex)
+            {
+                AppendLog("读取组件失败：" + ex.Message);
+            }
+        }
+
+        private static void SetChildrenChecked(TreeNode parent, bool check)
+        {
+            foreach (TreeNode child in parent.Nodes)
+            {
+                child.Checked = check;
+                SetChildrenChecked(child, check);
+            }
+        }
+
+        private static void CollectCheckedFiles(TreeNodeCollection nodes, List<string> files)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                var path = node.Tag as string;
+                if (node.Checked && !string.IsNullOrEmpty(path) && SwUtils.IsSolidWorksFile(path) &&
+                    !files.Exists(file => string.Equals(file, path, StringComparison.OrdinalIgnoreCase)))
+                    files.Add(path);
+                CollectCheckedFiles(node.Nodes, files);
+            }
         }
 
         private void BuildLayout()
@@ -133,7 +221,7 @@ namespace MechKit.UI
             title.Location = new Point(14, 9);
 
             var subtitle = Theme.CreateLabel(
-                "工程图导出 PDF / DWG / DXF，零件与装配体导出 STEP / IGES / STL",
+                "自动匹配同目录同名模型与工程图，分别导出 STP 和 PDF 到指定目录",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Location = new Point(15, 32);
 
@@ -157,15 +245,14 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
 
-            layout.Controls.Add(Theme.CreateLabel("待导出文件", Theme.BodyBold, Theme.Text), 0, 0);
+            layout.Controls.Add(Theme.CreateLabel("当前装配体 / 待导出文件（勾选导出）", Theme.BodyBold, Theme.Text), 0, 0);
 
-            _fileList.Dock = DockStyle.Fill;
-            _fileList.Font = Theme.Body;
-            _fileList.SelectionMode = SelectionMode.MultiExtended;
-            _fileList.IntegralHeight = false;
-            _fileList.HorizontalScrollbar = true;
-            _fileList.BorderStyle = BorderStyle.FixedSingle;
-            layout.Controls.Add(_fileList, 0, 1);
+            _fileTree.Dock = DockStyle.Fill;
+            _fileTree.Font = Theme.Body;
+            _fileTree.CheckBoxes = true;
+            _fileTree.ShowNodeToolTips = true;
+            _fileTree.BorderStyle = BorderStyle.FixedSingle;
+            layout.Controls.Add(_fileTree, 0, 1);
 
             var buttons = new TableLayoutPanel
             {
@@ -192,7 +279,8 @@ namespace MechKit.UI
             addFolder.Click += OnAddFolder;
             clear.Click += delegate
             {
-                _fileList.Items.Clear();
+                _files.Clear();
+                _fileTree.Nodes.Clear();
                 _sourceRoot = string.Empty;
                 UpdateStatus();
             };
@@ -218,8 +306,8 @@ namespace MechKit.UI
                 BackColor = Theme.Surface
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 104f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f));
@@ -232,11 +320,13 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 1,
+                RowCount = 2,
                 BackColor = Theme.Surface
             };
             outputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             outputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80f));
+            outputRow.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
+            outputRow.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
 
             _outputBox.Dock = DockStyle.Fill;
             _outputBox.Margin = new Padding(0, 3, 4, 3);
@@ -247,12 +337,34 @@ namespace MechKit.UI
 
             outputRow.Controls.Add(_outputBox, 0, 0);
             outputRow.Controls.Add(browse, 1, 0);
+            var assemblyOutputRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            assemblyOutputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72f));
+            assemblyOutputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            assemblyOutputRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180f));
+            var folderLabel = Theme.CreateValueLabel("子文件夹");
+            folderLabel.Dock = DockStyle.Fill;
+            _subfolderBox.Dock = DockStyle.Fill;
+            var assemblyOutput = Theme.CreateSecondaryButton("在装配体目录下创建");
+            assemblyOutput.Dock = DockStyle.Fill;
+            assemblyOutput.Click += OnUseAssemblyOutput;
+            assemblyOutputRow.Controls.Add(folderLabel, 0, 0);
+            assemblyOutputRow.Controls.Add(_subfolderBox, 1, 0);
+            assemblyOutputRow.Controls.Add(assemblyOutput, 2, 0);
+            outputRow.Controls.Add(assemblyOutputRow, 0, 1);
+            outputRow.SetColumnSpan(assemblyOutputRow, 2);
+            _subfolderBox.TextChanged += delegate
+            {
+                if (string.IsNullOrEmpty(_assemblyOutputRoot)) return;
+                try { _outputBox.Text = AssemblyOutputPath(_assemblyOutputRoot, _subfolderBox.Text); }
+                catch (ArgumentException) { _outputBox.Text = string.Empty; }
+            };
             layout.Controls.Add(outputRow, 0, 1);
 
             _keepTree.Text = "保持与源文件相同的目录结构";
             _overwrite.Text = "覆盖已存在的同名文件";
             _report.Text = "导出完成后生成 CSV 报告";
-            foreach (var box in new[] { _keepTree, _overwrite, _report })
+            _autoPair.Text = "自动补齐同目录同名的模型 / 工程图";
+            foreach (var box in new[] { _autoPair, _keepTree, _overwrite, _report })
             {
                 box.Font = Theme.Body;
                 box.ForeColor = Theme.Text;
@@ -267,6 +379,7 @@ namespace MechKit.UI
                 WrapContents = false,
                 BackColor = Theme.Surface
             };
+            options.Controls.Add(_autoPair);
             options.Controls.Add(_keepTree);
             options.Controls.Add(_overwrite);
             options.Controls.Add(_report);
@@ -285,7 +398,7 @@ namespace MechKit.UI
 
             layout.Controls.Add(_formatList, 0, 4);
 
-            var hint = Theme.CreateLabel("提示：DWG / DXF 仅适用于工程图，STEP / IGES / STL 仅适用于模型。",
+            var hint = Theme.CreateLabel("PDF / DWG / DXF 适用于工程图，STP / IGES / STL 适用于模型。",
                 Theme.Small, Theme.Muted);
             hint.Dock = DockStyle.Fill;
             layout.Controls.Add(hint, 0, 5);
@@ -375,28 +488,39 @@ namespace MechKit.UI
             _startButton.Click += delegate { StartExport(); };
             _cancelButton.Click += OnCancelClick;
             FormClosing += OnFormClosing;
+            _fileTree.AfterCheck += delegate(object sender, TreeViewEventArgs e)
+            {
+                if (_checkingTree) return;
+                _checkingTree = true;
+                try { SetChildrenChecked(e.Node, e.Node.Checked); }
+                finally { _checkingTree = false; }
+                UpdateStatus();
+            };
         }
 
-        private void LoadDefaults()
+        private void LoadDefaults(bool loadSourceFolder)
         {
             var settings = _host.Settings;
             _outputBox.Text = settings.OutputFolder;
             _keepTree.Checked = settings.ExportKeepTree;
             _overwrite.Checked = true;
             _report.Checked = true;
+            _autoPair.Checked = true;
 
             var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in (settings.ExportFormats ?? string.Empty).Split(','))
             {
                 if (!string.IsNullOrEmpty(item))
                 {
-                    selected.Add(item.Trim());
+                    var format = ExportFormats.Find(item.Trim());
+                    if (format != null) selected.Add(format.Extension);
                 }
             }
 
-            if (selected.Count == 0)
+            if (selected.Count == 0 || (selected.Count == 1 && selected.Contains(".pdf")))
             {
                 selected.Add(".pdf");
+                selected.Add(".stp");
             }
 
             for (var i = 0; i < _formatList.Items.Count; i++)
@@ -406,7 +530,7 @@ namespace MechKit.UI
             }
 
             var folder = settings.SourceFolder;
-            if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+            if (loadSourceFolder && !string.IsNullOrEmpty(folder) && Directory.Exists(folder))
             {
                 AddFolder(folder, settings.ExportRecursive);
             }
@@ -476,20 +600,24 @@ namespace MechKit.UI
 
         private void AddFile(string file)
         {
-            if (!SwUtils.IsSolidWorksFile(file))
+            foreach (var resolved in ExportService.ResolveFiles(new[] { file }, _autoPair.Checked, AppendLog))
             {
-                return;
-            }
-
-            foreach (var existing in _fileList.Items)
-            {
-                if (string.Equals((string)existing, file, StringComparison.OrdinalIgnoreCase))
+                var exists = false;
+                foreach (var existing in _files)
                 {
-                    return;
+                    if (string.Equals((string)existing, resolved, StringComparison.OrdinalIgnoreCase))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists)
+                {
+                    _files.Add(resolved);
+                    _fileTree.Nodes.Add(new TreeNode(Path.GetFileName(resolved))
+                    { Tag = resolved, ToolTipText = resolved, Checked = true });
                 }
             }
-
-            _fileList.Items.Add(file);
         }
 
         private void OnBrowseOutput(object sender, EventArgs e)
@@ -507,6 +635,37 @@ namespace MechKit.UI
                 {
                     _outputBox.Text = dialog.SelectedPath;
                 }
+            }
+        }
+
+        private static string AssemblyOutputPath(string root, string name)
+        {
+            name = (name ?? string.Empty).Trim();
+            if (name.Length == 0 || name == "." || name == ".." ||
+                name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.EndsWith("."))
+                throw new ArgumentException("请输入有效的子文件夹名称，不能包含路径分隔符。");
+            return Path.Combine(root, name);
+        }
+
+        private void OnUseAssemblyOutput(object sender, EventArgs e)
+        {
+            try
+            {
+                var doc = _host.SwApp == null ? null : _host.SwApp.IActiveDoc2;
+                if (doc == null || !(doc is AssemblyDoc) || string.IsNullOrEmpty(doc.GetPathName()))
+                    throw new InvalidOperationException("请先打开并保存当前装配体。");
+                var root = Path.GetDirectoryName(doc.GetPathName());
+                var output = AssemblyOutputPath(root, _subfolderBox.Text);
+                Directory.CreateDirectory(output);
+                _assemblyOutputRoot = root;
+                _outputBox.Text = output;
+                _sourceRoot = root;
+                AppendLog("输出子文件夹：" + output);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -535,10 +694,7 @@ namespace MechKit.UI
         private void StartExport()
         {
             var files = new List<string>();
-            foreach (var item in _fileList.Items)
-            {
-                files.Add((string)item);
-            }
+            CollectCheckedFiles(_fileTree.Nodes, files);
 
             if (files.Count == 0)
             {
@@ -574,12 +730,14 @@ namespace MechKit.UI
                 OutputFolder = output,
                 KeepTree = _keepTree.Checked,
                 Overwrite = _overwrite.Checked,
-                CreateReport = _report.Checked
+                CreateReport = _report.Checked,
+                AutoPair = _autoPair.Checked
             };
             options.Files.AddRange(files);
             options.Formats.AddRange(formats);
 
             _running = true;
+            SetOptionsEnabled(false);
             _cancelRequested = false;
             _startButton.Enabled = false;
             _cancelButton.Text = "取消";
@@ -593,7 +751,11 @@ namespace MechKit.UI
             {
                 var report = ExportService.Run(_host.SwApp, options, AppendLog,
                     () => _cancelRequested,
-                    (current, total) => _progress.Value = Math.Min(current, _progress.Maximum));
+                    (current, total) =>
+                    {
+                        _progress.Maximum = Math.Max(1, total);
+                        _progress.Value = Math.Min(current, _progress.Maximum);
+                    });
 
                 AppendLog(report.Summary());
                 _status.Text = report.Summary();
@@ -621,6 +783,7 @@ namespace MechKit.UI
             finally
             {
                 _running = false;
+                SetOptionsEnabled(true);
                 _startButton.Enabled = true;
                 _cancelButton.Text = "关闭";
             }
@@ -643,9 +806,19 @@ namespace MechKit.UI
             settings.Save();
         }
 
+        private void SetOptionsEnabled(bool enabled)
+        {
+            foreach (Control control in Controls)
+            {
+                if (control.Dock == DockStyle.Fill) control.Enabled = enabled;
+            }
+        }
+
         private void UpdateStatus()
         {
-            _status.Text = ExportService.DescribeCount(_fileList.Items.Count);
+            var files = new List<string>();
+            CollectCheckedFiles(_fileTree.Nodes, files);
+            _status.Text = string.Format("已勾选 {0} 个文件（配套工程图自动补齐）", files.Count);
         }
 
         private void AppendLog(string message)

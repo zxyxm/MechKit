@@ -12,6 +12,65 @@ namespace MechKit.UI
     /// </summary>
     internal static class WindowLayout
     {
+        private static readonly System.Collections.Generic.List<Form> ShortcutForms =
+            new System.Collections.Generic.List<Form>();
+        private delegate IntPtr KeyboardProc(int code, IntPtr key, IntPtr flags);
+        private static readonly KeyboardProc KeyboardCallback = OnKeyboard;
+        private static IntPtr _keyboardHook;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr SetWindowsHookEx(int hook, KeyboardProc callback, IntPtr module, uint thread);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool UnhookWindowsHookEx(IntPtr hook);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr key, IntPtr flags);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern short GetKeyState(int key);
+
+        private static IntPtr OnKeyboard(int code, IntPtr key, IntPtr flags)
+        {
+            // Thread-local hook also sees keys while SOLIDWORKS owns focus.
+            // Ignore releases, autorepeat and modified keys such as Alt+Tab.
+            if (code == 0 && (flags.ToInt64() & 0xC0000000L) == 0 &&
+                GetKeyState((int)Keys.ControlKey) >= 0 &&
+                GetKeyState((int)Keys.Menu) >= 0 && GetKeyState((int)Keys.ShiftKey) >= 0)
+            {
+                try
+                {
+                    if (HandleWindowShortcut((Keys)key.ToInt32())) return new IntPtr(1);
+                }
+                catch (Exception ex) { Log.Warn("窗口快捷键失败：" + ex.Message); }
+            }
+            return CallNextHookEx(_keyboardHook, code, key, flags);
+        }
+
+        private static bool HandleWindowShortcut(Keys key)
+        {
+            if (key != Keys.Tab && key != Keys.Escape) return false;
+            Form target = null;
+            for (var i = ShortcutForms.Count - 1; i >= 0; i--)
+            {
+                var form = ShortcutForms[i];
+                if (form.IsDisposed || !form.Visible || !form.Enabled) continue;
+                if (form.ContainsFocus) { target = form; break; }
+                if (target == null && key == Keys.Tab) target = form;
+            }
+            // Do not steal keys from a modal file picker or another dialog.
+            if (Form.ActiveForm != null && !ShortcutForms.Contains(Form.ActiveForm)) return false;
+            if (target == null) return false;
+            if (key == Keys.Escape) target.Close();
+            else
+            {
+                if (target.WindowState == FormWindowState.Minimized)
+                    target.WindowState = FormWindowState.Normal;
+                target.TopMost = true;
+                target.BringToFront();
+                target.Activate();
+            }
+            return true;
+        }
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
@@ -188,6 +247,7 @@ namespace MechKit.UI
                     {
                         if (!form.IsDisposed && form.Visible)
                         {
+                            form.TopMost = false;
                             form.SendToBack();
                         }
                     }));
@@ -202,6 +262,24 @@ namespace MechKit.UI
         /// <summary>按 ESC 关闭窗口。KeyPreview 让窗体先拿到按键，单元格/文本框聚焦时也生效。</summary>
         public static void EnableEscapeToClose(Form form)
         {
+            if (ShortcutForms.Contains(form)) return;
+            ShortcutForms.Add(form);
+            if (_keyboardHook == IntPtr.Zero)
+                _keyboardHook = SetWindowsHookEx(2, KeyboardCallback, IntPtr.Zero, GetCurrentThreadId());
+            form.Activated += delegate
+            {
+                ShortcutForms.Remove(form);
+                ShortcutForms.Add(form);
+            };
+            form.FormClosed += delegate
+            {
+                ShortcutForms.Remove(form);
+                if (ShortcutForms.Count == 0 && _keyboardHook != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(_keyboardHook);
+                    _keyboardHook = IntPtr.Zero;
+                }
+            };
             form.KeyPreview = true;
             form.KeyDown += delegate(object sender, KeyEventArgs e)
             {

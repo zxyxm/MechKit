@@ -413,7 +413,7 @@ $sizes = @(20, 32, 40, 64, 96, 128)
 #   1 格空白  —— 给命令组里的分隔线（spacer）占位
 #   12 格标签牌 —— 给「常用前缀」按钮（电机 / 电气 / 淘宝 / 气动 …）
 $prefixCellCount = 12
-$commandCount = $commandNames.Count + 1 + $prefixCellCount
+$commandCount = $commandNames.Count + 1 + $prefixCellCount + 3
 
 foreach ($size in $sizes) {
     $strip = New-Object System.Drawing.Bitmap(($size * $commandCount), $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -445,6 +445,13 @@ foreach ($size in $sizes) {
                     # 分隔线占位：保持透明
                 }
                 else {
+                    if ($i -ge 22) {
+                        $groupColors = @(
+                            [System.Drawing.Color]::FromArgb(255, 246, 210),
+                            [System.Drawing.Color]::FromArgb(224, 240, 255),
+                            [System.Drawing.Color]::FromArgb(226, 246, 226))
+                        $cellGraphics.Clear($groupColors[$i - 22])
+                    }
                     Draw-TagIcon $cellGraphics $size
                 }
             }
