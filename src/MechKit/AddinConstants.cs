@@ -75,6 +75,9 @@ namespace MechKit
 
         /// <summary>把选中组件命名为“参考-原名称”，并归为参考件。</summary>
         public const int CmdReferencePart = 3006;
+        public const int CmdStockPart = 3007;
+        public const int CmdSparePart = 3008;
+        public const int CmdExternalDrawing = 3009;
 
         /// <summary>命令项的用户 ID（存入注册表用于刷新命令组）。</summary>
         public const int CmdGenerateBom = 1;
@@ -82,7 +85,11 @@ namespace MechKit
         public const int CmdPartNamingRule = 3;
         public const int CmdStandardPrefix = 4;
         public const int CmdBatchExport = 5;
-        public const int CmdQuickAnnotation = 12;
+        public const int CmdQuickAnnotation = 14;
+        // SOLIDWORKS 2024 swCommands_e 原生命令 ID，保留原生图标和操作方式。
+        public const int NativeSmartDimension = 38;
+        public const int NativeHoleCallout = 121;
+        public const int NativeDowelPinSymbol = 369;
         // 6 曾用于“属性工具”，保留空号，避免旧版 SOLIDWORKS 命令映射串位。
         public const int CmdTaskPane = 7;
         // 8 曾用于“个人配置”；新“设置”使用新 ID，强制 SOLIDWORKS 刷新旧按钮文字与布局。
@@ -93,7 +100,7 @@ namespace MechKit
 
         public static readonly int[] CommandIds =
         {
-            CmdGenerateBom, CmdPartList, CmdPartNamingRule, CmdStandardPrefix, CmdReferencePart,
+            CmdGenerateBom, CmdPartList, CmdPartNamingRule, CmdStandardPrefix, CmdReferencePart, CmdStockPart, CmdSparePart, CmdExternalDrawing,
             CmdBatchExport, CmdQuickAnnotation, CmdTaskPane, CmdExportConfiguration, CmdSettings, CmdAbout
         };
 

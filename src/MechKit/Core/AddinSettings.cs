@@ -33,6 +33,10 @@ namespace MechKit.Core
             }
         }
 
+        public string ToleranceCells { get { return Get("ToleranceCells", string.Empty); } set { Set("ToleranceCells", value); } }
+        public string DimensionPrefixCells { get { return Get("DimensionPrefixCells", string.Empty); } set { Set("DimensionPrefixCells", value); } }
+        public string DimensionSuffixCells { get { return Get("DimensionSuffixCells", string.Empty); } set { Set("DimensionSuffixCells", value); } }
+
         public string SourceFolder
         {
             get { return Get("SourceFolder", string.Empty); }
@@ -257,6 +261,24 @@ namespace MechKit.Core
         {
             get { return Get("BomPrefixes", "淘宝 代理 淘宝追加工"); }
             set { Set("BomPrefixes", value); }
+        }
+
+        public string StockPrefixes
+        {
+            get { return Get("StockPrefixes", "库存"); }
+            set { Set("StockPrefixes", value); }
+        }
+
+        public string SparePrefixes
+        {
+            get { return Get("SparePrefixes", "备件"); }
+            set { Set("SparePrefixes", value); }
+        }
+
+        public string ExternalDrawingPrefixes
+        {
+            get { return Get("ExternalDrawingPrefixes", "外部图纸"); }
+            set { Set("ExternalDrawingPrefixes", value); }
         }
 
         /// <summary>标准件前缀说明，使用 URI 转义的 key=value|key=value 格式保存。</summary>

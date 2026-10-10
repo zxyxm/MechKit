@@ -1,4 +1,4 @@
-{
+﻿{
   "layout": "date,name,material,serial,custom",
   "labels": "||||安装说明",
   "flags": "0|1|0|1|1",
@@ -28,24 +28,147 @@
   "expectedFirstColumn": "name",
   "expectedFirstHeader": "零件名称测试",
   "subassemblyScope": [
-    { "name": "20260425_装配-水箱总装", "expect": "Expand" },
-    { "name": "20260425-装配-测试组件", "expect": "Expand" },
-    { "name": "20260919-6061-安装板", "expect": "Expand" },
-    { "name": "淘宝-气动-TN20X20S(0)+()", "expect": "TreatAsStandard" },
-    { "name": "淘宝-五金-弹性管夹5", "expect": "TreatAsStandard" },
-    { "name": "代理-直线导轨-盖板", "expect": "TreatAsStandard" },
-    { "name": "淘宝追加工-机架总成", "expect": "TreatAsStandard" },
-    { "name": "P80-02-01-01-0治疗通道组件", "expect": "Ignore" },
-    { "name": "气密性二代", "expect": "Ignore" },
-    { "name": "参考-测试治具", "expect": "Ignore" }
+    {
+      "name": "20260425_装配-水箱总装",
+      "expect": "Expand"
+    },
+    {
+      "name": "20260425-装配-测试组件",
+      "expect": "Expand"
+    },
+    {
+      "name": "20260919-安装板-6061",
+      "expect": "TreatAsMachined"
+    },
+    {
+      "name": "淘宝-气动-TN20X20S(0)+()",
+      "expect": "TreatAsStandard"
+    },
+    {
+      "name": "淘宝-五金-弹性管夹5",
+      "expect": "TreatAsStandard"
+    },
+    {
+      "name": "代理-直线导轨-盖板",
+      "expect": "TreatAsStandard"
+    },
+    {
+      "name": "淘宝追加工-机架总成",
+      "expect": "TreatAsStandard"
+    },
+    {
+      "name": "P80-02-01-01-0治疗通道组件",
+      "expect": "TreatAsUnmatched"
+    },
+    {
+      "name": "气密性二代",
+      "expect": "TreatAsUnmatched"
+    },
+    {
+      "name": "参考-测试治具",
+      "expect": "Ignore"
+    },
+    {
+      "name": "20261010-组件-机架分组",
+      "expect": "Expand"
+    },
+    {
+      "name": "20261010-未定义",
+      "expect": "TreatAsUnmatched"
+    },
+    {
+      "name": "参考模型",
+      "expect": "Ignore"
+    },
+    {
+      "name": "20261010-装配-机架",
+      "expect": "Expand"
+    },
+    {
+      "name": "20261010-板--A",
+      "expect": "TreatAsUnmatched"
+    },
+    {
+      "name": "电机-伺服-MG996",
+      "expect": "TreatAsUnmatched"
+    },
+    {
+      "name": "库存-电机总成",
+      "expect": "TreatAsStock"
+    },
+    {
+      "name": "备件-夹具总成",
+      "expect": "TreatAsSpare"
+    },
+    {
+      "name": "20261011-焊接-机架",
+      "expect": "TreatAsMachined"
+    },
+    {
+      "name": "20261011_焊接_机架",
+      "expect": "TreatAsMachined"
+    },
+    {
+      "name": "20261011-焊接",
+      "expect": "TreatAsMachined"
+    }
   ],
   "rowDisposition": [
-    { "name": "20260919-6061-密封水槽", "expect": "Matched" },
-    { "name": "淘宝-电气-430a", "expect": "Matched" },
-    { "name": "代理-直线导轨-盖板", "expect": "Matched" },
-    { "name": "参考-测试治具", "expect": "Reference" },
-    { "name": "P80-02-01-01-0治疗通道组件", "expect": "Unmatched" },
-    { "name": "气密性二代", "expect": "Unmatched" },
-    { "name": "GPR20006L", "expect": "Unmatched" }
+    {
+      "name": "20260919-密封水槽-6061",
+      "expect": "Matched"
+    },
+    {
+      "name": "淘宝-电气-430a",
+      "expect": "Matched"
+    },
+    {
+      "name": "代理-直线导轨-盖板",
+      "expect": "Matched"
+    },
+    {
+      "name": "参考-测试治具",
+      "expect": "Reference"
+    },
+    {
+      "name": "P80-02-01-01-0治疗通道组件",
+      "expect": "Unmatched"
+    },
+    {
+      "name": "气密性二代",
+      "expect": "Unmatched"
+    },
+    {
+      "name": "GPR20006L",
+      "expect": "Unmatched"
+    },
+    {
+      "name": "20261010-装配-机架",
+      "expect": "Unmatched"
+    },
+    {
+      "name": "20261010-组件-机架",
+      "expect": "Unmatched"
+    },
+    {
+      "name": "20261010-板--A",
+      "expect": "Unmatched"
+    },
+    {
+      "name": "参考模型",
+      "expect": "Reference"
+    },
+    {
+      "name": "库存-安装板",
+      "expect": "Matched"
+    },
+    {
+      "name": "备件-密封圈",
+      "expect": "Matched"
+    },
+    {
+      "name": "20261011-焊接",
+      "expect": "Matched"
+    }
   ]
 }

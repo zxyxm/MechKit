@@ -164,6 +164,10 @@ namespace MechKit.Harness
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
                 new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6),
+                new CommandSpec("智能尺寸", "智能\r\n尺寸", 60, 2),
+                new CommandSpec("公差助手", "公差\r\n助手", 60, 7),
+                new CommandSpec("孔标注", "孔标注", 60, 2),
+                new CommandSpec("销钉符号", "销钉\r\n符号", 60, 10),
                 new CommandSpec("导出配置", "导出\r\n配置", 52, 4),
                 new CommandSpec("设置", "设置", 45, 7)
             };
@@ -288,6 +292,12 @@ namespace MechKit.Harness
             AddCommandButton(host, reference, new Point(x, 0),
                 new Size(reference.Width, 117), false);
             x += reference.Width;
+            foreach (var category in new[] { "库存件", "备件", "外部图纸" })
+            {
+                var command = new CommandSpec(category, category, 62, 10);
+                AddCommandButton(host, command, new Point(x, 0), new Size(command.Width, 117), false);
+                x += command.Width;
+            }
 
             foreach (var command in trailing)
             {

@@ -1,7 +1,7 @@
 {
-    "version":  "0.21.0.0",
+    "version":  "0.31.9.0",
     "level":  "none",
-    "generatedAt":  "2026-09-20T01:38:56.7557192+08:00",
+    "generatedAt":  "2026-10-11T01:28:20.3065259+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -9,33 +9,27 @@
                       },
     "files":  [
                   {
-                      "path":  "VERSIONING.md",
-                      "hash":  "A181DC88616B8B5153A74B66FB8EBD1AAFAD7A4DD84F88CFE9113600D7920111",
-                      "bytes":  845,
-                      "lines":  23
+                      "path":  "src/MechKit/UI/CategoryRulesPanel.cs",
+                      "hash":  "72F15E835FCB01E06C8F76DB5A011A8FBD107BD1E277115D17159A3808083814",
+                      "bytes":  9149,
+                      "lines":  187
                   },
                   {
-                      "path":  "tools/Test-BomIntegration.ps1",
-                      "hash":  "9910AD36F8C543E23E06C1CF099E3F27B1952C31307D918A8D484EFD6424F069",
-                      "bytes":  8960,
-                      "lines":  201
+                      "path":  "tools/Test-DesignTreeLayout.ps1",
+                      "hash":  "B370F8B25210003E38945A1EDB28FF938AF1A779861CBAD1434F209C605B5C73",
+                      "bytes":  14181,
+                      "lines":  199
                   },
                   {
-                      "path":  "tools/Update-Version.ps1",
-                      "hash":  "01DFECCCDB2ADC02928D13CACAFE506184E54BAC9009F9EBB021C7292E1893AB",
-                      "bytes":  7387,
-                      "lines":  168
-                  },
-                  {
-                      "path":  "tools/testdata/bom-integration.json",
-                      "hash":  "19A3D994401672E04A237C4E01FEBD9EF4DA5E63B2408845325766AE1E01A1CD",
-                      "bytes":  2176,
-                      "lines":  51
+                      "path":  "tools/Test-DrawingToleranceLive.ps1",
+                      "hash":  "104EB8582E79ED5E7D311126B581A20CDC57A2B7FD8A7A2A6DF2A5A21E3E65DC",
+                      "bytes":  3520,
+                      "lines":  47
                   },
                   {
                       "path":  ".gitignore",
-                      "hash":  "D170F1F358C86967F2B1E113A6473DE247775F53FDA2889934F9F59371D3D111",
-                      "bytes":  79,
+                      "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
+                      "bytes":  89,
                       "lines":  0
                   },
                   {
@@ -46,201 +40,213 @@
                   },
                   {
                       "path":  "README.md",
-                      "hash":  "E48CDB006B34CB3D416D15F646E65A57D44A633C8A6BCE6862521E555178A0CC",
-                      "bytes":  22372,
-                      "lines":  332
+                      "hash":  "F7A1F18BB3BFACCA4A1F2803203DA55DB42B59AC8C167BCA36CDB1705C5A6715",
+                      "bytes":  26874,
+                      "lines":  354
+                  },
+                  {
+                      "path":  "VERSIONING.md",
+                      "hash":  "B68727C49F66E1025C443A0C59960E74258FACCB129A2AEAFCB50009D0585D34",
+                      "bytes":  868,
+                      "lines":  23
                   },
                   {
                       "path":  "block-solidworks-network.ps1",
-                      "hash":  "44D7A83C151C2471C62A93D2399039B901854B5C35E0D52029E7B2DC71E27DFE",
-                      "bytes":  4850,
+                      "hash":  "423B1F87EFFD7237829968901BE6F64984208084C9AF769772C5D8E71E0AE341",
+                      "bytes":  4969,
                       "lines":  119
                   },
                   {
                       "path":  "build-dist.ps1",
-                      "hash":  "7AC086BA1E66F09011A953D3F430B452F7621E9324619165920AB28E00C04F2E",
-                      "bytes":  9946,
+                      "hash":  "B654D6842BFB82549E61FE3E5744779F801B6134EE2CB1E4EB5F1FD95DE8A48D",
+                      "bytes":  10181,
                       "lines":  235
                   },
                   {
                       "path":  "build.ps1",
-                      "hash":  "4D322D209A4ABC3FEE2D2AE883740EABAB4B04091DBA316C449E21B747E7D372",
-                      "bytes":  5838,
+                      "hash":  "BB40FEB24D3DD4DF047C65366E4E7E34560707D7F2F63D4714D326CCEE662BE4",
+                      "bytes":  6021,
                       "lines":  183
                   },
                   {
                       "path":  "installer/MechKitSetup/AddinRegistrar.cs",
-                      "hash":  "B9B410EF4550B33D50AB5B3354D0191D8A0C11930E466F473CE438F1E8DEEBE8",
-                      "bytes":  13969,
+                      "hash":  "8E95FD6DCA8A121ACE66947EF302DB07056EF230B6456232E59E42F25225AE87",
+                      "bytes":  14313,
                       "lines":  344
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "2B8D4783A27D36ED3FFD02C777182C846BFECC8B0AEBD9177967330E59B84AB3",
-                      "bytes":  1037,
+                      "hash":  "2C25A561FB490FB456A5B6DF6491A9862D19BFB7474DA6F976C674558A22D007",
+                      "bytes":  1062,
                       "lines":  25
                   },
                   {
                       "path":  "installer/MechKitSetup/Program.cs",
-                      "hash":  "5974047C231B5CCFD6828E0FFF6204F552FC9AD12C5125D4B731F6DC1C28B3B7",
-                      "bytes":  5535,
+                      "hash":  "C065BCD3D6CF8BA733A37EDF92FE550C6B08B851E1454B7C1E69A1873A2A8835",
+                      "bytes":  5692,
                       "lines":  157
                   },
                   {
                       "path":  "installer/MechKitSetup/SetupForm.cs",
-                      "hash":  "E74AEE67C94CB4C93AA571475486A13DCA669E891F66006DC80749925E7ABF9E",
-                      "bytes":  12248,
+                      "hash":  "A76744B9E44F76F9527C0F84DFBB2EA8409989DC1C644143DF34ADFEBCBE72BB",
+                      "bytes":  12577,
                       "lines":  329
                   },
                   {
                       "path":  "installer/MechKitSetup/app.manifest",
-                      "hash":  "5D6ADCF044780DF7F37521A25A18F625801DE4B4D7CCB4CA55C7F34347764D2B",
-                      "bytes":  761,
+                      "hash":  "EF9FD6306BC48893E0A676E94BDE0302503935A371DC19E7AF24B0AB7E514A8C",
+                      "bytes":  780,
                       "lines":  0
                   },
                   {
                       "path":  "installer/dist-manifest.json",
-                      "hash":  "02904B309FFF4B08D1649F234131F27BD2B636E46BD9385B987E994867599396",
-                      "bytes":  431,
+                      "hash":  "B52E01CF2CE7ACDBBDFA9683A72C0E026E433C00D806359B110D36A691279217",
+                      "bytes":  444,
                       "lines":  13
                   },
                   {
                       "path":  "installer/dist/config-template.ini",
-                      "hash":  "5C51AEFF89C247D97B903F32973100EA1B595FFFEB78A51B95449700FAB15C1A",
-                      "bytes":  332,
+                      "hash":  "25049736FD9994D876A9B083646925E961ED897C898729BA13D38D52C6E1D414",
+                      "bytes":  338,
                       "lines":  6
                   },
                   {
                       "path":  "installer/dist/package-readme-template.txt",
-                      "hash":  "64FDA2AD6BB8EEF8BC141C56BFA009A14C038A2A0FDD61994A3C508DFC299CBA",
-                      "bytes":  4022,
+                      "hash":  "6C005422863B37B0362D8E2C9237B008BC05AF90FD796922BD2ECDD5326BFEFE",
+                      "bytes":  4109,
                       "lines":  87
                   },
                   {
                       "path":  "installer/dist/readme-template.txt",
-                      "hash":  "2E53B39115EEA32EBFAA838588AD9F7A96EFAD8DCFBC759598AAC654D2818E69",
-                      "bytes":  5122,
+                      "hash":  "73414A2D7B5CED247A74854B9534530C3DFF555F98D2CE3029F6F6B6DD13899F",
+                      "bytes":  5217,
                       "lines":  95
                   },
                   {
                       "path":  "src/MechKit/AddinConstants.cs",
-                      "hash":  "476CF458393D6393B941163DD1F3800E79D8B052885EF31BB67851438B3873BD",
-                      "bytes":  5226,
-                      "lines":  102
+                      "hash":  "D9ADC6202A075F3FAC386E32F043CB81C0BD55E328A38E2830318284D5405AB1",
+                      "bytes":  5752,
+                      "lines":  110
                   },
                   {
                       "path":  "src/MechKit/Core/AddinSettings.cs",
-                      "hash":  "53CA01CEEDE37EB4EDC594DE3E0FBDB39A5EC4C92FE4CBD8ABA955E3B726D10A",
-                      "bytes":  42122,
-                      "lines":  1031
+                      "hash":  "4C0427BAD47D127058FE38C53EA84CCC76556B9920DCBBCDB2E8CE0932ABB082",
+                      "bytes":  43048,
+                      "lines":  1053
                   },
                   {
                       "path":  "src/MechKit/Core/AppPaths.cs",
-                      "hash":  "D61B43310F06971B2F4AF48BE4BFEC1C203B51E74318FA4523D992C6130914FD",
-                      "bytes":  936,
+                      "hash":  "BFD5D520341DE69A5A63A676276FC0AC5C54DFF4068EE2707307EB3BA7794A75",
+                      "bytes":  971,
                       "lines":  35
                   },
                   {
                       "path":  "src/MechKit/Core/IconResources.cs",
-                      "hash":  "BEB08F1CD544A19DF9CBA15F3F9C901CB8E77C2E191F4A4ACE2B694567C57CDB",
-                      "bytes":  3842,
+                      "hash":  "89A3125B30C81DF8B293A6DCE3DA93A1A02440BBEB99A6E886690D8D5D253361",
+                      "bytes":  3960,
                       "lines":  118
                   },
                   {
                       "path":  "src/MechKit/Core/Log.cs",
-                      "hash":  "94DA1A83DBB6D659ECF8686C9633148215D3F870E756D08A5283F8370038E699",
-                      "bytes":  2147,
+                      "hash":  "0E1B5F6C4D932C9EEA554412842C7B0E8E2760C36236F79EB3593D0055DDA1B9",
+                      "bytes":  2229,
                       "lines":  82
                   },
                   {
                       "path":  "src/MechKit/Core/NamingOptionsFactory.cs",
-                      "hash":  "5F3BDC2E478658AFC33B0EABFE772C7FCD214050F1E437429F38DA9D6AAB6DB1",
-                      "bytes":  16200,
-                      "lines":  423
+                      "hash":  "E858FE64C15CB3273E399432FD597BA6B0A5017CC51C3C7AE38E9C36A2FC5EF8",
+                      "bytes":  16995,
+                      "lines":  426
                   },
                   {
                       "path":  "src/MechKit/Core/PartNaming.cs",
-                      "hash":  "5E8F08C6A49AA04AE9A0FB97E1DB2CD8C223176F38F5EB129EC6194697707226",
-                      "bytes":  35975,
-                      "lines":  982
+                      "hash":  "77E4B3521E086C92C075074E63A5C43C30D9646890D464E1BE39D96B368A1760",
+                      "bytes":  38163,
+                      "lines":  1006
                   },
                   {
                       "path":  "src/MechKit/Core/SettingsTransfer.cs",
-                      "hash":  "CA37013774123387862D3BBD52B91E1DBCB95A86D0D0B949396FF92529CA07E9",
-                      "bytes":  7625,
+                      "hash":  "3B8FDE9FC0F4E5AD815ECC31671A30153502C17E43828E98FA1A8893B68455B3",
+                      "bytes":  7843,
                       "lines":  218
                   },
                   {
                       "path":  "src/MechKit/Core/SwFolders.cs",
-                      "hash":  "887193BA07FDFC18247B7D1C2FE0EE1E616813CC955085F3ED0D0212599676D4",
-                      "bytes":  5367,
+                      "hash":  "3579198BE56BD7A07B9DE67CEBA58BEBCF1350EE8E4A68BA9CC23A2B28B34DED",
+                      "bytes":  5516,
                       "lines":  149
                   },
                   {
                       "path":  "src/MechKit/Core/SwUtils.cs",
-                      "hash":  "AE48EF192176E86442AD128167B2CBEC2CF3E64AF474810E062EB3ACADAAD99A",
-                      "bytes":  4374,
+                      "hash":  "B098F059304CBA474CAB2BBBAD007997E05A61D2384D86D2FBA9495DA5E66878",
+                      "bytes":  4528,
                       "lines":  154
                   },
                   {
                       "path":  "src/MechKit/Core/SwWindow.cs",
-                      "hash":  "B59C4359F5B6DC2CFB0D466AD94C78BC8FD9A1C0B3F4C1F99345554B0A2E121C",
-                      "bytes":  444,
+                      "hash":  "54DF8927BE17ED6C95C325389F2FD1C9422EB923125D7B99792245E9C5E7143A",
+                      "bytes":  465,
                       "lines":  21
                   },
                   {
                       "path":  "src/MechKit/Core/VendorKeywords.cs",
-                      "hash":  "A72FD8A6DC0655D48D8F21801F41F5ED1AE9F28827CEB37ECD794FDE10E687D3",
-                      "bytes":  2262,
+                      "hash":  "E4A9ECEA0E8AA9FBA3CF9EF8BD5C646C95C35BA38DAAE24C1DD7DEFED9EB7914",
+                      "bytes":  2326,
                       "lines":  64
                   },
                   {
                       "path":  "src/MechKit/Core/WeldmentLibrary.cs",
-                      "hash":  "A4CD5B03CE99C2956E0A0C38D77E87AEB210887239F19EFF12F98665D95F190D",
-                      "bytes":  5052,
+                      "hash":  "2BB7CE59DD3B1C7F9BC6A07A373F8C3B5E89DD04784545AF3260CE8A86A89492",
+                      "bytes":  5193,
                       "lines":  141
                   },
                   {
                       "path":  "src/MechKit/Features/CustomProperty.cs",
-                      "hash":  "CF3ADE61AEE0C8F49E3739A3B65281543411CBB9E94F2886A96FA7FDB438196B",
-                      "bytes":  4046,
+                      "hash":  "C5094D714E72050FC696C7289B634D3AF6EBE005F6846348D6A99E7A60F50E48",
+                      "bytes":  4172,
                       "lines":  126
                   },
                   {
                       "path":  "src/MechKit/Features/ExportService.cs",
-                      "hash":  "39EAB5D5CBE544FC6987296C3D13B390739DF376DCC6358AF8D839251839A310",
-                      "bytes":  17162,
-                      "lines":  531
+                      "hash":  "A7C071FAE21604CD5719996E5AD137DC8036BDDC5B33ADD13D80E964F64D6147",
+                      "bytes":  20759,
+                      "lines":  595
                   },
                   {
                       "path":  "src/MechKit/Features/PartListService.cs",
-                      "hash":  "120DC1A292A4569A85CE0A3358CEB481206A038A7C4869C9EADDEA19F5B61510",
-                      "bytes":  98037,
-                      "lines":  2431
+                      "hash":  "E6E48A52CF04C401F3732332130E47782451269A8E83A3D90F4559F6DF47D2DE",
+                      "bytes":  100235,
+                      "lines":  2420
                   },
                   {
                       "path":  "src/MechKit/Features/PropertyService.cs",
-                      "hash":  "A184C2911E51E5F70CA805A10A01E6F75F38734A011874FFECBF76858D0C1670",
-                      "bytes":  10907,
+                      "hash":  "2819B34404581650358D2A7193BF52DF250A8B5CB90732B610BB3F0D4C7D3A9E",
+                      "bytes":  11239,
                       "lines":  332
                   },
                   {
+                      "path":  "src/MechKit/Features/QuickAnnotationService.cs",
+                      "hash":  "D825106D37B527223E0D2198A6EC60FC9BD25416856639CC87C524FBF5B577EB",
+                      "bytes":  13134,
+                      "lines":  227
+                  },
+                  {
                       "path":  "src/MechKit/IAddinHost.cs",
-                      "hash":  "6D026EAC3A9A7E3E6825D317FA9B1E4D279B1C90A1E0B9B6C0B0C1D7B5E6DC23",
-                      "bytes":  2299,
+                      "hash":  "F1D9429053CACE54BDBB8B35A9AE32B4FD8295344D91668B3310E6C118674409",
+                      "bytes":  2363,
                       "lines":  62
                   },
                   {
                       "path":  "src/MechKit/MechKit.csproj",
-                      "hash":  "6D22F93EFF65DCC60A46385F4D1B24C44949FF43F20FC8B4F604508C339487DE",
-                      "bytes":  1786,
+                      "hash":  "FCB7A96CDDBD222674FDD670A89D9AE506C743B316C09D1A5299961A8305ED8B",
+                      "bytes":  1831,
                       "lines":  45
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "B5C9C095BFD1CE8DC7DB4DADFACAB71028225F896A9166413177711A81597A31",
-                      "bytes":  103703,
-                      "lines":  2596
+                      "hash":  "46C05F3A12528D8E5E746C40261598899EA5D02824A7787DDAD3174DC0A88034",
+                      "bytes":  106177,
+                      "lines":  2656
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/main128.png",
@@ -280,38 +286,38 @@
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/strip128.png",
-                      "hash":  "A72ED16D97D2FC7204E171C2A7F1D1432AE303E695CEC86C1C29FF818145D8CB",
-                      "bytes":  22832,
+                      "hash":  "9A7CADB3BBD7C2EA7074E7D335089A316678C286EF07F0DB8B7B9C7DAEDABF52",
+                      "bytes":  35265,
                       "lines":  0
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/strip20.png",
-                      "hash":  "F8C4CD2AEB3564B5AE97B299D9A237CB4BCE1DB2DF12A978A9BC4F872D4CA96E",
-                      "bytes":  2636,
+                      "hash":  "7411B17DFA971417F56DF85A1F0D9851E2A8508D41DAA32E494A8D510548E065",
+                      "bytes":  3895,
                       "lines":  0
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/strip32.png",
-                      "hash":  "6B12897867AC82CA59C33FC142EBF00755B0C6AB5224F35C7E2373B39A0AA298",
-                      "bytes":  4086,
+                      "hash":  "0544E2E260646A4F022ED21ED778EBB399A5892C3DEA0F78281DB3B99315AB89",
+                      "bytes":  6321,
                       "lines":  0
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/strip40.png",
-                      "hash":  "31D4F1D55EB8064FBA968CFF290D6E1E68B76C4228DDA2F7A446F025DFB37D52",
-                      "bytes":  5406,
+                      "hash":  "48419F6A505EBD210210A47BA689205AB19498E69793BB54BE882D99FCBE8983",
+                      "bytes":  8348,
                       "lines":  0
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/strip64.png",
-                      "hash":  "E8CAA8A9FC63FF07075C932D7E7C1AE072085576C97005B987BD1048C7CA6CD1",
-                      "bytes":  9380,
+                      "hash":  "48AC7B12366B03F087AF3D057F7CC5AF456C23DC7DE7108D819A11C2E4539A0D",
+                      "bytes":  14612,
                       "lines":  0
                   },
                   {
                       "path":  "src/MechKit/Resources/icons/strip96.png",
-                      "hash":  "90B62061B78C30AF3C861A8F693F084E23BD78A3C09E821DC8FCBB70F9A0F1D3",
-                      "bytes":  16188,
+                      "hash":  "3467E07C84DA85BC309EAB937A77B8CE0E175123542E66B345FA8AB0ADC487A2",
+                      "bytes":  24813,
                       "lines":  0
                   },
                   {
@@ -322,140 +328,188 @@
                   },
                   {
                       "path":  "src/MechKit/UI/AboutForm.cs",
-                      "hash":  "BE491421872755CD9EBA4688B12485E30E701244F3B6D2A6C53AA11610822FC0",
-                      "bytes":  5547,
+                      "hash":  "E370EF745D380BACAC67E7697E3914490A6B99CAB9488853DBBCF5B4DE3199F2",
+                      "bytes":  5698,
                       "lines":  151
                   },
                   {
                       "path":  "src/MechKit/UI/BatchExportForm.cs",
-                      "hash":  "915055BAB6C916D2B33582CA8C24CEE28F4A9B2CD70290B58F51663394A7DA62",
-                      "bytes":  23960,
-                      "lines":  681
+                      "hash":  "DF87CD26C2C4F91718003E932A7892948D7273C8DA95F923F3ABD04CD054E26E",
+                      "bytes":  33515,
+                      "lines":  854
                   },
                   {
                       "path":  "src/MechKit/UI/NamingRuleForm.cs",
-                      "hash":  "C0D4A3F046E101191D6E40A3EE1E06B21C42C9E916D9D3C28E72726EE9383515",
-                      "bytes":  81229,
-                      "lines":  1834
+                      "hash":  "750801DCD70900B94D701B7C397D974A52C4761527F14B0F637E3C77FD63E44A",
+                      "bytes":  82802,
+                      "lines":  1888
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "C26FCFECE1521632D8EA86BBC029C0924D9CADC044E5117936B901E22366CE15",
-                      "bytes":  79747,
-                      "lines":  1918
+                      "hash":  "5FF571719BF6FA4D4113CCAEA0D423A72FB64DA264CD0B31379C106480D66EAD",
+                      "bytes":  88887,
+                      "lines":  2096
                   },
                   {
                       "path":  "src/MechKit/UI/PropertyToolForm.cs",
-                      "hash":  "F8B0E05DFC88CF474F9B610F4C5BAEE2FC922B02EDF32BCF8C29386599E71AC3",
-                      "bytes":  18487,
+                      "hash":  "1E1001C6EF97B4D20BFF7AB8321734896CE2F8BECFD36BDD002EFF428648FCD0",
+                      "bytes":  18996,
                       "lines":  509
                   },
                   {
+                      "path":  "src/MechKit/UI/QuickAnnotationForm.cs",
+                      "hash":  "E8E1FD8ED90C631C1AC59777BDFB417763E39B413B77688096C4BE00ABE5DB58",
+                      "bytes":  16611,
+                      "lines":  271
+                  },
+                  {
                       "path":  "src/MechKit/UI/SettingsForm.cs",
-                      "hash":  "CFF76C83A2459189DDEF9FBDA9244130B88933A271AC9C69E3BBFD812437C970",
-                      "bytes":  58344,
-                      "lines":  1323
+                      "hash":  "5D6BC36CD2F50EFFE1D225F5E24D2B25A39A6B64305B1A75B06997FBB4953AED",
+                      "bytes":  58802,
+                      "lines":  1331
                   },
                   {
                       "path":  "src/MechKit/UI/TaskPaneControl.cs",
-                      "hash":  "A3DF75EF7E57F02D1723A296D4C8586AEBD36F2ABE5A04387017D61BF50B3562",
-                      "bytes":  29021,
+                      "hash":  "937BC03A93A2E59F5497AB7168A6000625CF48F39962BF69915A5F41F547F910",
+                      "bytes":  29795,
                       "lines":  774
                   },
                   {
                       "path":  "src/MechKit/UI/Theme.cs",
-                      "hash":  "389F657A2920183D26CAD22A0DAC82FC93A5E67A0FE38A969ED739F6D8175A66",
-                      "bytes":  6813,
+                      "hash":  "0791D4D041D3EE26F209CB14B4A21DCF60C4A09431B3943CF5437D72D1F35D79",
+                      "bytes":  6997,
                       "lines":  184
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "8C8ADA030F2905557211D99618B8C8E1AA38847FA3A34F05845E9A8A29795B42",
-                      "bytes":  17783,
-                      "lines":  452
+                      "hash":  "39AF23E944480A7E6C7C73FBE0D5FCFFB2CC5B31EEC5FEE7E73D540DB0FB8731",
+                      "bytes":  22095,
+                      "lines":  530
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
-                      "hash":  "A70CF4FE9051AF38C0FA26892AAD80C62AAE6B1B9740797A677BA2EB176F18DB",
-                      "bytes":  1484,
+                      "hash":  "4F5935EB73C0762C5483798DA3AD222FC5679D9F4CDB95E627B13012884C5FA4",
+                      "bytes":  1522,
                       "lines":  38
                   },
                   {
                       "path":  "tools/DocInspector/Program.cs",
-                      "hash":  "EAFDCF9E5D5895D34C9F7A4A3832E54B5B47B62650825E80E5C52E6A5C1FA4BD",
-                      "bytes":  20658,
+                      "hash":  "E12226CF3D8A3C62356B1232B00B68D165E84A1D1AFEB37DF609B2AF9E01EF4C",
+                      "bytes":  21217,
                       "lines":  559
                   },
                   {
                       "path":  "tools/Enable-FusionLog.ps1",
-                      "hash":  "2D379F9F660706E879DFAE27A81226329C3A396A982C96740A74EE270C0265ED",
-                      "bytes":  2041,
+                      "hash":  "C90423F80108360AAB5F0D6EF8721FE93F74C4CAB627B07112B231DAE98DB422",
+                      "bytes":  2097,
                       "lines":  56
                   },
                   {
                       "path":  "tools/Generate-Icons.ps1",
-                      "hash":  "574A784468C266CCBE101CD178D3F2EADD897FACD2001579918E36507B84E569",
-                      "bytes":  19317,
-                      "lines":  496
+                      "hash":  "BA37A93D8BA8826A902FFEB98D840B72B5FB4503E17ECEBA0C6BB5D9A3CBCE30",
+                      "bytes":  20223,
+                      "lines":  503
                   },
                   {
                       "path":  "tools/Install-Addin.ps1",
-                      "hash":  "D485515C62848E556A9480B88423B523B552C2A3593A23BDEFA3AD513D85671A",
-                      "bytes":  13518,
-                      "lines":  356
+                      "hash":  "B301985AA751EE98EC1ECD83FE1956623242E424FD569740DC8FA6B7C4FD6245",
+                      "bytes":  14452,
+                      "lines":  371
                   },
                   {
                       "path":  "tools/MechKitHarness/FakeHost.cs",
-                      "hash":  "0783660A6D04E0F12BA6624BA2EE8D34289B4FF2A2F1E55B161233BD8BD99908",
-                      "bytes":  4312,
+                      "hash":  "C4D52FDF91B56272020C825425EEBA3C26DF441EE2CDAB113FDFCBF6D8476871",
+                      "bytes":  4452,
                       "lines":  140
                   },
                   {
                       "path":  "tools/MechKitHarness/MechKitHarness.csproj",
-                      "hash":  "E9DB9A6305C0180860B62FD49B780DF464D8A27944145C8B361A5501CC74F315",
-                      "bytes":  1535,
+                      "hash":  "52DABA9F836D56BBC50FF3809D4EA29215A2C74CAAC6A13676D9AC463C5EC59A",
+                      "bytes":  1574,
                       "lines":  39
                   },
                   {
                       "path":  "tools/MechKitHarness/Program.cs",
-                      "hash":  "F093B6FA9CF7432BB01A97212455F79836C18801A85F1207DC2DCF69FF8FCCBD",
-                      "bytes":  19408,
-                      "lines":  508
+                      "hash":  "456D1CEE7DEF910F7EFA1E27673DFF774FCF5294D65E5DC977AD6DB850C5DFB4",
+                      "bytes":  20087,
+                      "lines":  516
                   },
                   {
                       "path":  "tools/MechKitHarness/TabPreviewForm.cs",
-                      "hash":  "64C30175B8C15D0AAB78145190A067C8E16F5CE1D71827D6A0276731A558180F",
-                      "bytes":  21121,
-                      "lines":  536
+                      "hash":  "9EAD572071112446B927678A150E92E617EB1C3A9D69FB5B2CC46D606E757CC3",
+                      "bytes":  21744,
+                      "lines":  546
                   },
                   {
                       "path":  "tools/Probe-ComActivation.ps1",
-                      "hash":  "E67A7B2A039BA071F17D560C1E3EEEE5E1C31052E14E922711DCE96C2B480FDF",
-                      "bytes":  3937,
+                      "hash":  "C5590DE42E4597B2A9874F16826BDB1E99EDD6BB8C7F70394324CA8996B4D893",
+                      "bytes":  4043,
                       "lines":  106
                   },
                   {
                       "path":  "tools/Test-Addin.ps1",
-                      "hash":  "0B959260480275CE79A25F21641E7F1A790178D0847E38906FE94D3164ADEE59",
-                      "bytes":  8660,
+                      "hash":  "F8D2AE6A7FA7198A95F86E265EC5917BCD70FCE8618EF8C4104F8162B25AB9C1",
+                      "bytes":  8889,
                       "lines":  229
                   },
                   {
+                      "path":  "tools/Test-BatchExport.ps1",
+                      "hash":  "22A737C0405B8925378392424CC9600F9D66BFA0C8B0A3F8463C668373673522",
+                      "bytes":  5926,
+                      "lines":  97
+                  },
+                  {
+                      "path":  "tools/Test-BomIntegration.ps1",
+                      "hash":  "79872418F40FF97750C6F5ACEEE2FF8A54135FEA3F7B1EB6C171DDA9E3A820CC",
+                      "bytes":  14890,
+                      "lines":  304
+                  },
+                  {
+                      "path":  "tools/Test-FieldCards.ps1",
+                      "hash":  "FAC749E0B300CAF28E3E017CD38298589CA42A2F590D9C3B7D084E0D9410C20A",
+                      "bytes":  1959,
+                      "lines":  39
+                  },
+                  {
                       "path":  "tools/Test-Naming.ps1",
-                      "hash":  "C93F32550DF658C659730835EDE97E07535A2BD8EEFE9A943BF2A3D287E19256",
-                      "bytes":  19154,
+                      "hash":  "7A2B02E759CEA99B7E525DF87064F997DF6C54E08E340F56365B575154762A7A",
+                      "bytes":  19569,
                       "lines":  415
                   },
                   {
+                      "path":  "tools/Test-QuickAnnotation.ps1",
+                      "hash":  "2EA099F8671A6C6BEEB1381D0AE8E305A350A4354AE6A0206EFA75A347A23DE6",
+                      "bytes":  7715,
+                      "lines":  118
+                  },
+                  {
+                      "path":  "tools/Test-WindowShortcuts.ps1",
+                      "hash":  "FA60D7342D452BCD0275A92A7E9A7C4959206B807E4A7C13646475493538E2EC",
+                      "bytes":  1390,
+                      "lines":  26
+                  },
+                  {
                       "path":  "tools/Uninstall-Addin.ps1",
-                      "hash":  "46ABC70F942662C9042C7A259231FD51F147C5232E853078B503258BA2B07F0C",
-                      "bytes":  3687,
+                      "hash":  "68057F6EB3E440358BD438FB54DDE0F9A9CDA750ED61EED3222B4B552CE39D47",
+                      "bytes":  3790,
                       "lines":  103
                   },
                   {
+                      "path":  "tools/Update-Version.ps1",
+                      "hash":  "090757FDA8D501EF8E13BE2A7DF025C2575D8E515480775E9183BB93D18E4AB0",
+                      "bytes":  7555,
+                      "lines":  168
+                  },
+                  {
+                      "path":  "tools/testdata/bom-integration.json",
+                      "hash":  "A42503675173D3F49BDD8DD43FF9F5CE31E80A822DD1E12AD5C9A9697E0BD3C8",
+                      "bytes":  4073,
+                      "lines":  174
+                  },
+                  {
                       "path":  "tools/testdata/naming-cases.json",
-                      "hash":  "AB4AD6388DC4586BF3B547D01110EAEE449F27E0C30F68F05993921AEDCE7718",
-                      "bytes":  13046,
+                      "hash":  "FED36AD1C00D7CD889DD6EC3C402409B327805FD5261F049A292820A38131BD9",
+                      "bytes":  13266,
                       "lines":  428
                   }
               ]

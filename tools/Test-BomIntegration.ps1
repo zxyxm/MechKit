@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Offline integration checks for naming rules -> BOM mappings -> BOM columns.
 #>
@@ -140,13 +140,13 @@ foreach ($scopeCase in $case.subassemblyScope) {
     Assert-Equal ("subassembly scope " + $scopeCase.name) $action $scopeCase.expect
 }
 
-# With the naming filter turned off, every subassembly is expanded again (legacy behaviour)
+# Design tree rules apply even if a legacy naming-filter setting is disabled
 $offSettings = [Activator]::CreateInstance($settingsType)
 $settingsType.GetProperty('BomRequirePattern').SetValue($offSettings, $false)
 $offOptions = $createOptions.Invoke($null, @($offSettings))
 $offNaming = $offOptions.GetType().GetProperty('Naming').GetValue($offOptions)
 Assert-Equal 'subassembly scope (filter off)' `
-    ($resolveScope.Invoke($null, @($offNaming, 'P80-02-01-01-0abc'))) 'Expand'
+    ($resolveScope.Invoke($null, @($offNaming, 'P80-02-01-01-0abc'))) 'TreatAsUnmatched'
 
 # Row disposition: reference parts stay hidden, unmatched rows move to the end and turn red
 $resolveRow = $serviceType.GetMethod('ResolveRowDisposition',
@@ -155,6 +155,96 @@ foreach ($rowCase in $case.rowDisposition) {
     $disposition = $resolveRow.Invoke($null, @($naming, [string]$rowCase.name))
     Assert-Equal ("row disposition " + $rowCase.name) $disposition $rowCase.expect
 }
+
+# Group nodes preserve the design tree but must not add an assembly location.
+$kindType = $assembly.GetType('MechKit.Core.DesignNodeKind', $true)
+$hierarchyMethod = $serviceType.GetMethod('BuildChildHierarchy',
+    [System.Reflection.BindingFlags]'Static, NonPublic')
+$hierarchyArgs = New-Object object[] 3
+$hierarchyArgs[0] = [string[]]@('Top', 'Assembly A')
+$hierarchyArgs[1] = 'Group B'
+$hierarchyArgs[2] = [Enum]::Parse($kindType, 'Group')
+$groupHierarchy = $hierarchyMethod.Invoke($null, $hierarchyArgs)
+Assert-Equal 'group does not create an assembly relation' ($groupHierarchy -join '>') 'Top>Assembly A'
+$hierarchyArgs[2] = [Enum]::Parse($kindType, 'Assembly')
+$assemblyHierarchy = $hierarchyMethod.Invoke($null, $hierarchyArgs)
+Assert-Equal 'assembly creates an assembly relation' ($assemblyHierarchy -join '>') 'Top>Assembly A>Group B'
+
+$recognize = $offNaming.GetType().GetMethod('RecognizeDesignNode')
+foreach ($rule in @(
+    @('20261010-装配-机架', 'Assembly'),
+    @('20261010_组件_机架', 'Group'),
+    @('20261010-6061-板', 'Machined'),
+    @('20261010--板', 'Unmatched'),
+    @('20261010', 'Unmatched'),
+    @('代理商-电机-M1', 'Standard'),
+    @('淘宝追加工-机架', 'Standard'),
+    @('参考模型', 'Reference'),
+    @('2026AB10-6061-板', 'Unmatched'),
+    @('供应商图纸-支架', 'Unmatched'),
+    @('P80-02-01-01-0治疗通道组件', 'Unmatched')
+)) {
+    Assert-Equal ("design node " + $rule[0]) ($recognize.Invoke($offNaming, @($rule[0]))) $rule[1]
+}
+
+# Configured external drawing prefixes are shared by recognition and BOM filtering.
+$customSettings = [Activator]::CreateInstance($settingsType)
+$settingsType.GetProperty('ExternalDrawingPrefixes').SetValue($customSettings, 'BRC,淘宝特别,202610')
+$settingsType.GetProperty('StockPrefixes').SetValue($customSettings, '库存,KST')
+$settingsType.GetProperty('SparePrefixes').SetValue($customSettings, '备件;SPARE')
+$customOptions = $createOptions.Invoke($null, @($customSettings))
+$customNaming = $customOptions.Naming
+foreach ($rule in @(
+    @('BRC-安装板', 'ExternalDrawing'),
+    @('BRC001', 'ExternalDrawing'),
+    @('brc-part', 'ExternalDrawing'),
+    @('淘宝特别-外来总成', 'ExternalDrawing'),
+    @('20261010-6061-板', 'ExternalDrawing'),
+    @('库存-电机', 'Stock'),
+    @('KST001', 'Stock'),
+    @('备件-密封圈', 'Spare'),
+    @('SPARE-夹具', 'Spare'),
+    @('参考-BRC-安装板', 'Reference')
+)) {
+    Assert-Equal ("configured category " + $rule[0]) ($recognize.Invoke($customNaming, @($rule[0]))) $rule[1]
+}
+Assert-Equal 'configured external drawing included in BOM' ($customNaming.MatchesBomPattern('BRC001')) $true
+Assert-Equal 'inventory included in BOM' ($customNaming.MatchesBomPattern('库存-安装板')) $true
+Assert-Equal 'spare included in BOM' ($customNaming.MatchesBomPattern('备件-密封圈')) $true
+
+$rowType = $assembly.GetType('MechKit.Features.PartListRow', $true)
+$applyFields = $serviceType.GetMethod('ApplyConfiguredFields', [Reflection.BindingFlags]'Static, NonPublic')
+$stockRow = [Activator]::CreateInstance($rowType)
+$stockRow.Classification = '库存件'
+$stockRow.FullName = '库存-安装板'
+$stockRow.Quantity = 5
+$applyFields.Invoke($null, @($stockRow, '库存-安装板', $properties, $customOptions))
+Assert-Equal 'inventory name removes only category prefix' $stockRow.Name '安装板'
+Assert-Equal 'inventory does not invent a material from its name' $stockRow.Material ''
+$spareRow = [Activator]::CreateInstance($rowType)
+$spareRow.Classification = '备件'
+$spareRow.FullName = 'SPARE-密封圈-A'
+$spareRow.Quantity = 2
+$applyFields.Invoke($null, @($spareRow, 'SPARE-密封圈-A', $properties, $customOptions))
+Assert-Equal 'spare name preserves remainder' $spareRow.Name '密封圈-A'
+$categoryRows = [Activator]::CreateInstance([Collections.Generic.List``1].MakeGenericType($rowType))
+$categoryRows.Add($stockRow)
+$categoryRows.Add($spareRow)
+$externalRow = [Activator]::CreateInstance($rowType)
+$externalRow.Classification = '外部图纸'
+$externalRow.FullName = 'BRC-123-安装板'
+$externalRow.Quantity = 3
+$applyFields.Invoke($null, @($externalRow, 'BRC-123-安装板', $properties, $customOptions))
+Assert-Equal 'external drawing retains full identifier' $externalRow.Name 'BRC-123-安装板'
+Assert-Equal 'external drawing does not parse material from its name' $externalRow.Material ''
+$categoryRows.Add($externalRow)
+$summaryArgs = New-Object object[] 1
+$summaryArgs[0] = $categoryRows
+$categorySummary = $serviceType.GetMethod('BuildSummary').Invoke($null, $summaryArgs)
+Assert-Equal 'inventory counted separately' ($categorySummary.Contains('库存件 5 件')) $true
+Assert-Equal 'external drawings counted separately' ($categorySummary.Contains('外部图纸 3 件')) $true
+Assert-Equal 'spare counted separately' ($categorySummary.Contains('备件 2 件')) $true
+Assert-Equal 'inventory and spare not counted as standards' ($categorySummary.Contains('标准件 0 件')) $true
 
 # Unmatched rows must be sorted behind the regular ones
 $sortRowType = $assembly.GetType('MechKit.Features.PartListRow', $true)
@@ -171,7 +261,7 @@ foreach ($spec in @(
     $sortRowType.GetProperty('Name').SetValue($item, [string]$spec[1])
     $sortRowType.GetProperty('IsUnmatched').SetValue($item, [bool]$spec[2])
     $sortRowType.GetProperty('Classification').SetValue($item,
-        $(if ($spec[2]) { 'Unmatched' } else { 'Machined' }))
+        $(if ($spec[2]) { 'ExternalDrawing' } else { 'Machined' }))
     [void]$sortedRows.Add($item)
 }
 $sortArguments = New-Object object[] 1
@@ -190,6 +280,19 @@ $columnValue = $serviceType.GetMethod('ColumnValue',
 Assert-Equal 'full name export value' `
     ($columnValue.Invoke($null, @($fullNameRow, 1, 'fullname'))) `
     '20260919-6061-upper-cover'
+
+$sheetRow = [Activator]::CreateInstance($rowType)
+$sheetRow.Classification = '加工件'
+$sheetRow.Process = '钣金'
+Assert-Equal 'sheet metal without drawing exports no-drawing label' ($columnValue.Invoke($null, @($sheetRow, 1, 'drawing'))) '钣金'
+$noDrawing = $serviceType.GetMethod('IsSheetMetalWithoutDrawing', [Reflection.BindingFlags]'Static, NonPublic')
+Assert-Equal 'sheet metal without drawing is exempt from missing drawing warning' ($noDrawing.Invoke($null, @($sheetRow))) $true
+$sheetRow.DrawingPath = 'C:\test\板.SLDDRW'
+Assert-Equal 'sheet metal with drawing exports associated drawing' ($columnValue.Invoke($null, @($sheetRow, 1, 'drawing'))) '板.SLDDRW'
+Assert-Equal 'real drawing takes priority over sheet-metal label' ($noDrawing.Invoke($null, @($sheetRow))) $false
+$sheetRow.DrawingPath = ''
+$sheetRow.Process = 'cnc'
+Assert-Equal 'CNC missing drawing stays blank' ($columnValue.Invoke($null, @($sheetRow, 1, 'drawing'))) ''
 
 if ($failures.Count -gt 0) {
     Write-Host ''

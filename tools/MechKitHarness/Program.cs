@@ -180,6 +180,10 @@ namespace MechKit.Harness
                 case "标准件前缀":
                     Show(new NamingRuleForm(_host, 1));
                     break;
+                case "库存件": Show(new NamingRuleForm(_host, 3)); break;
+                case "备件": Show(new NamingRuleForm(_host, 4)); break;
+                case "外部图纸": Show(new NamingRuleForm(_host, 5)); break;
+                case "公差助手": Show(new QuickAnnotationForm(_host)); break;
                 case "批量导出":
                     Show(new BatchExportForm(_host));
                     break;
@@ -348,6 +352,8 @@ namespace MechKit.Harness
             Form preview;
             switch ((kind ?? string.Empty).ToLowerInvariant())
             {
+                case "tolerance": preview = new QuickAnnotationForm(_host); break;
+                case "categories": preview = new SettingsForm(_host, 2); break;
                 case "export": preview = new BatchExportForm(_host); break;
                 case "property": preview = new PropertyToolForm(_host); break;
                 case "about": preview = new AboutForm(_host); break;
@@ -483,7 +489,9 @@ namespace MechKit.Harness
                         form.Close();
                     };
                 }
-                else if (arg.StartsWith("--export-image=", StringComparison.OrdinalIgnoreCase) ||
+                else if (arg.StartsWith("--tolerance-image=", StringComparison.OrdinalIgnoreCase) ||
+                         arg.StartsWith("--categories-image=", StringComparison.OrdinalIgnoreCase) ||
+                         arg.StartsWith("--export-image=", StringComparison.OrdinalIgnoreCase) ||
                          arg.StartsWith("--property-image=", StringComparison.OrdinalIgnoreCase) ||
                          arg.StartsWith("--about-image=", StringComparison.OrdinalIgnoreCase))
                 {

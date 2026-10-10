@@ -10,6 +10,7 @@ namespace MechKit.Features
 {
     internal sealed class PartListOptions
     {
+        public List<DesignTreeItem> DesignTree { get; set; }
         public PartListOptions()
         {
             Naming = new NamingOptions();
@@ -90,6 +91,14 @@ namespace MechKit.Features
         public string MachinedAssemblyNoteField { get; set; }
         public string StandardSurfaceField { get; set; }
         public string MachinedSurfaceField { get; set; }
+    }
+
+    internal sealed class DesignTreeItem
+    {
+        public string Name { get; set; }
+        public DesignNodeKind Kind { get; set; }
+        public List<DesignTreeItem> Children = new List<DesignTreeItem>();
+        public List<PartListRow> Rows = new List<PartListRow>();
     }
 
     /// <summary>明细表中的一行（同一零件 + 同一配置合并计数）。</summary>
@@ -224,11 +233,17 @@ namespace MechKit.Features
     /// <summary>子装配体在 BOM 中的处理方式。</summary>
     internal enum SubassemblyAction
     {
-        /// <summary>按加工件命名（日期开头）的子装配体：继续往下读取子零件。</summary>
+        /// <summary>日期后的字段为装配或组件：继续读取子节点。</summary>
         Expand,
 
         /// <summary>以标准件前缀开头的子装配体：整机外购，作为一条标准件计入。</summary>
         TreatAsStandard,
+
+        TreatAsMachined,
+        TreatAsStock,
+        TreatAsSpare,
+        TreatAsExternalDrawing,
+        TreatAsUnmatched,
 
         /// <summary>不符合命名规则的子装配体：整层忽略。</summary>
         Ignore
@@ -257,7 +272,7 @@ namespace MechKit.Features
             "sequence,location,fullname,drawing,classification,name,material,process,surface,quantity,assemblynote,remark";
 
         /// <summary>不符合命名规则的组件在“属性”列里的显示名（表格最后一行区、标红）。</summary>
-        internal const string UnmatchedClassification = "未匹配";
+        internal const string UnmatchedClassification = "命名不规范";
 
         private static readonly string[] AllColumnKeys = DefaultColumnOrder.Split(',');
         private const int DocPart = 1;
@@ -341,6 +356,26 @@ namespace MechKit.Features
                 return rows;
             }
 
+            // 当前打开的总装也可能是整机采购件，不能绕过子装配体的识别规则。
+            var model = assembly as ModelDoc2;
+            var rootName = model == null ? string.Empty : model.GetPathName();
+            if (string.IsNullOrEmpty(rootName) && model != null) rootName = model.GetTitle();
+            var rootKind = options.Naming.RecognizeDesignNode(rootName);
+            if (rootKind == DesignNodeKind.Reference)
+            {
+                if (options.DesignTree != null)
+                    options.DesignTree.Add(new DesignTreeItem { Name = ResolveFullName(rootName), Kind = rootKind });
+                return rows;
+            }
+            var rootAction = ResolveSubassemblyAction(options.Naming, rootName);
+            if (rootAction == SubassemblyAction.TreatAsMachined || rootAction == SubassemblyAction.TreatAsStandard || rootAction == SubassemblyAction.TreatAsStock ||
+                rootAction == SubassemblyAction.TreatAsSpare || rootAction == SubassemblyAction.TreatAsExternalDrawing || rootAction == SubassemblyAction.TreatAsUnmatched)
+            {
+                var row = FromPart(swApp, model, options);
+                if (row != null && (!options.OnlyMachined || rootKind == DesignNodeKind.Machined)) rows.Add(row);
+                return rows;
+            }
+
             // 只取顶层组件，再由 VisitComponent 递归。直接取全部组件后再递归会重复计数。
             var components = assembly.GetComponents(true) as object[];
             if (components == null)
@@ -359,7 +394,7 @@ namespace MechKit.Features
         }
 
         /// <summary>递归读取当前装配体下的全部子装配体，保留实例层级供用户选择。</summary>
-        public static List<SubassemblyScope> GetSubassemblies(AssemblyDoc assembly)
+        public static List<SubassemblyScope> GetSubassemblies(AssemblyDoc assembly, NamingOptions naming = null)
         {
             var result = new List<SubassemblyScope>();
             if (assembly == null)
@@ -377,7 +412,7 @@ namespace MechKit.Features
 
                 foreach (var item in components)
                 {
-                    CollectSubassemblies(item as Component2, new List<string>(), result);
+                    CollectSubassemblies(item as Component2, new List<string>(), result, naming ?? new NamingOptions());
                 }
             }
             catch (Exception ex)
@@ -403,23 +438,7 @@ namespace MechKit.Features
 
             try
             {
-                var path = root.GetPathName() ?? string.Empty;
-                var hierarchy = new List<string> { ComponentDisplayName(root, path) };
-                if (root.GetType() == DocAssembly)
-                {
-                    var children = root.GetChildren() as object[];
-                    if (children != null)
-                    {
-                        foreach (var child in children)
-                        {
-                            VisitComponent(context, child as Component2, hierarchy);
-                        }
-                    }
-                }
-                else
-                {
-                    Accumulate(context, root, path, hierarchy);
-                }
+                VisitComponent(context, root, new List<string>());
             }
             catch (Exception ex)
             {
@@ -448,7 +467,7 @@ namespace MechKit.Features
         }
 
         private static void CollectSubassemblies(Component2 component, IList<string> parents,
-            ICollection<SubassemblyScope> result)
+            ICollection<SubassemblyScope> result, NamingOptions naming)
         {
             if (component == null)
             {
@@ -476,6 +495,8 @@ namespace MechKit.Features
                     DisplayName = string.Join(" > ", hierarchy.ToArray())
                 });
 
+                var kind = naming.RecognizeDesignNode(displayName);
+                if (kind != DesignNodeKind.Assembly && kind != DesignNodeKind.Group) return;
                 var children = component.GetChildren() as object[];
                 if (children == null)
                 {
@@ -484,7 +505,7 @@ namespace MechKit.Features
 
                 foreach (var child in children)
                 {
-                    CollectSubassemblies(child as Component2, hierarchy, result);
+                    CollectSubassemblies(child as Component2, hierarchy, result, naming);
                 }
             }
             catch (Exception ex)
@@ -497,9 +518,8 @@ namespace MechKit.Features
             PartListOptions options)
         {
             var rows = new List<PartListRow>();
-            foreach (var pair in context.Rows)
+            foreach (var row in context.DesignOrderRows)
             {
-                var row = pair.Value;
                 if (options.OnlyMachined && !string.Equals(row.Classification, "加工件", StringComparison.Ordinal))
                 {
                     continue;
@@ -508,19 +528,11 @@ namespace MechKit.Features
                 rows.Add(row);
             }
 
-            SortRows(rows);
             if (context.SkippedByPattern > 0)
             {
                 context.Log(string.Format(
-                    "{0} 个组件不符合命名规则，已排在表格末尾并标红（属性列显示“未匹配”）。",
+                    "{0} 个节点不属于 BOM 零件大类。",
                     context.SkippedByPattern));
-            }
-
-            if (context.SkippedAssemblies > 0)
-            {
-                context.Log(string.Format(
-                    "{0} 个子装配体未按「日期-装配」命名：内部零件不参与统计，装配体本身排在表格末尾并标红。",
-                    context.SkippedAssemblies));
             }
 
             return rows;
@@ -535,6 +547,9 @@ namespace MechKit.Features
             }
 
             var path = doc.GetPathName();
+            var treeItem = new DesignTreeItem { Name = ResolveFullName(path), Kind = options.Naming.RecognizeDesignNode(path) };
+            if (options.DesignTree != null) options.DesignTree.Add(treeItem);
+            if (treeItem.Kind == DesignNodeKind.Reference || treeItem.Kind == DesignNodeKind.Assembly || treeItem.Kind == DesignNodeKind.Group) return null;
             var context = new CollectContext(swApp, options, null);
             var properties = GetProperties(context, path);
 
@@ -564,6 +579,7 @@ namespace MechKit.Features
                 Remark = First(properties, "备注", "说明", "Remark", "Notes"),
                 Quantity = 1,
                 Classification = Classify(context, path, path, properties),
+                IsUnmatched = treeItem.Kind == DesignNodeKind.Unmatched,
                 FilePath = path,
                 Configuration = configuration
             };
@@ -575,6 +591,7 @@ namespace MechKit.Features
             }
             ApplyConfiguredFields(row, path, properties, options);
 
+            treeItem.Rows.Add(row);
             return row;
         }
 
@@ -592,7 +609,8 @@ namespace MechKit.Features
                 var segmentMaterial = options.Naming.ResolveMaterialFromSegments(path);
                 var propertyMaterial = First(properties, "材料", "材质", "Material", "材质牌号");
 
-                if (!options.Naming.MatchesBomPattern(Path.GetFileName(path)))
+                var kind = options.Naming.RecognizeDesignNode(path);
+                if (kind == DesignNodeKind.Reference || kind == DesignNodeKind.Assembly || kind == DesignNodeKind.Group)
                 {
                     continue;
                 }
@@ -613,6 +631,7 @@ namespace MechKit.Features
                     Remark = First(properties, "备注", "说明", "Remark", "Notes"),
                     Quantity = 1,
                     Classification = Classify(context, path, path, properties),
+                    IsUnmatched = kind == DesignNodeKind.Unmatched,
                     FilePath = path,
                     Configuration = string.Empty
                 };
@@ -636,6 +655,9 @@ namespace MechKit.Features
             var machinedTotal = 0;
             var standardTotal = 0;
             var referenceTotal = 0;
+            var stockTotal = 0;
+            var spareTotal = 0;
+            var externalTotal = 0;
             var unmatchedTotal = 0;
 
             foreach (var row in rows)
@@ -653,17 +675,17 @@ namespace MechKit.Features
                 {
                     unmatchedTotal += row.Quantity;
                 }
-                else
-                {
-                    standardTotal += row.Quantity;
-                }
+                else if (row.Classification == "库存件") stockTotal += row.Quantity;
+                else if (row.Classification == "备件") spareTotal += row.Quantity;
+                else if (row.Classification == "标准件") standardTotal += row.Quantity;
+                else if (row.Classification == "外部图纸") externalTotal += row.Quantity;
             }
 
-            var summary = string.Format("加工件 {0} 种 / {1} 件；标准件 {2} 件；参考件 {3} 件。",
-                machinedKinds, machinedTotal, standardTotal, referenceTotal);
+            var summary = string.Format("加工件 {0} 种 / {1} 件；标准件 {2} 件；参考件 {3} 件；库存件 {4} 件；备件 {5} 件；外部图纸 {6} 件。",
+                machinedKinds, machinedTotal, standardTotal, referenceTotal, stockTotal, spareTotal, externalTotal);
             if (unmatchedTotal > 0)
             {
-                summary += string.Format("未匹配命名规则 {0} 件（见表格末尾标红行）。", unmatchedTotal);
+                summary += string.Format("未匹配命名规则 {0} 件（见整行红底标识）。", unmatchedTotal);
             }
 
             return summary;
@@ -732,6 +754,20 @@ namespace MechKit.Features
             }
         }
 
+        internal static bool IsSheetMetalWithoutDrawing(PartListRow row)
+        {
+            return row != null && string.IsNullOrEmpty(row.DrawingPath) &&
+                string.Equals(row.Classification, "加工件", StringComparison.Ordinal) &&
+                string.Equals((row.Process ?? string.Empty).Trim(), "钣金", StringComparison.Ordinal);
+        }
+
+        internal static string DrawingCellText(PartListRow row)
+        {
+            if (row == null) return string.Empty;
+            if (!string.IsNullOrEmpty(row.DrawingPath)) return Path.GetFileName(row.DrawingPath);
+            return IsSheetMetalWithoutDrawing(row) ? "钣金" : string.Empty;
+        }
+
         private static string ColumnValue(PartListRow row, int sequence, string key)
         {
             if (row == null) return string.Empty;
@@ -740,10 +776,7 @@ namespace MechKit.Features
                 case "sequence": return sequence.ToString();
                 case "location": return row.Location;
                 case "fullname": return row.FullName;
-                case "drawing":
-                    return string.IsNullOrEmpty(row.DrawingPath)
-                        ? string.Empty
-                        : Path.GetFileName(row.DrawingPath);
+                case "drawing": return DrawingCellText(row);
                 case "classification": return row.Classification;
                 case "name": return row.Name;
                 case "material": return row.Material;
@@ -1328,6 +1361,14 @@ namespace MechKit.Features
                 return string.Empty;
             }
 
+            if (row.Classification == "外部图纸") return SanitizeComponentName(row.Name);
+            if (row.Classification == "库存件" || row.Classification == "备件")
+            {
+                var kind = row.Classification == "库存件" ? DesignNodeKind.Stock :
+                    row.Classification == "备件" ? DesignNodeKind.Spare : DesignNodeKind.ExternalDrawing;
+                var prefix = naming.CategoryPrefix(string.IsNullOrEmpty(row.FilePath) ? row.FullName : row.FilePath, kind);
+                return SanitizeComponentName(prefix + "-" + row.Name);
+            }
             if (string.Equals(row.Classification, "标准件", StringComparison.Ordinal))
             {
                 var fields = new List<string>();
@@ -1598,21 +1639,16 @@ namespace MechKit.Features
 
             public Dictionary<string, PartListRow> Rows { get; private set; }
 
+            public readonly List<PartListRow> DesignOrderRows = new List<PartListRow>();
+
             public Dictionary<string, Dictionary<string, string>> Properties { get; private set; }
 
             /// <summary>因不符合「日期-材料-名称」或「前缀-中间名-型号」被排除的组件数。</summary>
             public int SkippedByPattern { get; set; }
 
-            /// <summary>因不符合「日期-装配」命名被整层忽略的子装配体数。</summary>
-            public int SkippedAssemblies { get; set; }
         }
 
-        /// <summary>
-        /// 子装配体的读取策略：
-        /// ① 以标准件前缀开头（淘宝 / 代理 / 整机…）= 整机外购件，整体作为标准件计入；
-        /// ② 符合加工件命名规则（日期开头，如 20260425-装配-水箱总装）= 继续往下读取子零件；
-        /// ③ 其它未按规则命名的装配体 = 整层忽略，不统计它内部的零件。
-        /// </summary>
+        /// <summary>装配/组件展开；标准件和加工件整体计数；其余停止。</summary>
         internal static SubassemblyAction ResolveSubassemblyAction(NamingOptions naming, string name)
         {
             var ruleName = NamingOptions.GetFileNameWithoutExtension(name ?? string.Empty).Trim();
@@ -1621,25 +1657,21 @@ namespace MechKit.Features
                 return SubassemblyAction.Ignore;
             }
 
-            // 关闭「按命名规则过滤」时保持旧行为：所有子装配体一律往下读取。
-            if (!naming.RequireBomPattern)
-            {
+            var kind = naming.RecognizeDesignNode(ruleName);
+            if (kind == DesignNodeKind.Reference) return SubassemblyAction.Ignore;
+            if (kind == DesignNodeKind.Standard) return SubassemblyAction.TreatAsStandard;
+            if (kind == DesignNodeKind.Machined) return SubassemblyAction.TreatAsMachined;
+            if (kind == DesignNodeKind.Stock) return SubassemblyAction.TreatAsStock;
+            if (kind == DesignNodeKind.Spare) return SubassemblyAction.TreatAsSpare;
+            if (kind == DesignNodeKind.ExternalDrawing) return SubassemblyAction.TreatAsExternalDrawing;
+            if (kind == DesignNodeKind.Unmatched) return SubassemblyAction.TreatAsUnmatched;
+            if (kind == DesignNodeKind.Assembly || kind == DesignNodeKind.Group)
                 return SubassemblyAction.Expand;
-            }
-
-            if (naming.HasKnownPrefix(NamingOptions.FirstSegment(ruleName)))
-            {
-                return SubassemblyAction.TreatAsStandard;
-            }
-
-            return naming.IsMachinedName(ruleName)
-                ? SubassemblyAction.Expand
-                : SubassemblyAction.Ignore;
+            return SubassemblyAction.Ignore;
         }
 
         /// <summary>
-        /// 单个组件的归类：参考件不进 BOM；不符合「加工件 / 标准件」命名的记为未匹配，
-        /// 由调用方排到表格最后并标红。
+        /// 单个组件的归类：参考件仅显示在树中；外部图纸与其它零件大类整体进入 BOM。
         /// </summary>
         internal static RowDisposition ResolveRowDisposition(NamingOptions naming, string name)
         {
@@ -1659,13 +1691,21 @@ namespace MechKit.Features
                 : RowDisposition.Unmatched;
         }
 
-        private static void VisitComponent(CollectContext context, Component2 component, IList<string> hierarchy)
+        internal static List<string> BuildChildHierarchy(IList<string> parents, string name, DesignNodeKind kind)
+        {
+            var result = new List<string>(parents ?? new string[0]);
+            if (kind == DesignNodeKind.Assembly) result.Add(name);
+            return result;
+        }
+
+        private static void VisitComponent(CollectContext context, Component2 component, IList<string> hierarchy, List<DesignTreeItem> tree = null)
         {
             if (component == null)
             {
                 return;
             }
 
+            tree = tree ?? context.Options.DesignTree;
             try
             {
                 if (context.Options.ExcludeSuppressed && component.IsSuppressed())
@@ -1676,52 +1716,33 @@ namespace MechKit.Features
                 var docType = component.GetType();
                 var path = component.GetPathName() ?? string.Empty;
 
-                if (docType == DocAssembly)
+                var name = ComponentRuleName(component, path);
+                var kind = context.Options.Naming.RecognizeDesignNode(name);
+                var node = new DesignTreeItem { Name = ComponentDisplayName(component, path), Kind = kind };
+                if (tree != null) tree.Add(node);
+                if (kind == DesignNodeKind.Reference)
                 {
-                    var assemblyName = ComponentRuleName(component, path);
-                    if (string.IsNullOrEmpty(assemblyName))
-                    {
-                        assemblyName = ComponentDisplayName(component, path);
-                    }
-
-                    var action = ResolveSubassemblyAction(context.Options.Naming, assemblyName);
-
-                    // 以标准件前缀开头（淘宝 / 代理 / 整机…）的装配体属于整机外购件：
-                    // 作为一条标准件计入，不再往下读取它的子零件。
-                    if (action == SubassemblyAction.TreatAsStandard)
-                    {
-                        Accumulate(context, component, path, hierarchy);
-                        return;
-                    }
-
-                    // 只有按加工件命名规则（日期开头，例如 20260425-装配-水箱总装）命名的
-                    // 子装配体才继续往下读取；其它装配体整层忽略，避免把未按规则命名的
-                    // 装配体内部零件混进 BOM。
-                    if (action == SubassemblyAction.Ignore)
-                    {
-                        context.SkippedAssemblies++;
-                        // 不展开它内部的零件，但把这个子装配体记成一行“未匹配”，
-                        // 排到表格最后并标红，用户一眼能看到哪个装配体没按规则命名。
-                        Accumulate(context, component, path, hierarchy, true);
-                        return;
-                    }
-
-                    // 子装配体：把它加入位置路径，再递归其直接子组件。
-                    var childHierarchy = new List<string>(hierarchy ?? new string[0]);
-                    childHierarchy.Add(ComponentDisplayName(component, path));
-                    var children = component.GetChildren() as object[];
-                    if (children != null)
-                    {
-                        foreach (var child in children)
-                        {
-                            VisitComponent(context, child as Component2, childHierarchy);
-                        }
-                    }
-
                     return;
                 }
 
-                Accumulate(context, component, path, hierarchy);
+                if (docType == DocAssembly &&
+                    (kind == DesignNodeKind.Assembly || kind == DesignNodeKind.Group))
+                {
+                    var childHierarchy = BuildChildHierarchy(hierarchy, node.Name, kind);
+                    var children = component.GetChildren() as object[];
+                    if (children != null)
+                        foreach (var child in children)
+                            VisitComponent(context, child as Component2, childHierarchy, node.Children);
+                    foreach (var child in node.Children)
+                        foreach (var row in child.Rows)
+                            if (!node.Rows.Contains(row)) node.Rows.Add(row);
+                    return;
+                }
+
+                if (NamingOptions.IsBomItem(kind))
+                    Accumulate(context, component, path, hierarchy, false, node.Rows);
+                else if (kind == DesignNodeKind.Unmatched)
+                    Accumulate(context, component, path, hierarchy, true, node.Rows);
             }
             catch (Exception ex)
             {
@@ -1730,7 +1751,7 @@ namespace MechKit.Features
         }
 
         private static void Accumulate(CollectContext context, Component2 component, string path,
-            IList<string> hierarchy, bool unmatched = false)
+            IList<string> hierarchy, bool unmatched = false, List<PartListRow> nodeRows = null)
         {
             var configuration = component.ReferencedConfiguration ?? string.Empty;
             var isVirtual = string.IsNullOrEmpty(path);
@@ -1746,9 +1767,7 @@ namespace MechKit.Features
 
             if (!unmatched)
             {
-                // 参考件是明确规则：不进 BOM，也不需要标红提示。
-                // 不符合加工件 / 标准件命名的组件不丢弃：改记成一行“未匹配”，
-                // 排在表格最后并标红，提醒补齐命名规则。
+                // 参考件不进入 BOM，装配和组件容器由遍历逻辑展开。
                 switch (ResolveRowDisposition(context.Options.Naming, ruleName))
                 {
                     case RowDisposition.Reference:
@@ -1756,7 +1775,6 @@ namespace MechKit.Features
 
                     case RowDisposition.Unmatched:
                         context.SkippedByPattern++;
-                        Accumulate(context, component, path, hierarchy, true);
                         return;
                 }
             }
@@ -1765,10 +1783,13 @@ namespace MechKit.Features
                 ? "#virtual|" + (component.Name2 ?? string.Empty) + "|" + location
                 : path.ToLowerInvariant() + "|" + configuration.ToLowerInvariant() + "|" + location);
 
+            if (context.Options.DesignTree != null) key += "|instance:" + component.Name2;
+
             PartListRow row;
             if (context.Rows.TryGetValue(key, out row))
             {
                 row.Quantity++;
+                if (nodeRows != null) nodeRows.Add(row);
                 return;
             }
 
@@ -1841,6 +1862,8 @@ namespace MechKit.Features
             ApplyConfiguredFields(row, displayPath, properties, context.Options);
 
             context.Rows[key] = row;
+            context.DesignOrderRows.Add(row);
+            if (nodeRows != null) nodeRows.Add(row);
         }
 
         private static string ResolveFullName(string value)
@@ -2014,6 +2037,21 @@ namespace MechKit.Features
                 return;
             }
 
+            if (row.Classification == "库存件" || row.Classification == "备件" || row.Classification == "外部图纸")
+            {
+                var kind = row.Classification == "库存件" ? DesignNodeKind.Stock :
+                    row.Classification == "备件" ? DesignNodeKind.Spare : DesignNodeKind.ExternalDrawing;
+                var stem = NamingOptions.GetFileNameWithoutExtension(sourceName).Trim();
+                var prefix = options.Naming.CategoryPrefix(stem, kind);
+                row.Name = row.Classification == "外部图纸" ? stem : stem.Substring(prefix.Length).TrimStart('-', '_', ' ');
+                if (row.Name.Length == 0) row.Name = stem;
+                row.Material = First(properties, "材料", "材质", "Material", "材质牌号");
+                row.Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process");
+                row.SurfaceTreatment = First(properties, "表面处理", "SurfaceTreatment");
+                row.AssemblyNote = First(properties, "安装说明", "装配说明", "AssemblyNote");
+                row.Remark = First(properties, "备注", "说明", "Remark", "Notes");
+                return;
+            }
             var standard = string.Equals(row.Classification, "标准件", StringComparison.Ordinal);
             var assemblyNoteField = standard
                 ? options.StandardAssemblyNoteField
@@ -2239,62 +2277,13 @@ namespace MechKit.Features
                 return "参考件";
             }
 
-            if (context.Options.Naming.IsMachinedName(ruleName))
-            {
-                return "加工件";
-            }
-
-            if (context.Options.Naming.HasKnownPrefix(NamingOptions.FirstSegment(ruleName)))
-            {
-                return "标准件";
-            }
-
-            if (context.Options.ExcludeToolbox)
-            {
-                var lower = path.ToLowerInvariant();
-                if (lower.Contains(@"\toolbox\") ||
-                    lower.Contains(@"\solidworks data\") ||
-                    lower.Contains(@"\browser\"))
-                {
-                    return "标准件";
-                }
-            }
-
-            if (context.Options.DetectVendorParts)
-            {
-                var byKeyword = VendorKeywords.Match(Path.GetFileName(path));
-                if (!string.IsNullOrEmpty(byKeyword))
-                {
-                    return "标准件";
-                }
-            }
-
-            if (properties != null)
-            {
-                var source = First(properties, "来源", "零件类型", "类型", "类别", "Source", "Type");
-                if (!string.IsNullOrEmpty(source))
-                {
-                    var text = source.ToLowerInvariant();
-                    if (text.Contains("标准") || text.Contains("standard") || text.Contains("toolbox") ||
-                        text.Contains("gb") || text.Contains("国标"))
-                    {
-                        return "标准件";
-                    }
-
-                    if (text.Contains("外购") || text.Contains("外协") || text.Contains("采购") ||
-                        text.Contains("purchas") || text.Contains("bought"))
-                    {
-                        return "标准件";
-                    }
-
-                    if (text.Contains("加工") || text.Contains("自制") || text.Contains("machin"))
-                    {
-                        return "加工件";
-                    }
-                }
-            }
-
-            return "加工件";
+            var kind = context.Options.Naming.RecognizeDesignNode(ruleName);
+            if (kind == DesignNodeKind.Standard) return "标准件";
+            if (kind == DesignNodeKind.Machined) return "加工件";
+            if (kind == DesignNodeKind.Stock) return "库存件";
+            if (kind == DesignNodeKind.Spare) return "备件";
+            if (kind == DesignNodeKind.ExternalDrawing) return "外部图纸";
+            return UnmatchedClassification;
         }
 
         private static Dictionary<string, string> GetProperties(CollectContext context, string path)

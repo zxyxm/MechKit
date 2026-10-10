@@ -5,6 +5,8 @@ using System.Text.RegularExpressions;
 
 namespace MechKit.Core
 {
+    internal enum DesignNodeKind { ExternalDrawing, Reference, Standard, Assembly, Group, Machined, Stock, Spare, Unmatched }
+
     /// <summary>图号取值来源。</summary>
     internal enum PartNumberSource
     {
@@ -137,41 +139,63 @@ namespace MechKit.Core
         /// <summary>BOM 收录用的名称前缀，例如 电机 / 电气 / 淘宝。新名称用短横线分段。</summary>
         public string[] BomPrefixes { get; set; }
 
-        /// <summary>
-        /// true = 只收录两类零件：
-        ///   加工件：名称以日期开头，例如 20260908-6061-扫码枪安装板
-        ///   标准件：名称以已知前缀开头，例如 电机-、电气-、淘宝-
-        /// 其余（标准件/焊件的子零件）不进入 BOM。
-        /// </summary>
+        /// <summary>兼容旧配置；BOM 始终按设计树识别规则收录。</summary>
         public bool RequireBomPattern { get; set; }
 
         /// <summary>判断名称是否属于「加工件（日期开头）」或「标准件（前缀开头）」，即是否进入 BOM。</summary>
         public bool MatchesBomPattern(string name)
         {
-            if (!RequireBomPattern)
-            {
-                return true;
-            }
+            var kind = RecognizeDesignNode(name);
+            return IsBomItem(kind);
+        }
 
-            if (string.IsNullOrEmpty(name))
-            {
-                return false;
-            }
+        public string[] StockPrefixes { get; set; } = new[] { "库存" };
+        public string[] SparePrefixes { get; set; } = new[] { "备件" };
+        public string[] ExternalDrawingPrefixes { get; set; } = new[] { "外部图纸" };
 
-            var fileName = GetFileNameWithoutExtension(name).Trim();
-            if (IsReferenceName(fileName))
-            {
-                return false;
-            }
-            return IsMachinedName(fileName) || HasKnownPrefix(FirstSegment(fileName));
+        internal static bool IsBomItem(DesignNodeKind kind)
+        {
+            return kind == DesignNodeKind.Standard || kind == DesignNodeKind.Machined ||
+                kind == DesignNodeKind.Stock || kind == DesignNodeKind.Spare || kind == DesignNodeKind.ExternalDrawing;
+        }
+
+        internal string CategoryPrefix(string name, DesignNodeKind kind)
+        {
+            var prefixes = kind == DesignNodeKind.Stock ? StockPrefixes :
+                kind == DesignNodeKind.Spare ? SparePrefixes : ExternalDrawingPrefixes;
+            var clean = GetFileNameWithoutExtension(name ?? string.Empty).Trim();
+            var best = string.Empty;
+            foreach (var prefix in prefixes ?? new string[0])
+                if (!string.IsNullOrWhiteSpace(prefix) && prefix.Length > best.Length &&
+                    clean.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) best = prefix;
+            return best;
+        }
+
+        /// <summary>设计树识别与 BOM 共用规则；装配和组件是容器，材料段非空才是加工件。</summary>
+        public DesignNodeKind RecognizeDesignNode(string name)
+        {
+            var clean = GetFileNameWithoutExtension(name ?? string.Empty).Trim();
+            if (IsReferenceName(clean)) return DesignNodeKind.Reference;
+            if (CategoryPrefix(clean, DesignNodeKind.ExternalDrawing).Length > 0) return DesignNodeKind.ExternalDrawing;
+            if (CategoryPrefix(clean, DesignNodeKind.Stock).Length > 0) return DesignNodeKind.Stock;
+            if (CategoryPrefix(clean, DesignNodeKind.Spare).Length > 0) return DesignNodeKind.Spare;
+            if (clean.StartsWith("淘宝", StringComparison.OrdinalIgnoreCase) ||
+                clean.StartsWith("代理", StringComparison.OrdinalIgnoreCase)) return DesignNodeKind.Standard;
+            var parts = clean.Split(new[] { '-', '_', ' ' }, StringSplitOptions.None);
+            if (parts.Length < 2 || !IsDateSegment(parts[0])) return DesignNodeKind.Unmatched;
+            if (parts[1] == "装配") return DesignNodeKind.Assembly;
+            if (parts[1] == "组件") return DesignNodeKind.Group;
+            if (parts[1] == "焊接") return DesignNodeKind.Machined;
+            var materialIndex = IndexOfSegment(MachinedSegmentKind.Material);
+            return materialIndex > 0 && materialIndex < parts.Length && !IsPlaceholder(parts[materialIndex])
+                ? DesignNodeKind.Machined : DesignNodeKind.Unmatched;
         }
 
         /// <summary>参考件使用固定“参考-”前缀，并默认排除在正式 BOM 之外。</summary>
         public static bool IsReferenceName(string fileName)
         {
             var cleanName = GetFileNameWithoutExtension(fileName ?? string.Empty).Trim();
-            return string.Equals(FirstSegment(cleanName), "参考",
-                StringComparison.OrdinalIgnoreCase);
+            return cleanName.StartsWith("参考", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>按当前段顺序找到时间段，并用它判断是否为加工件。</summary>

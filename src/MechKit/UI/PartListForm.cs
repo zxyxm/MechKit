@@ -38,6 +38,9 @@ namespace MechKit.UI
         private readonly TextBox _partNumberProperty;
         private readonly TextBox _materialProperty;
         private readonly DataGridView _grid;
+        private readonly TreeView _designTree = new TreeView();
+        private bool _designOrder = true;
+        private List<DesignTreeItem> _treeItems = new List<DesignTreeItem>();
         private readonly TextBox _logBox;
         private readonly Label _status;
         private readonly Button _runButton;
@@ -48,13 +51,7 @@ namespace MechKit.UI
         private readonly Button _renameComponentsButton;
         private readonly Button _closeButton;
 
-        /// <summary>不符合命名规则的组件行使用深红色整行标出。</summary>
-        private static readonly Color UnmatchedRowColor = Color.FromArgb(200, 33, 39);
-
-        /// <summary>有二维工程图的行：浅绿底。</summary>
-        private static readonly Color DrawingRowColor = Color.FromArgb(226, 245, 226);
-
-        /// <summary>加工件缺二维工程图的行：浅红底。</summary>
+        /// <summary>加工件缺二维工程图时，仅工程图单元格使用浅红底。</summary>
         private static readonly Color MissingDrawingRowColor = Color.FromArgb(253, 230, 230);
 
         private List<PartListRow> _rows = new List<PartListRow>();
@@ -123,7 +120,7 @@ namespace MechKit.UI
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             StartPosition = FormStartPosition.CenterParent;
-            WindowLayout.Attach(this, _host.Settings, new Size(1080, 800), new Size(920, 640));
+            WindowLayout.Attach(this, _host.Settings, new Size(1360, 800), new Size(1080, 640));
 
             Controls.Add(BuildResultPanel());
             Controls.Add(BuildSetupPanel());
@@ -277,26 +274,7 @@ namespace MechKit.UI
         /// <summary>把当前命名规则写成人话。</summary>
         private string DescribeRule()
         {
-            var s = _host.Settings;
-            var separator = "-（兼容 _）";
-            var prefixes = s.BomPrefixes;
-            var segmentOrder = NamingOptionsFactory.DescribeMachinedSegments(
-                NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments),
-                NamingOptionsFactory.ParseMachinedSegmentLabels(s.MachinedSegmentLabels,
-                    NamingOptionsFactory.ParseMachinedSegments(s.MachinedSegments).Length));
-
-            // 子装配体的读取策略：整机外购件整体计入，只有按规则命名的装配体才继续往下读。
-            var scope = s.BomRequirePattern
-                ? "；子装配体 = 前缀开头按整机计入，其余需「日期-装配」命名才展开"
-                : string.Empty;
-
-            return string.Format(
-                "当前规则：加工件 = {0}（分隔符 {1}）；标准件前缀 = {2}；参考件 = 参考-（不进入 BOM）{3}{4}",
-                segmentOrder,
-                separator,
-                string.IsNullOrEmpty(prefixes) ? "（未设置）" : prefixes,
-                s.BomRequirePattern ? string.Empty : "（当前已关闭过滤，全部收录）",
-                scope);
+            return "识别规则：参考不识别；淘宝/代理为标准件；日期-装配表示装配关系；日期-组件仅分组；日期开头且材料段非空为加工件；日期-焊接整体计入、不展开；库存/备件整体计入；外部图纸前缀在设置中维护。";
         }
 
         private Control BuildNamingRow()
@@ -370,14 +348,14 @@ namespace MechKit.UI
             _classificationFilter.Margin = new Padding(0, 2, 18, 0);
             _classificationFilter.Items.AddRange(new object[]
             {
-                "全部类型", "只看加工件", "只看标准件", "只看参考件", "只看未匹配"
+                "全部类型", "只看加工件", "只看标准件", "只看库存件", "只看备件", "只看外部图纸"
             });
 
             _onlyMachined.Text = "只列加工件（排除标准件 / 外购件）";
-            _excludeToolbox.Text = "Toolbox 零件视为标准件";
+            _excludeToolbox.Visible = false;
             _excludeSuppressed.Text = "忽略压缩的组件";
             _readProperties.Text = "读取零件自定义属性（较慢，但图号 / 材料更准）";
-            _detectVendor.Text = "按厂商关键词识别外购件";
+            _detectVendor.Visible = false;
 
             foreach (var box in new[] { _onlyMachined, _excludeToolbox, _detectVendor, _excludeSuppressed, _readProperties })
             {
@@ -484,12 +462,6 @@ namespace MechKit.UI
             var assemblyNoteColumn = new DataGridViewTextBoxColumn { Name = "assemblynote", HeaderText = HeaderText(_host.Settings.BomAssemblyNoteHeader, "安装说明"), Width = 120, ReadOnly = true };
             var remarkColumn = new DataGridViewTextBoxColumn { Name = "remark", HeaderText = HeaderText(_host.Settings.BomRemarkHeader, "备注") + "（可编辑）", Width = 150 };
 
-            var editableColor = Color.FromArgb(255, 252, 226);
-            nameColumn.DefaultCellStyle.BackColor = editableColor;
-            materialColumn.DefaultCellStyle.BackColor = editableColor;
-            processColumn.DefaultCellStyle.BackColor = editableColor;
-            remarkColumn.DefaultCellStyle.BackColor = editableColor;
-            fullNameColumn.DefaultCellStyle.BackColor = editableColor;
 
             var columns = new Dictionary<string, DataGridViewColumn>(StringComparer.OrdinalIgnoreCase)
             {
@@ -520,6 +492,39 @@ namespace MechKit.UI
                 _grid.Columns.Add(columns[key]);
             }
 
+            // 设计树、连接留白和 BOM 共用网格行，展开/滚动时不会错位或交叉。
+            _grid.Columns.Insert(0, new DataGridViewTextBoxColumn
+            {
+                Name = "designTree", HeaderText = "设计树排序（点击恢复）", Width = 390,
+                MinimumWidth = 220, ReadOnly = true, Frozen = true,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            });
+            _grid.Columns.Insert(1, new DataGridViewTextBoxColumn
+            {
+                Name = "treeLink", HeaderText = string.Empty, Width = 48,
+                MinimumWidth = 32, ReadOnly = true, Frozen = true,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            });
+            _grid.AllowUserToResizeRows = false;
+            _grid.CellPainting += PaintDesignTreeCell;
+            _grid.CellClick += OnDesignTreeClick;
+            _grid.ColumnHeaderMouseClick += delegate(object sender, DataGridViewCellMouseEventArgs e)
+            {
+                if (e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "designTree")
+                {
+                    PullGridEdits();
+                    _designOrder = true;
+                    ShowFilteredRows(false);
+                }
+            };
+            _grid.Sorted += delegate
+            {
+                _designOrder = false;
+                _grid.CurrentCell = null;
+                foreach (DataGridViewRow row in _grid.Rows)
+                    if (row.Tag == null) row.Visible = false;
+                _grid.Invalidate();
+            };
             panel.Controls.Add(_grid);
             return panel;
         }
@@ -829,7 +834,7 @@ namespace MechKit.UI
                     return;
                 }
 
-                var scopes = PartListService.GetSubassemblies(assembly);
+                var scopes = PartListService.GetSubassemblies(assembly, NamingOptionsFactory.FromSettings(_host.Settings));
                 var selectedIndex = 0;
                 foreach (var scope in scopes)
                 {
@@ -968,11 +973,16 @@ namespace MechKit.UI
             }
 
             var options = BuildOptions();
+            _treeItems = new List<DesignTreeItem>();
+            options.DesignTree = _treeItems;
+            _designTree.Nodes.Clear();
             var swApp = _host.SwApp;
             if (swApp == null)
             {
                 // 离线测试宿主：展示与真实 BOM 完全相同的列和典型解析结果。
                 _rows = BuildOfflinePreviewRows();
+                BuildRowTree();
+                ShowDesignTree();
                 ShowFilteredRows(true);
                 AppendLog("离线示例：20260919-6061-扫码枪安装板 → 加工件 / 扫码枪安装板 / 6061");
                 AppendLog("离线示例：代理-电机-MG996 → 标准件 / 电机 / MG996 / 代理");
@@ -1044,6 +1054,8 @@ namespace MechKit.UI
                     }
                 }
 
+                if (_treeItems.Count == 0) BuildRowTree();
+                ShowDesignTree();
                 ShowFilteredRows(true);
                 var summary = PartListService.BuildSummary(_rows);
                 AppendLog(summary);
@@ -1062,6 +1074,156 @@ namespace MechKit.UI
                 ShowFilteredRows(false);
                 UpdateSourceState();
             }
+        }
+
+        private void BuildRowTree()
+        {
+            foreach (var row in _rows)
+            {
+                var item = new DesignTreeItem
+                {
+                    Name = row.FullName,
+                    Kind = row.IsUnmatched || row.Classification == PartListService.UnmatchedClassification ? DesignNodeKind.Unmatched :
+                        row.Classification == "库存件" ? DesignNodeKind.Stock :
+                        row.Classification == "备件" ? DesignNodeKind.Spare :
+                        row.Classification == "外部图纸" ? DesignNodeKind.ExternalDrawing :
+                        row.Classification == "标准件" ? DesignNodeKind.Standard : DesignNodeKind.Machined
+                };
+                item.Rows.Add(row);
+                _treeItems.Add(item);
+            }
+        }
+
+        private void ShowDesignTree()
+        {
+            _designTree.BeginUpdate();
+            try
+            {
+                _designTree.Nodes.Clear();
+                var root = new TreeNode(_selectedComponent == null ? "当前设计树" : _selectedComponentName);
+                foreach (var item in _treeItems) root.Nodes.Add(CreateTreeNode(item));
+                _designTree.Nodes.Add(root);
+                root.ExpandAll();
+                foreach (var node in VisibleDesignNodes())
+                    if ((node.Tag as DesignTreeItem)?.Kind == DesignNodeKind.Reference) node.Collapse();
+            }
+            finally { _designTree.EndUpdate(); }
+        }
+
+        private static TreeNode CreateTreeNode(DesignTreeItem item)
+        {
+            var labels = new[] { "外部图纸", "参考件 · 不识别", "标准件", "装配", "组件 · 无装配关系", "加工件", "库存件", "备件", "命名不规范" };
+            var node = new TreeNode(item.Name + "  [" + labels[(int)item.Kind] + "]") { Tag = item };
+            switch (item.Kind)
+            {
+                case DesignNodeKind.Standard: node.BackColor = Color.FromArgb(231, 242, 255); break;
+                case DesignNodeKind.Machined: node.BackColor = Color.FromArgb(232, 246, 233); break;
+                case DesignNodeKind.Assembly:
+                case DesignNodeKind.Group: node.BackColor = Color.FromArgb(238, 230, 250); break;
+                case DesignNodeKind.Stock: node.BackColor = Color.FromArgb(224, 245, 242); break;
+                case DesignNodeKind.ExternalDrawing: node.BackColor = Color.FromArgb(255, 247, 210); break;
+                case DesignNodeKind.Spare: node.BackColor = Color.FromArgb(240, 229, 250); break;
+                case DesignNodeKind.Unmatched: node.BackColor = MissingDrawingRowColor; break;
+            }
+            if (item.Kind == DesignNodeKind.Reference)
+            {
+                node.ForeColor = Theme.Muted;
+                return node; // 参考件及其后代均不参与识别，也不提供展开入口。
+            }
+            foreach (var child in item.Children) node.Nodes.Add(CreateTreeNode(child));
+            return node;
+        }
+
+        private List<TreeNode> VisibleDesignNodes()
+        {
+            var result = new List<TreeNode>();
+            foreach (TreeNode root in _designTree.Nodes) AddVisibleDesignNodes(root, result);
+            return result;
+        }
+
+        private static void AddVisibleDesignNodes(TreeNode node, List<TreeNode> result)
+        {
+            result.Add(node);
+            if (node.IsExpanded)
+                foreach (TreeNode child in node.Nodes) AddVisibleDesignNodes(child, result);
+        }
+
+        private void OnDesignTreeClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "designTree") return;
+            var node = _grid.Rows[e.RowIndex].Cells[e.ColumnIndex].Tag as TreeNode;
+            if (node == null) return;
+            var cellBounds = _grid.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false);
+            var mouseX = _grid.PointToClient(Cursor.Position).X - cellBounds.Left;
+            if (_designOrder && node.Nodes.Count > 0 && mouseX < 24 + node.Level * 16)
+            {
+                PullGridEdits();
+                if (node.IsExpanded) node.Collapse(); else node.Expand();
+                ShowFilteredRows(false);
+            }
+            else
+            {
+                _designTree.SelectedNode = node;
+                SelectTreeRows();
+            }
+        }
+
+        private void PaintDesignTreeCell(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            var key = _grid.Columns[e.ColumnIndex].Name;
+            if (key != "designTree" && key != "treeLink") return;
+            var node = _grid.Rows[e.RowIndex].Cells["designTree"].Tag as TreeNode;
+            if (node == null) return;
+            var row = _grid.Rows[e.RowIndex].Tag as PartListRow;
+            var bounds = e.CellBounds;
+            var centerY = bounds.Top + bounds.Height / 2;
+            using (var background = new SolidBrush(node.BackColor != Color.Empty
+                ? node.BackColor : Color.White)) e.Graphics.FillRectangle(background, bounds);
+            using (var pen = new Pen(Color.FromArgb(150, 165, 182)) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+            {
+                if (key == "treeLink")
+                {
+                    if (_designOrder && row != null)
+                        e.Graphics.DrawLine(pen, bounds.Left, centerY, bounds.Right, centerY);
+                }
+                else
+                {
+                    var indent = _designOrder ? node.Level * 16 : 0;
+                    var textBounds = new Rectangle(bounds.Left + indent + 26, bounds.Top,
+                        Math.Max(1, bounds.Width - indent - 32), bounds.Height);
+                    if (_designOrder && node.Nodes.Count > 0)
+                    {
+                        var box = new Rectangle(bounds.Left + indent + 7, centerY - 5, 10, 10);
+                        e.Graphics.DrawRectangle(Pens.SlateGray, box);
+                        e.Graphics.DrawLine(Pens.SlateGray, box.Left + 2, centerY, box.Right - 2, centerY);
+                        if (!node.IsExpanded) e.Graphics.DrawLine(Pens.SlateGray, box.Left + 5, box.Top + 2, box.Left + 5, box.Bottom - 2);
+                    }
+                    TextRenderer.DrawText(e.Graphics, node.Text, _grid.Font, textBounds,
+                        node.ForeColor == Color.Empty ? Theme.Text : node.ForeColor,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    var textWidth = TextRenderer.MeasureText(node.Text, _grid.Font).Width;
+                    var lineStart = Math.Min(textBounds.Left + textWidth + 8, bounds.Right - 8);
+                    if (_designOrder && row != null)
+                        e.Graphics.DrawLine(pen, lineStart, centerY, bounds.Right, centerY);
+                    if (_grid.Rows[e.RowIndex].Selected || (_designTree.SelectedNode == node))
+                        e.Graphics.DrawRectangle(Pens.SteelBlue, bounds.Left + 1, bounds.Top + 1, bounds.Width - 3, bounds.Height - 3);
+                }
+            }
+            e.Handled = true;
+        }
+
+        private void SelectTreeRows()
+        {
+            var item = _designTree.SelectedNode == null ? null : _designTree.SelectedNode.Tag as DesignTreeItem;
+            _grid.ClearSelection();
+            foreach (DataGridViewRow gridRow in _grid.Rows)
+            {
+                var row = gridRow.Tag as PartListRow;
+                if (item != null && item.Rows.Contains(row)) gridRow.Selected = true;
+            }
+            if (_grid.SelectedRows.Count > 0)
+                _grid.FirstDisplayedScrollingRowIndex = _grid.SelectedRows[0].Index;
         }
 
         private static List<PartListRow> BuildOfflinePreviewRows()
@@ -1129,6 +1291,7 @@ namespace MechKit.UI
             }
 
             var columnName = _grid.Columns[e.ColumnIndex].Name;
+            if (columnName == "designTree" || columnName == "treeLink") return;
             var onText = IsDoubleClickOnCellText(e);
 
             // 双击名字文字 → 直接在单元格里改名字（提交后按新名字重命名文件）。
@@ -1346,7 +1509,7 @@ namespace MechKit.UI
         {
             foreach (DataGridViewRow gridRow in _grid.Rows)
             {
-                gridRow.Cells["select"].Value = selected;
+                if (gridRow.Tag is PartListRow) gridRow.Cells["select"].Value = selected;
             }
         }
 
@@ -1422,8 +1585,9 @@ namespace MechKit.UI
             {
                 case 1: classification = "加工件"; break;
                 case 2: classification = "标准件"; break;
-                case 3: classification = "参考件"; break;
-                case 4: classification = PartListService.UnmatchedClassification; break;
+                case 3: classification = "库存件"; break;
+                case 4: classification = "备件"; break;
+                case 5: classification = "外部图纸"; break;
             }
 
             foreach (var row in _rows)
@@ -1464,11 +1628,31 @@ namespace MechKit.UI
             _grid.SuspendLayout();
             try
             {
+                _designOrder = true;
+                foreach (DataGridViewColumn column in _grid.Columns)
+                    column.HeaderCell.SortGlyphDirection = SortOrder.None;
                 _grid.Rows.Clear();
                 _selectAll.Checked = false;
-                for (var i = 0; i < rows.Count; i++)
+                var nodes = VisibleDesignNodes();
+                var allowed = new HashSet<PartListRow>(rows);
+                var displayed = new HashSet<PartListRow>();
+                var sequence = 0;
+                foreach (var node in nodes)
                 {
-                    var row = rows[i];
+                    var item = node.Tag as DesignTreeItem;
+                    PartListRow row = null;
+                    if (item != null && item.Children.Count == 0)
+                        foreach (var candidate in item.Rows)
+                            if (allowed.Contains(candidate) && displayed.Add(candidate)) { row = candidate; break; }
+                    if (row == null)
+                    {
+                        var spacer = _grid.Rows[_grid.Rows.Add()];
+                        spacer.Cells["designTree"].Tag = node;
+                        spacer.Cells["designTree"].Value = node.Text;
+                        spacer.ReadOnly = true;
+                        ApplyDesignRowStyle(spacer, node);
+                        continue;
+                    }
                     if (markClean)
                     {
                         row.MarkBomClean();
@@ -1476,13 +1660,14 @@ namespace MechKit.UI
                     var index = _grid.Rows.Add();
                     var gridRow = _grid.Rows[index];
                     gridRow.Tag = row;
+                    gridRow.Cells["designTree"].Tag = node;
+                    gridRow.Cells["designTree"].Value = node.Text;
+                    ApplyDesignRowStyle(gridRow, node);
                     gridRow.Cells["select"].Value = false;
-                    gridRow.Cells["sequence"].Value = i + 1;
+                    gridRow.Cells["sequence"].Value = ++sequence;
                     gridRow.Cells["location"].Value = row.Location;
                     gridRow.Cells["fullname"].Value = row.FullName;
-                    gridRow.Cells["drawing"].Value = string.IsNullOrEmpty(row.DrawingPath)
-                        ? string.Empty
-                        : Path.GetFileName(row.DrawingPath);
+                    gridRow.Cells["drawing"].Value = PartListService.DrawingCellText(row);
                     gridRow.Cells["classification"].Value = row.Classification;
                     gridRow.Cells["name"].Value = row.Name;
                     gridRow.Cells["material"].Value = row.Material;
@@ -1492,34 +1677,11 @@ namespace MechKit.UI
                     gridRow.Cells["assemblynote"].Value = row.AssemblyNote;
                     gridRow.Cells["remark"].Value = row.Remark;
 
-                    // 不符合命名规则的组件排在最后并整行标红，提醒补齐命名规则。
-                    if (row.IsUnmatched)
-                    {
-                        gridRow.DefaultCellStyle.ForeColor = UnmatchedRowColor;
-                    }
-
-                    // 有二维工程图的整行标绿；加工件没有工程图的整行标红（提醒补图）。
+                    // 类别决定整行底色；缺图提醒只覆盖工程图单元格。
                     var hasDrawing = !string.IsNullOrEmpty(row.DrawingPath);
-                    var missingDrawing = !hasDrawing &&
+                    var missingDrawing = !hasDrawing && !PartListService.IsSheetMetalWithoutDrawing(row) &&
                         string.Equals(row.Classification, "加工件", StringComparison.Ordinal);
-                    if (hasDrawing || missingDrawing)
-                    {
-                        var rowColor = hasDrawing ? DrawingRowColor : MissingDrawingRowColor;
-                        for (var column = 0; column < _grid.Columns.Count; column++)
-                        {
-                            var columnName = _grid.Columns[column].Name;
-                            if (string.Equals(columnName, "name", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(columnName, "material", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(columnName, "process", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(columnName, "remark", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(columnName, "fullname", StringComparison.OrdinalIgnoreCase))
-                            {
-                                continue;   // 可编辑列保持黄色底，便于识别
-                            }
-
-                            gridRow.Cells[column].Style.BackColor = rowColor;
-                        }
-                    }
+                    if (missingDrawing) gridRow.Cells["drawing"].Style.BackColor = MissingDrawingRowColor;
                 }
 
                 AutoFitGridColumnsOnce();
@@ -1527,6 +1689,19 @@ namespace MechKit.UI
             finally
             {
                 _grid.ResumeLayout();
+            }
+        }
+
+        private static void ApplyDesignRowStyle(DataGridViewRow row, TreeNode node)
+        {
+            var background = node.BackColor == Color.Empty ? Color.White : node.BackColor;
+            var foreground = node.ForeColor == Color.Empty ? Theme.Text : node.ForeColor;
+            row.DefaultCellStyle.BackColor = background;
+            row.DefaultCellStyle.ForeColor = foreground;
+            foreach (DataGridViewCell cell in row.Cells)
+            {
+                cell.Style.BackColor = background;
+                cell.Style.ForeColor = foreground;
             }
         }
 
@@ -1541,11 +1716,14 @@ namespace MechKit.UI
                 return;
             }
 
-            _grid.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
+            foreach (DataGridViewColumn column in _grid.Columns)
+                if (column.Name != "designTree" && column.Name != "treeLink")
+                    _grid.AutoResizeColumn(column.Index, DataGridViewAutoSizeColumnMode.DisplayedCells);
 
             for (var index = 0; index < _grid.Columns.Count; index++)
             {
                 var column = _grid.Columns[index];
+                if (column.Name == "designTree" || column.Name == "treeLink") continue;
                 int minimum;
                 int maximum;
                 ColumnWidthLimits(column.Name, out minimum, out maximum);

@@ -603,6 +603,9 @@ namespace MechKit
                 // 设置页保存的前缀都视为“已知前缀”。从面板切换前缀时替换旧值，
                 // 不叠加成“气动_电机_”。
                 var knownList = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
+                knownList.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes));
+                knownList.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes));
+                knownList.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.ExternalDrawingPrefixes));
                 if (!knownList.Contains("参考"))
                 {
                     knownList.Add("参考");
@@ -1130,12 +1133,31 @@ namespace MechKit
             ShowNamingRuleDialog(1);
         }
 
+        public void OnStockPartCommand()
+        {
+            var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes);
+            if (prefixes.Length == 0) ShowNamingRuleDialog(3);
+            else ApplyPrefix(prefixes[0], false);
+        }
+
+        public void OnSparePartCommand()
+        {
+            var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes);
+            if (prefixes.Length == 0) ShowNamingRuleDialog(4);
+            else ApplyPrefix(prefixes[0], false);
+        }
+
+        public void OnExternalDrawingCommand() { ShowNamingRuleDialog(5); }
+
         /// <summary>参考件快捷按钮：增加“参考-”前缀，并替换已有标准件/参考件前缀。</summary>
         public void OnReferencePartCommand()
         {
             try
             {
                 var known = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
+                known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes));
+                known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes));
+                known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.ExternalDrawingPrefixes));
                 if (!known.Contains("参考"))
                 {
                     known.Add("参考");
@@ -1474,6 +1496,13 @@ namespace MechKit
             };
 
             var handle = MainWindowHandle;
+            if (handle != IntPtr.Zero && key == "quick-annotation")
+            {
+                // 公差助手需要在连续选择尺寸时保持可见，同时随 SW 窗口隐藏。
+                form.Show(new SwWindow(handle));
+                form.BringToFront();
+                return;
+            }
             if (handle != IntPtr.Zero)
             {
                 // 不把 SOLIDWORKS 主窗口当 owner：owner 会把窗口永远压在图形区之上，
@@ -1544,6 +1573,7 @@ namespace MechKit
             public CommandGroup Group;
             public int GroupId;
             public bool ReusedStoredLayout;
+            public int ToleranceIndex;
             public readonly List<int> Fixed = new List<int>();
             public readonly List<int> MachinedQuick = new List<int>();
             public readonly List<int> MachinedLevel2 = new List<int>();
@@ -1581,6 +1611,9 @@ namespace MechKit
                 AddinConstants.CmdPartNamingRule,
                 AddinConstants.CmdStandardPrefix,
                 AddinConstants.CmdReferencePart,
+                AddinConstants.CmdStockPart,
+                AddinConstants.CmdSparePart,
+                AddinConstants.CmdExternalDrawing,
                 AddinConstants.CmdMachinedDate,
                 AddinConstants.CmdConvertUnderscores,
                 AddinConstants.CmdAssemblyName,
@@ -1692,6 +1725,19 @@ namespace MechKit
                 "参考件：增加参考-前缀", 10, "OnReferencePartCommand", "OnAlwaysEnable",
                 AddinConstants.CmdReferencePart, tabItem));
 
+            indices.Add(group.AddCommandItem2("库存件", -1,
+                "给选中零件添加库存件前缀；整体计入 BOM，装配体不展开",
+                "库存件：添加配置的库存前缀", 10, "OnStockPartCommand", "OnAlwaysEnable",
+                AddinConstants.CmdStockPart, tabItem));
+            indices.Add(group.AddCommandItem2("备件", -1,
+                "给选中零件添加备件前缀；整体计入 BOM，装配体不展开",
+                "备件：添加配置的备件前缀", 10, "OnSparePartCommand", "OnAlwaysEnable",
+                AddinConstants.CmdSparePart, tabItem));
+            indices.Add(group.AddCommandItem2("外部图纸", -1,
+                "设置按零件名开头识别的外部图纸前缀，例如 BRC",
+                "外部图纸前缀设置", 3, "OnExternalDrawingCommand", "OnAlwaysEnable",
+                AddinConstants.CmdExternalDrawing, tabItem));
+
             machinedQuickIndices.Add(group.AddCommandItem2("时间", -1,
                 "把当天日期写入选中零件文件名的第一段",
                 "加工件：写入当天时间", 2, "OnMachinedDateCommand", "OnAlwaysEnable",
@@ -1717,10 +1763,11 @@ namespace MechKit
                 "工具箱面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",
                 AddinConstants.CmdTaskPane, tabItem));
 
-            indices.Add(group.AddCommandItem2("快捷标注", -1,
-                "为选中工程图尺寸应用 +0.05/0、0/-0.05 或销钉孔 +0.012/0 mm 双边公差",
-                "快捷公差标注", 7, "OnQuickAnnotation", "OnAlwaysEnable",
-                AddinConstants.CmdQuickAnnotation, tabItem));
+            layout.ToleranceIndex = group.AddCommandItem2("公差助手", -1,
+                "给工程图尺寸或孔标注参数应用公差，右键自定义常用预设",
+                "快捷给公差", 7, "OnQuickAnnotation", "OnAlwaysEnable",
+                AddinConstants.CmdQuickAnnotation, tabItem);
+            indices.Add(layout.ToleranceIndex);
 
             indices.Add(group.AddCommandItem2("导出配置", -1,
                 "把 MechKit 命名规则、预设与 BOM 设置直接导出到桌面",
@@ -1932,10 +1979,26 @@ namespace MechKit
                     AddFourColumnCommandBoxes(tab, prefixIndices);
                     AddFourColumnCommandBoxes(tab, middleNameIndices);
 
-                    // 第三类“参考件”以及右侧工具功能。
+                    // 工程图标注工具共用一个框，原生命令保留 SW 自带图标与行为。
+                    if (docType == (int)swDocumentTypes_e.swDocDRAWING)
+                    {
+                        var annotationIds = new List<int> { AddinConstants.NativeSmartDimension };
+                        var below = (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow;
+                        var annotationStyles = new List<int> { below };
+                        AppendCommandTabItem(annotationIds, annotationStyles, layout.ToleranceIndex, below);
+                        annotationIds.Add(AddinConstants.NativeHoleCallout);
+                        annotationIds.Add(AddinConstants.NativeDowelPinSymbol);
+                        annotationStyles.Add(below);
+                        annotationStyles.Add(below);
+                        AddMixedCommandTabBox(tab, annotationIds, annotationStyles);
+                    }
+
+                    // 参考件、库存件、备件、外部图纸，以及右侧工具功能。
                     var trailing = new List<int>();
                     for (var i = 4; i < fixedIndices.Count; i++)
                     {
+                        if (docType == (int)swDocumentTypes_e.swDocDRAWING && fixedIndices[i] == layout.ToleranceIndex)
+                            continue;
                         trailing.Add(fixedIndices[i]);
                     }
                     AddCommandTabBox(tab, trailing,

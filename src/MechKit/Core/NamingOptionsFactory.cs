@@ -31,6 +31,9 @@ namespace MechKit.Core
             naming.MachinedMaterialProcessPresets = ParseMaterialProcessPresets(
                 settings.MachinedMaterialProcessRules);
             naming.BomPrefixes = ParsePrefixes(settings.BomPrefixes);
+            naming.StockPrefixes = ParsePrefixes(settings.StockPrefixes);
+            naming.SparePrefixes = ParsePrefixes(settings.SparePrefixes);
+            naming.ExternalDrawingPrefixes = ParsePrefixes(settings.ExternalDrawingPrefixes, true);
             naming.RequireBomPattern = settings.BomRequirePattern;
             return naming;
         }
@@ -331,7 +334,7 @@ namespace MechKit.Core
         }
 
         /// <summary>解析前缀列表；界面使用空格分隔，并兼容旧的逗号 / 分号 / 顿号。</summary>
-        public static string[] ParsePrefixes(string text)
+        public static string[] ParsePrefixes(string text, bool preserveSeparators = false)
         {
             var result = new List<string>();
             if (string.IsNullOrEmpty(text))
@@ -344,7 +347,7 @@ namespace MechKit.Core
                 ' ', '\t', '\r', '\n', '　', ',', '，', ';', '；', '、'
             }, StringSplitOptions.RemoveEmptyEntries))
             {
-                var value = part.Trim().TrimEnd('_', '-', '*', '＊');
+                var value = preserveSeparators ? part.Trim() : part.Trim().TrimEnd('_', '-', '*', '＊');
                 if (value.Length > 0 && !result.Contains(value))
                 {
                     result.Add(value);
@@ -355,11 +358,11 @@ namespace MechKit.Core
         }
 
         /// <summary>按界面约定用空格保存前缀，同时便于直接阅读和复制。</summary>
-        public static string SerializePrefixes(IEnumerable<string> prefixes)
+        public static string SerializePrefixes(IEnumerable<string> prefixes, bool preserveSeparators = false)
         {
             return string.Join(" ", ParsePrefixes(prefixes == null
                 ? string.Empty
-                : string.Join(" ", new List<string>(prefixes).ToArray())));
+                : string.Join(" ", new List<string>(prefixes).ToArray()), preserveSeparators));
         }
 
         public static Dictionary<string, string> ParsePrefixDescriptions(string text)

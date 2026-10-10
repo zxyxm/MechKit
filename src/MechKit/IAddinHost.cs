@@ -38,7 +38,7 @@ namespace MechKit
         /// <summary>打开设置；tabIndex 0 = BOM 格式，1 = 个人配置。</summary>
         void ShowSettingsDialog(int tabIndex);
 
-        /// <summary>打开命名规则设置（tabIndex 0 = 加工件，1 = 标准件）。</summary>
+        /// <summary>打开命名规则设置（tabIndex 0 = 加工件，1 = 标准件，2 = 参考件，3 = 库存件，4 = 备件，5 = 外部图纸）。</summary>
         void ShowNamingRuleDialog(int tabIndex);
 
         /// <summary>非模态打开命名规则，并在窗口关闭后通知调用页刷新。</summary>

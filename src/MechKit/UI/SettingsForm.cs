@@ -13,6 +13,7 @@ namespace MechKit.UI
     internal sealed class SettingsForm : Form
     {
         private readonly IAddinHost _host;
+        private CategoryRulesPanel _categoryRules;
         private readonly TextBox _weldment;
         private readonly TextBox _template;
         private readonly TextBox _macro;
@@ -158,6 +159,10 @@ namespace MechKit.UI
 
             tabs.TabPages.Add(bomTab);
             tabs.TabPages.Add(personalTab);
+            var categoryTab = new TabPage("大类与前缀") { BackColor = Theme.Surface, Padding = new Padding(8) };
+            _categoryRules = new CategoryRulesPanel(_host);
+            categoryTab.Controls.Add(_categoryRules);
+            tabs.TabPages.Add(categoryTab);
             tabs.SelectedIndex = Math.Max(0, Math.Min(tabs.TabPages.Count - 1, _initialTab));
             body.Controls.Add(tabs);
 
@@ -223,7 +228,7 @@ namespace MechKit.UI
             levelEditor.Controls.Add(levelHint);
             layout.Controls.Add(levelEditor, 1, 1);
 
-            _requirePattern.Text = "只收录加工件与标准件（“参考-”开头的参考件不进入 BOM）";
+            _requirePattern.Text = "收录加工件、标准件、库存件、备件和外部图纸；参考件不进入 BOM";
             _requirePattern.AutoSize = true;
             _requirePattern.ForeColor = Theme.Text;
             _requirePattern.Margin = new Padding(0, 8, 0, 0);
@@ -757,7 +762,7 @@ namespace MechKit.UI
             _prefixes.Dock = DockStyle.Fill;
             _prefixes.Margin = new Padding(0, 4, 6, 4);
 
-            _requirePattern.Text = "只收录加工件与标准件（“参考-”开头的参考件不进入 BOM）";
+            _requirePattern.Text = "收录加工件、标准件、库存件、备件和外部图纸；参考件不进入 BOM";
             _requirePattern.AutoSize = true;
             _requirePattern.ForeColor = Theme.Text;
             _requirePattern.Margin = new Padding(0, 8, 0, 0);
@@ -997,7 +1002,9 @@ namespace MechKit.UI
             _macro.Text = string.IsNullOrEmpty(settings.MacroFolder) ? SwFolders.Macros() : settings.MacroFolder;
             _toolbox.Text = string.IsNullOrEmpty(settings.ToolboxFolder) ? SwFolders.Toolbox() : settings.ToolboxFolder;
             _prefixes.Text = settings.BomPrefixes;
-            _requirePattern.Checked = settings.BomRequirePattern;
+            _categoryRules.LoadFromSettings();
+            _requirePattern.Checked = true;
+            _requirePattern.Enabled = false;
             _usePropertyFields.Checked = settings.BomUsePropertyFields;
             RebuildFieldSourceCombos();
             _assemblyLevel.SelectedIndex = AssemblyLevelToIndex(settings.BomAssemblyLevel);
@@ -1052,6 +1059,7 @@ namespace MechKit.UI
             settings.MacroFolder = _macro.Text.Trim();
             settings.ToolboxFolder = _toolbox.Text.Trim();
             settings.BomPrefixes = _prefixes.Text.Trim();
+            _categoryRules.SaveToSettings();
             settings.BomRequirePattern = _requirePattern.Checked;
             settings.BomUsePropertyFields = _usePropertyFields.Checked;
             settings.BomAssemblyLevel = AssemblyLevelFromIndex(_assemblyLevel.SelectedIndex);
