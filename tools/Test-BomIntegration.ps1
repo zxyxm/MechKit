@@ -173,6 +173,12 @@ Assert-Equal 'assembly creates an assembly relation' ($assemblyHierarchy -join '
 $recognize = $offNaming.GetType().GetMethod('RecognizeDesignNode')
 foreach ($rule in @(
     @('20261010-装配-机架', 'Assembly'),
+    @('20260921-装配x2-测试1', 'Assembly'),
+    @('20260921-组件x2-测试1', 'Group'),
+    @('20260921-组件X3-测试1', 'Group'),
+    @('20260921-装配x0-测试1', 'Unmatched'),
+    @('20260921-装配x-测试1', 'Unmatched'),
+    @('20260921-装配x2147483648-测试1', 'Unmatched'),
     @('20261010_组件_机架', 'Group'),
     @('20261010-6061-板', 'Machined'),
     @('20261010--板', 'Unmatched'),
@@ -185,6 +191,19 @@ foreach ($rule in @(
     @('P80-02-01-01-0治疗通道组件', 'Unmatched')
 )) {
     Assert-Equal ("design node " + $rule[0]) ($recognize.Invoke($offNaming, @($rule[0]))) $rule[1]
+}
+
+$setCount = $offNaming.GetType().GetMethod('AssemblySetCount')
+foreach ($rule in @(
+    @('20260921-装配x2-测试1', 2),
+    @('20260921-组件x3-测试1.SLDASM', 3),
+    @('20260921-装配-测试1', 1),
+    @('20260921-组件-测试x2', 1),
+    @('20260921-6061-测试x2', 1),
+    @('20260921-组件X12-测试1', 12),
+    @('20260921-装配x0-测试1', 1)
+)) {
+    Assert-Equal ("assembly set count " + $rule[0]) ($setCount.Invoke($offNaming, @($rule[0]))) $rule[1]
 }
 
 # Configured external drawing prefixes are shared by recognition and BOM filtering.

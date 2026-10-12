@@ -97,6 +97,8 @@ namespace MechKit.Features
     {
         public string Name { get; set; }
         public DesignNodeKind Kind { get; set; }
+        public string FilePath { get; set; }
+        public string Configuration { get; set; }
         public List<DesignTreeItem> Children = new List<DesignTreeItem>();
         public List<PartListRow> Rows = new List<PartListRow>();
     }
@@ -387,7 +389,7 @@ namespace MechKit.Features
             var hierarchy = new List<string> { ResolveTopAssemblyName(swApp) };
             foreach (var item in components)
             {
-                VisitComponent(context, item as Component2, hierarchy);
+                VisitComponent(context, item as Component2, hierarchy, multiplier: options.Naming.AssemblySetCount(rootName));
             }
 
             return FinalizeRows(context, options);
@@ -440,6 +442,7 @@ namespace MechKit.Features
             {
                 VisitComponent(context, root, new List<string>());
             }
+            catch (OverflowException) { throw; }
             catch (Exception ex)
             {
                 Log.Warn("统计选中部件失败：" + ex.Message);
@@ -547,7 +550,11 @@ namespace MechKit.Features
             }
 
             var path = doc.GetPathName();
-            var treeItem = new DesignTreeItem { Name = ResolveFullName(path), Kind = options.Naming.RecognizeDesignNode(path) };
+            var treeItem = new DesignTreeItem
+            {
+                Name = ResolveFullName(path), Kind = options.Naming.RecognizeDesignNode(path),
+                FilePath = path, Configuration = SwUtils.ActiveConfigurationName(doc)
+            };
             if (options.DesignTree != null) options.DesignTree.Add(treeItem);
             if (treeItem.Kind == DesignNodeKind.Reference || treeItem.Kind == DesignNodeKind.Assembly || treeItem.Kind == DesignNodeKind.Group) return null;
             var context = new CollectContext(swApp, options, null);
@@ -754,6 +761,13 @@ namespace MechKit.Features
             }
         }
 
+        internal static bool IsMissingRequiredDrawing(PartListRow row)
+        {
+            return row != null && string.IsNullOrEmpty(row.DrawingPath) &&
+                string.Equals(row.Classification, "加工件", StringComparison.Ordinal) &&
+                !IsSheetMetalWithoutDrawing(row);
+        }
+
         internal static bool IsSheetMetalWithoutDrawing(PartListRow row)
         {
             return row != null && string.IsNullOrEmpty(row.DrawingPath) &&
@@ -768,7 +782,7 @@ namespace MechKit.Features
             return IsSheetMetalWithoutDrawing(row) ? "钣金" : string.Empty;
         }
 
-        private static string ColumnValue(PartListRow row, int sequence, string key)
+        internal static string ColumnValue(PartListRow row, int sequence, string key)
         {
             if (row == null) return string.Empty;
             switch ((key ?? string.Empty).ToLowerInvariant())
@@ -872,7 +886,7 @@ namespace MechKit.Features
                 int errors = 0;
                 int warnings = 0;
                 var doc = swApp.OpenDoc6(target, SwUtils.DocTypeFromPath(target),
-                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent, string.Empty, ref errors, ref warnings);
+                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent, row.Configuration ?? string.Empty, ref errors, ref warnings);
                 if (doc == null)
                 {
                     log(string.Format("✗ 打开失败（错误码 {0}）：{1}", errors, Path.GetFileName(target)));
@@ -1698,7 +1712,7 @@ namespace MechKit.Features
             return result;
         }
 
-        private static void VisitComponent(CollectContext context, Component2 component, IList<string> hierarchy, List<DesignTreeItem> tree = null)
+        private static void VisitComponent(CollectContext context, Component2 component, IList<string> hierarchy, List<DesignTreeItem> tree = null, int multiplier = 1)
         {
             if (component == null)
             {
@@ -1718,7 +1732,11 @@ namespace MechKit.Features
 
                 var name = ComponentRuleName(component, path);
                 var kind = context.Options.Naming.RecognizeDesignNode(name);
-                var node = new DesignTreeItem { Name = ComponentDisplayName(component, path), Kind = kind };
+                var node = new DesignTreeItem
+                {
+                    Name = ComponentDisplayName(component, path), Kind = kind,
+                    FilePath = path, Configuration = component.ReferencedConfiguration ?? string.Empty
+                };
                 if (tree != null) tree.Add(node);
                 if (kind == DesignNodeKind.Reference)
                 {
@@ -1729,10 +1747,11 @@ namespace MechKit.Features
                     (kind == DesignNodeKind.Assembly || kind == DesignNodeKind.Group))
                 {
                     var childHierarchy = BuildChildHierarchy(hierarchy, node.Name, kind);
+                    var childMultiplier = checked(multiplier * context.Options.Naming.AssemblySetCount(name));
                     var children = component.GetChildren() as object[];
                     if (children != null)
                         foreach (var child in children)
-                            VisitComponent(context, child as Component2, childHierarchy, node.Children);
+                            VisitComponent(context, child as Component2, childHierarchy, node.Children, childMultiplier);
                     foreach (var child in node.Children)
                         foreach (var row in child.Rows)
                             if (!node.Rows.Contains(row)) node.Rows.Add(row);
@@ -1740,10 +1759,11 @@ namespace MechKit.Features
                 }
 
                 if (NamingOptions.IsBomItem(kind))
-                    Accumulate(context, component, path, hierarchy, false, node.Rows);
+                    Accumulate(context, component, path, hierarchy, false, node.Rows, multiplier);
                 else if (kind == DesignNodeKind.Unmatched)
-                    Accumulate(context, component, path, hierarchy, true, node.Rows);
+                    Accumulate(context, component, path, hierarchy, true, node.Rows, multiplier);
             }
+            catch (OverflowException) { throw; }
             catch (Exception ex)
             {
                 Log.Warn("遍历组件失败：" + ex.Message);
@@ -1751,7 +1771,7 @@ namespace MechKit.Features
         }
 
         private static void Accumulate(CollectContext context, Component2 component, string path,
-            IList<string> hierarchy, bool unmatched = false, List<PartListRow> nodeRows = null)
+            IList<string> hierarchy, bool unmatched = false, List<PartListRow> nodeRows = null, int multiplier = 1)
         {
             var configuration = component.ReferencedConfiguration ?? string.Empty;
             var isVirtual = string.IsNullOrEmpty(path);
@@ -1788,7 +1808,7 @@ namespace MechKit.Features
             PartListRow row;
             if (context.Rows.TryGetValue(key, out row))
             {
-                row.Quantity++;
+                row.Quantity = checked(row.Quantity + multiplier);
                 if (nodeRows != null) nodeRows.Add(row);
                 return;
             }
@@ -1846,7 +1866,7 @@ namespace MechKit.Features
                     : context.Options.Naming.ResolveMaterial(modelMaterial, name => Lookup(properties, name)),
                 Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process"),
                 Remark = First(properties, "备注", "说明", "Remark", "Notes"),
-                Quantity = 1,
+                Quantity = multiplier,
                 Classification = classification,
                 IsUnmatched = unmatched,
                 FilePath = path,

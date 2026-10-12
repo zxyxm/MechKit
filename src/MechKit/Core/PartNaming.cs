@@ -183,12 +183,27 @@ namespace MechKit.Core
                 clean.StartsWith("代理", StringComparison.OrdinalIgnoreCase)) return DesignNodeKind.Standard;
             var parts = clean.Split(new[] { '-', '_', ' ' }, StringSplitOptions.None);
             if (parts.Length < 2 || !IsDateSegment(parts[0])) return DesignNodeKind.Unmatched;
-            if (parts[1] == "装配") return DesignNodeKind.Assembly;
-            if (parts[1] == "组件") return DesignNodeKind.Group;
+            var container = Regex.Match(parts[1], @"^(装配|组件)(?:[xX]([1-9][0-9]*))?$");
+            int sets;
+            if (container.Success && (!container.Groups[2].Success || int.TryParse(container.Groups[2].Value, out sets)))
+                return container.Groups[1].Value == "装配" ? DesignNodeKind.Assembly : DesignNodeKind.Group;
+            if (parts[1].StartsWith("装配x", StringComparison.OrdinalIgnoreCase) ||
+                parts[1].StartsWith("组件x", StringComparison.OrdinalIgnoreCase)) return DesignNodeKind.Unmatched;
             if (parts[1] == "焊接") return DesignNodeKind.Machined;
             var materialIndex = IndexOfSegment(MachinedSegmentKind.Material);
             return materialIndex > 0 && materialIndex < parts.Length && !IsPlaceholder(parts[materialIndex])
                 ? DesignNodeKind.Machined : DesignNodeKind.Unmatched;
+        }
+
+        /// <summary>装配/组件后的可选 xN 表示生产套数，默认一套。</summary>
+        public int AssemblySetCount(string name)
+        {
+            var kind = RecognizeDesignNode(name);
+            if (kind != DesignNodeKind.Assembly && kind != DesignNodeKind.Group) return 1;
+            var parts = GetFileNameWithoutExtension(name ?? string.Empty).Trim()
+                .Split(new[] { '-', '_', ' ' }, StringSplitOptions.None);
+            var match = Regex.Match(parts[1], @"[xX]([1-9][0-9]*)$");
+            return match.Success ? int.Parse(match.Groups[1].Value) : 1;
         }
 
         /// <summary>参考件使用固定“参考-”前缀，并默认排除在正式 BOM 之外。</summary>

@@ -380,7 +380,7 @@ foreach ($case in @(
 # listed; every other component is treated as a sub-part and skipped.
 foreach ($case in $cases.bomCases) {
     $options = New-NamingOptions 'FileName' 'FirstSpace' ''
-    $prefixes = $parsePrefixes.Invoke($null, @((Get-Field $case 'prefixes')))
+    $prefixes = $parsePrefixes.Invoke($null, @((Get-Field $case 'prefixes'), $false))
     $prefixProperty.SetValue($options, $prefixes)
     $requirePatternProperty.SetValue($options, $true)
 

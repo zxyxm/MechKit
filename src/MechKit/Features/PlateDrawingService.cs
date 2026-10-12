@@ -1,0 +1,503 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
+using MechKit.Core;
+using SwView = SolidWorks.Interop.sldworks.View;
+
+namespace MechKit.Features
+{
+    internal sealed class PlateDrawingResult
+    {
+        public string Source, Configuration, Status, Message, Output;
+        public override string ToString() { return Status+"\t"+Source+" ["+Configuration+"]\t"+Message+"\t"+Output; }
+    }
+
+    internal sealed class PlateDrawingService
+    {
+        private readonly ISldWorks app;
+        private readonly NamingOptions naming;
+        public readonly List<PlateDrawingResult> Results = new List<PlateDrawingResult>();
+        public string ReportPath { get; private set; }
+        public bool Cancelled { get; private set; }
+
+        public PlateDrawingService(ISldWorks app, AddinSettings settings)
+        { this.app=app; naming=NamingOptionsFactory.FromSettings(settings); }
+
+        private sealed class Candidate
+        {
+            public string Path;
+            public HashSet<string> Configurations=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Runs on SOLIDWORKS' UI/STA thread. Progress may pump messages BETWEEN parts only.
+        public void Run(ModelDoc2 assembly, Func<int,int,string,bool> progress, Action<PlateDrawingResult> completed)
+        {
+            if (assembly == null || assembly.GetType()!=SwUtils.DocAssembly)
+                throw new InvalidOperationException("请先激活需要出图的装配体。");
+            var originalTitle=assembly.GetTitle();
+            try
+            {
+                var root=assembly.ConfigurationManager.ActiveConfiguration.GetRootComponent3(true);
+                var candidates=new Dictionary<string,Candidate>(StringComparer.OrdinalIgnoreCase);
+                Collect(root,candidates,completed);
+                var template=ExtractTemplate();
+                var index=0;
+                foreach(var candidate in candidates.Values.OrderBy(c=>c.Path,StringComparer.OrdinalIgnoreCase))
+                {
+                    if (!progress(index++,candidates.Count,Path.GetFileName(candidate.Path))) { Cancelled=true; break; }
+                    var result=new PlateDrawingResult {Source=candidate.Path,
+                        Configuration=string.Join("; ",candidate.Configurations),Status="跳过",Output=""};
+                    try
+                    {
+                        // Same-basename policy cannot encode multiple referenced configurations safely.
+                        if (candidate.Configurations.Count!=1)
+                            throw new InvalidOperationException("同一零件引用多个配置，同名文件会冲突；请分别确定出图配置。");
+                        var target=Path.ChangeExtension(candidate.Path,".SLDDRW");
+                        if(File.Exists(target) || SwUtils.FindOpenDocument(app,target)!=null)
+                            throw new InvalidOperationException("已有同名工程图，保留并跳过。");
+                        Draw(candidate.Path,candidate.Configurations.Single(),target,template,result);
+                    }
+                    catch(Exception ex) { result.Message=ex.Message; }
+                    Results.Add(result); completed(result);
+                }
+            }
+            finally
+            {
+                int error=0;
+                try { app.ActivateDoc3(originalTitle,false,(int)swRebuildOnActivation_e.swDontRebuildActiveDoc,ref error); }
+                catch(Exception ex) { Log.Warn("恢复装配体窗口失败："+ex.Message); }
+                WriteReport(assembly.GetPathName());
+            }
+        }
+
+        private void Collect(Component2 parent, Dictionary<string,Candidate> targets, Action<PlateDrawingResult> completed)
+        {
+            if(parent==null) throw new InvalidOperationException("无法读取装配体根组件，请退出大型设计审阅模式。");
+            foreach(var component in PlateMath.Items<Component2>(parent.GetChildren()))
+            {
+                var path=component.GetPathName();
+                try
+                {
+                    if(component.IsSuppressed()) throw new InvalidOperationException("组件已压缩。");
+                    var kind=naming.RecognizeDesignNode(path);
+                    if(kind==DesignNodeKind.Reference || kind==DesignNodeKind.Standard || kind==DesignNodeKind.Stock ||
+                       kind==DesignNodeKind.Spare || kind==DesignNodeKind.ExternalDrawing)
+                        throw new InvalidOperationException("按 MechKit 命名规则排除："+kind);
+                    if(string.Equals(Path.GetExtension(path),".sldasm",StringComparison.OrdinalIgnoreCase))
+                    {
+                        if(component.GetChildren()==null) throw new InvalidOperationException("子装配体未解析，请先设为还原状态。");
+                        Collect(component,targets,completed); continue;
+                    }
+                    if(component.IsVirtual || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                        throw new InvalidOperationException("虚拟、未保存或丢失的零件，请先另存为独立文件。");
+                    if(!string.Equals(Path.GetExtension(path),".sldprt",StringComparison.OrdinalIgnoreCase)) continue;
+                    Candidate c;
+                    if(!targets.TryGetValue(path,out c)) targets[path]=c=new Candidate{Path=path};
+                    c.Configurations.Add(component.ReferencedConfiguration);
+                }
+                catch(Exception ex)
+                {
+                    var r=new PlateDrawingResult{Source=string.IsNullOrEmpty(path)?component.Name2:path,
+                        Configuration=component.ReferencedConfiguration,Status="跳过",Message=ex.Message,Output=""};
+                    Results.Add(r); completed(r);
+                }
+            }
+        }
+
+        public static string ExtractTemplate()
+        {
+            var folder=AppPaths.Ensure(Path.Combine(AppPaths.Root,"drawing-templates"));
+            var path=Path.Combine(folder,"plate-a3-third-angle-v1.drwdot");
+            using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("MechKit.Resources.drawings.plate-a3-third-angle.drwdot"))
+            {
+                if(stream==null) throw new InvalidOperationException("插件缺少内置工程图模板。");
+                // Refresh the extracted copy from the embedded template; the resource is authoritative.
+                using(var file=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.Read)) stream.CopyTo(file);
+            }
+            return path;
+        }
+
+        private void Activate(ModelDoc2 doc)
+        {
+            int error=0;
+            if(app.ActivateDoc3(doc.GetTitle(),false,(int)swRebuildOnActivation_e.swDontRebuildActiveDoc,ref error)==null)
+                throw new InvalidOperationException("无法激活文档："+doc.GetTitle()+"（"+error+"）");
+        }
+
+        private void Draw(string path,string config,string target,string template,PlateDrawingResult result)
+        {
+            ModelDoc2 part=SwUtils.FindOpenDocument(app,path), drawing=null;
+            var openedPart=false;
+            var staging=Path.Combine(Path.GetDirectoryName(target),".MechKit-"+Guid.NewGuid().ToString("N")+".SLDDRW");
+            try
+            {
+                if(part==null)
+                {
+                    int errors=0,warnings=0;
+                    part=app.OpenDoc6(path,SwUtils.DocPart,(int)(swOpenDocOptions_e.swOpenDocOptions_Silent|
+                        swOpenDocOptions_e.swOpenDocOptions_ReadOnly),config,ref errors,ref warnings);
+                    openedPart=part!=null;
+                    if(part==null) throw new InvalidOperationException("零件无法打开（"+errors+"）。");
+                }
+                if(part.GetSaveFlag()) throw new InvalidOperationException("零件有未保存修改，请先保存后再出图。");
+                if(!string.Equals(part.ConfigurationManager.ActiveConfiguration.Name,config,StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("装配引用配置与已打开零件的活动配置不同，请激活引用配置后重试。");
+                var geometry=PlateGeometry.Inspect(part);
+                result.Status="失败"; // From this point failures are generation failures, not exclusions.
+                drawing=(ModelDoc2)app.NewDocument(template,0,0,0);
+                if(drawing==null) throw new InvalidOperationException("无法新建工程图。");
+                var drw=(DrawingDoc)drawing;
+                var notes=Requirements(drw);
+                SetScale(drw,1);
+
+                Activate(part);
+                part.ClearSelection2(true);
+                var selection=(SelectionMgr)part.SelectionManager;
+                var frontData=selection.CreateSelectData(); frontData.Mark=1;
+                var rightData=selection.CreateSelectData(); rightData.Mark=2;
+                if(!((Entity)geometry.Front.Face).Select4(false,frontData) || !((Entity)geometry.Right.Face).Select4(true,rightData))
+                    throw new InvalidOperationException("无法选择板件定向基准面。");
+                Activate(drawing);
+                var main=drw.CreateRelativeView(path,.175,.230,
+                    (int)swRelativeViewCreationDirection_e.swRelativeViewCreationDirection_FRONT,
+                    (int)swRelativeViewCreationDirection_e.swRelativeViewCreationDirection_RIGHT);
+                part.ClearSelection2(true);
+                if(main==null) throw new InvalidOperationException("相对模型视图创建失败。");
+                main.ReferencedConfiguration=config;
+                var x=Axis(main,0); var y=Axis(main,1);
+                if(!PlateMath.Parallel(Axis(main,2),geometry.Front.Normal))
+                    throw new InvalidOperationException("主视图未正对板件大面。");
+                if(geometry.Span(y)>geometry.Span(x)+PlateMath.Epsilon) main.Angle=Math.PI/2;
+                x=Axis(main,0); y=Axis(main,1);
+                var length=geometry.Span(x); var width=geometry.Span(y);
+                var scale=PlateMath.ChooseScale(length,width,geometry.Thickness);
+                SetScale(drw,scale); main.UseSheetScale=1; drawing.ForceRebuild3(false);
+                var mainY=.262-width*scale/2;
+                main.Position=new[]{.175,mainY};
+                var sideY=mainY-(width+geometry.Thickness)*scale/2-.023;
+                var backY=sideY-(width+geometry.Thickness)*scale/2-.021;
+                var side=Project(drawing,main,.175,sideY);
+                var back=Project(drawing,side,.175,backY);
+                var views=new List<SwView>{main,side,back};
+                SetScale(drw,scale);
+                foreach(var view in views) view.UseSheetScale=1;
+                drawing.ForceRebuild3(false);
+                var messages=new List<string>();
+                if(PlateMath.Items<Loop2>(geometry.Front.Face.GetLoops()).Where(l=>l.IsOuter())
+                    .Any(l=>PlateMath.Items<Edge>(l.GetEdges()).Count()>4))
+                    messages.Add("外轮廓含多段边/缺口；请复核开口槽及局部槽尺寸。");
+                Envelope(drawing,main,geometry,0,.175,mainY+width*scale/2+.009);
+                Envelope(drawing,main,geometry,1,.175-length*scale/2-.012,mainY);
+                Envelope(drawing,side,geometry,1,.175-length*scale/2-.012,sideY);
+                var holes=CollectHoles(geometry,messages);
+                // A fourth linked side view, only if a hole mouth needs it and there is room.
+                var uncovered=holes.FirstOrDefault(h=>!views.Any(v=>FacesView(h.Plane,v)));
+                if(uncovered!=null && Math.Abs(PlateMath.Dot(uncovered.Plane.Normal,Axis(main,0)))>1-1e-7)
+                {
+                    var sign=PlateMath.Dot(uncovered.Plane.Normal,Axis(main,0))>0?1:-1;
+                    var endX=.175+sign*(length*scale/2+geometry.Thickness*scale/2+.04);
+                    if(endX>.065 && endX<.340)
+                    {
+                        var end=Project(drawing,main,endX,mainY); end.UseSheetScale=1; views.Add(end);
+                    }
+                }
+                AddHoles(drawing,views,holes,messages);
+                if(geometry.HasUnclassifiedSlots)
+                    messages.Add("存在台阶/槽或孔底平面；槽型未自动确认，槽尺寸及专用公差需复核。");
+                drawing.ClearSelection2(true); drw.ActivateView(""); drawing.ForceRebuild3(false);
+                var annotationSnapshot=AnnotationSnapshot(drw);
+                Verify(drawing,path,config,views.Count,notes,annotationSnapshot);
+                if(part.GetSaveFlag()) throw new InvalidOperationException("源零件出现未保存状态，停止发布此图；未保存源零件。");
+                int saveErrors=0,saveWarnings=0;
+                if(!drawing.Extension.SaveAs(staging,0,(int)swSaveAsOptions_e.swSaveAsOptions_Silent,null,ref saveErrors,ref saveWarnings) || saveErrors!=0)
+                    throw new InvalidOperationException("保存失败（"+saveErrors+"）。");
+                if(saveWarnings!=0) messages.Add("SolidWorks 保存警告码："+saveWarnings);
+                app.CloseDoc(drawing.GetTitle()); drawing=null;
+                int openErrors=0,openWarnings=0;
+                drawing=app.OpenDoc6(staging,SwUtils.DocDrawing,(int)swOpenDocOptions_e.swOpenDocOptions_Silent,"",ref openErrors,ref openWarnings);
+                if(drawing==null || openErrors!=0) throw new InvalidOperationException("工程图重开失败（"+openErrors+"）。");
+                Verify(drawing,path,config,views.Count,notes,annotationSnapshot);
+                if(openWarnings!=0) messages.Add("SolidWorks 重开警告码："+openWarnings);
+                app.CloseDoc(drawing.GetTitle()); drawing=null;
+                // Rename in the SAME directory preserves relative model references. Move never overwrites.
+                File.Move(staging,target);
+                result.Output=target;
+                result.Status=messages.Count==0?"已生成":"已生成·待复核";
+                result.Message=messages.Count==0?"关联视图、长宽厚及已识别原生孔标注；保存重开核验通过。":string.Join("；",messages.Distinct());
+            }
+            finally
+            {
+                // Cleanup must not hide the original COM failure or close a user's document.
+                try { if(drawing!=null) app.CloseDoc(drawing.GetTitle()); }
+                catch(Exception ex) { Log.Warn("关闭临时工程图："+ex.Message); }
+                try { if(File.Exists(staging)) File.Delete(staging); }
+                catch(Exception ex) { Log.Warn("清理临时工程图："+ex.Message); }
+                try
+                {
+                    var current=SwUtils.FindOpenDocument(app,path);
+                    if(current!=null) { current.ClearSelection2(true); if(openedPart && !current.GetSaveFlag()) app.CloseDoc(current.GetTitle()); }
+                }
+                catch(Exception ex) { Log.Warn("清理零件选择："+ex.Message); }
+            }
+        }
+
+        internal static double[] Axis(SwView view,int column)
+        {
+            var a=(double[])view.ModelToViewTransform.ArrayData;
+            return PlateMath.Unit(new[]{a[column],a[3+column],a[6+column]});
+        }
+
+        private static void SetScale(DrawingDoc doc,double scale)
+        {
+            var sheet=(Sheet)doc.GetCurrentSheet(); var p=(double[])sheet.GetProperties2();
+            sheet.SetProperties2((int)p[0],(int)p[1],1,1/scale,false,p[5],p[6],p[7]!=0);
+        }
+
+        private static SwView Project(ModelDoc2 model,SwView parent,double x,double y)
+        {
+            var doc=(DrawingDoc)model; model.ClearSelection2(true);
+            doc.ActivateView(parent.GetName2());
+            if(!model.Extension.SelectByID2(parent.GetName2(),"DRAWINGVIEW",0,0,0,false,0,null,0))
+                throw new InvalidOperationException("无法选择父投影视图。");
+            var view=doc.CreateUnfoldedViewAt3(x,y,0,false);
+            model.ClearSelection2(true);
+            if(view==null) throw new InvalidOperationException("关联投影视图创建失败。");
+            return view;
+        }
+
+        private sealed class Boundary { public object Entity; public bool Arc; }
+        private static Boundary BoundaryAt(PlateGeometry g,double[] axis,double extremum)
+        {
+            foreach(var edge in g.Edges)
+                foreach(var vertex in new[]{edge.GetStartVertex() as Vertex,edge.GetEndVertex() as Vertex})
+                    if(vertex!=null && Math.Abs(PlateMath.Dot((double[])vertex.GetPoint(),axis)-extremum)<PlateMath.Epsilon)
+                        return new Boundary{Entity=vertex};
+            foreach(var edge in g.Edges)
+            {
+                var curve=(Curve)edge.GetCurve(); if(!curve.IsCircle()) continue;
+                var c=(double[])curve.CircleParams;
+                if(Math.Abs(PlateMath.Dot(axis,new[]{c[3],c[4],c[5]}))>1e-7) continue;
+                var center=PlateMath.Dot(c,axis);
+                if(Math.Abs(Math.Abs(extremum-center)-c[6])<PlateMath.Epsilon)
+                    return new Boundary{Entity=edge,Arc=true};
+            }
+            throw new InvalidOperationException("包络极值不在可关联的顶点/圆弧上，需人工标注。");
+        }
+
+        private static void Envelope(ModelDoc2 model,SwView view,PlateGeometry g,int direction,double x,double y)
+        {
+            var axis=Axis(view,direction);
+            var min=PlateGeometry.Extreme(g.Body,axis,false); var max=PlateGeometry.Extreme(g.Body,axis,true);
+            var a=BoundaryAt(g,axis,min); var b=BoundaryAt(g,axis,max);
+            model.ClearSelection2(true); ((DrawingDoc)model).ActivateView(view.GetName2());
+            if(!view.SelectEntity(a.Entity,false) || !view.SelectEntity(b.Entity,true))
+                throw new InvalidOperationException("包络实体选择失败。");
+            var display=(DisplayDimension)(direction==0?model.AddHorizontalDimension2(x,y,0):model.AddVerticalDimension2(x,y,0));
+            if(display==null) throw new InvalidOperationException("包络标注创建失败。");
+            var dimension=(Dimension)display.GetDimension2(0);
+            if(a.Arc) dimension.SetArcEndCondition(1,(int)swArcEndCondition_e.swArcEndConditionMax);
+            if(b.Arc) dimension.SetArcEndCondition(2,(int)swArcEndCondition_e.swArcEndConditionMax);
+            model.ForceRebuild3(false);
+            if(Math.Abs(dimension.SystemValue-(max-min))>PlateMath.Epsilon)
+                throw new InvalidOperationException("包络标注与实体最大尺寸不一致，未发布工程图。");
+            model.ClearSelection2(true);
+        }
+
+        private sealed class Hole
+        {
+            public Edge Edge;
+            public PlatePlane Plane;
+            public string Feature;
+            public string AxisKey;
+        }
+        private static List<Hole> CollectHoles(PlateGeometry geometry,List<string> messages)
+        {
+            var result=new List<Hole>();
+            foreach(var plane in geometry.Planes)
+            {
+                // Only exterior entrance planes; recesses and unusual entrances are reviewed.
+                if(Math.Abs(plane.Offset-PlateGeometry.Extreme(geometry.Body,plane.Normal,true))>PlateMath.Epsilon) continue;
+                foreach(var loop in PlateMath.Items<Loop2>(plane.Face.GetLoops()))
+                {
+                    if(loop.IsOuter()) continue;
+                    var edges=PlateMath.Items<Edge>(loop.GetEdges()).ToList();
+                    var edge=edges.FirstOrDefault(e=>((Curve)e.GetCurve()).IsCircle());
+                    if(edge==null || edges.Count!=1)
+                    { messages.Add("存在非整圆内轮廓（槽/开口），需复核槽尺寸。"); continue; }
+                    var c=(double[])((Curve)edge.GetCurve()).CircleParams;
+                    if(!PlateMath.Parallel(new[]{c[3],c[4],c[5]},plane.Normal)) continue;
+                    var owner=PlateMath.Items<Face2>(edge.GetTwoAdjacentFaces2()).Select(f=>f.GetFeature() as Feature)
+                        .FirstOrDefault(f=>f!=null && f.GetTypeName2()=="HoleWzd");
+                    if(owner!=null)
+                    {
+                        bool? entry=IsWizardEntrance(owner,c,plane.Normal);
+                        if(entry==false) continue; // exit edge must not repeat the entry's counterbore/thread callout
+                        if(entry==null) { messages.Add("孔组 "+owner.Name+" 的加工入口未确认，需人工标注。"); continue; }
+                        var data=owner.GetDefinition() as WizardHoleFeatureData2;
+                        if(data!=null && Math.Max(data.HoleDepth,Math.Max(data.ThreadDepth,data.TapDrillDepth))>geometry.Span(plane.Normal)+PlateMath.Epsilon)
+                            messages.Add("孔组 "+owner.Name+" 深度超过该方向实体厚度；已保留模型参数，请复核。");
+                    }
+                    var axis=PlateMath.Unit(new[]{c[3],c[4],c[5]});
+                    if(axis.First(a=>Math.Abs(a)>1e-7)<0) axis=PlateMath.Scale(axis,-1);
+                    var offset=PlateMath.Dot(c,axis);
+                    var key=string.Join("|",new[]{c[0]-axis[0]*offset,c[1]-axis[1]*offset,c[2]-axis[2]*offset,c[6],axis[0],axis[1],axis[2]}
+                        .Select(n=>Math.Round(n,7).ToString("R",System.Globalization.CultureInfo.InvariantCulture)));
+                    result.Add(new Hole{Edge=edge,Plane=plane,Feature=owner==null?"":owner.Name,AxisKey=key});
+                }
+            }
+            return result;
+        }
+
+        private static bool? IsWizardEntrance(Feature owner,double[] center,double[] normal)
+        {
+            // The positioning sketch, unlike the hole profile sketch, is perpendicular to
+            // the hole axis. Its model-to-sketch Z identifies the actual entrance plane.
+            for(var child=owner.GetFirstSubFeature() as Feature;child!=null;child=child.GetNextSubFeature() as Feature)
+            {
+                if(child.GetTypeName2()!="ProfileFeature") continue;
+                var sketch=child.GetSpecificFeature2() as Sketch;
+                if(sketch==null) continue;
+                var m=(double[])sketch.ModelToSketchTransform.ArrayData;
+                var z=new[]{m[2],m[5],m[8]};
+                if(!PlateMath.Parallel(z,normal)) continue;
+                return Math.Abs(PlateMath.Dot(center,z)*m[12]+m[11])<PlateMath.Epsilon;
+            }
+            return null;
+        }
+
+        private static bool FacesView(PlatePlane plane,SwView view)
+        { return PlateMath.Dot(plane.Normal,Axis(view,2))>1-1e-7; }
+
+        private static void AddHoles(ModelDoc2 model,List<SwView> views,List<Hole> holes,List<string> messages)
+        {
+            // Group only native counted Hole Wizard callouts within the SAME entrance plane.
+            var grouped=new HashSet<string>();
+            var through=new HashSet<string>();
+            var calloutRows=new Dictionary<string,int>();
+            foreach(var hole in holes)
+            {
+                var view=views.FirstOrDefault(v=>FacesView(hole.Plane,v));
+                if(view==null) { messages.Add("有孔入口未被当前视图覆盖，需补充侧视图和孔标注。"); continue; }
+                var key=hole.Feature+"|"+view.GetName2()+"|"+hole.Plane.Offset.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
+                if(hole.Feature!="" && grouped.Contains(key)) continue;
+                var outline=(double[])view.GetOutline();
+                int row; calloutRows.TryGetValue(view.GetName2(),out row);
+                var textY=outline[3]-.008-row*.018;
+                if(textY<.090)
+                { messages.Add("孔标注超出预留空间，已停止增加该处标注，请人工排版补充。"); continue; }
+                if(views.Any(v=>v!=view && textY<((double[])v.GetOutline())[3]+.006 && textY>((double[])v.GetOutline())[1]-.006))
+                    messages.Add("孔标注与其他视图处于相近高度，请复核引线排版。");
+                model.ClearSelection2(true); ((DrawingDoc)model).ActivateView(view.GetName2());
+                if(!view.SelectEntity(hole.Edge,false)) { messages.Add("孔入口边选择失败，需人工孔标注。"); continue; }
+                var display=(DisplayDimension)((DrawingDoc)model).AddHoleCallout2(outline[2]+.012,textY,0);
+                if(display==null) { messages.Add("原生孔标注失败（导入孔/非孔特征），需人工核对规格。"); continue; }
+                calloutRows[view.GetName2()]=row+1;
+                var text=DimensionText(display);
+                var throughKey=hole.AxisKey+"|"+text;
+                if(hole.Feature=="" && (text.Contains("贯穿") || text.IndexOf("THRU",StringComparison.OrdinalIgnoreCase)>=0))
+                {
+                    if(!through.Add(throughKey))
+                    {
+                        model.ClearSelection2(true);
+                        var fullName=((Dimension)display.GetDimension2(0)).FullName;
+                        if(!model.Extension.SelectByID2(fullName,"DIMENSION",0,0,0,false,0,null,0) || !model.Extension.DeleteSelection2(0))
+                            throw new InvalidOperationException("无法移除重复贯穿孔标注。");
+                        calloutRows[view.GetName2()]=row;
+                        continue;
+                    }
+                }
+                var count=Regex.Match(text,@"(?i)(\d+)\s*[x×]");
+                if(hole.Feature=="" && count.Success)
+                    messages.Add("孔组来源未识别（阵列、镜像或倒角入口），请核对数量及重复标注。");
+                if(hole.Feature!="" && count.Success)
+                {
+                    var expected=holes.Count(h=>h.Feature==hole.Feature && PlateMath.Dot(h.Plane.Normal,hole.Plane.Normal)>1-1e-7 &&
+                        Math.Abs(h.Plane.Offset-hole.Plane.Offset)<PlateMath.Epsilon);
+                    int nativeCount;
+                    if(!int.TryParse(count.Groups[1].Value,out nativeCount) || nativeCount!=expected)
+                        messages.Add("孔组 "+hole.Feature+" 原生数量与入口几何计数不同，需核查阵列/镜像孔数量。");
+                    grouped.Add(key);
+                }
+                if(row>=3) messages.Add("孔标注较密集，需复核引线与相邻视图间距。");
+                // Blind parameters may intentionally exceed stock thickness; never rewrite them.
+                if(text.Length==0) messages.Add("原生孔标注文本无法回读，请复核。");
+            }
+        }
+
+        private static string DimensionText(DisplayDimension dimension)
+        {
+            var data=(DisplayData)dimension.GetDisplayData(); var b=new StringBuilder();
+            if(data!=null) for(var i=0;i<data.GetTextCount();i++) b.Append(data.GetTextAtIndex(i)).Append(" ");
+            return b.ToString();
+        }
+
+        private static string Requirements(DrawingDoc drawing)
+        {
+            var view=(SwView)drawing.GetFirstView();
+            var texts=new List<string>();
+            foreach(var annotation in PlateMath.Items<Annotation>(view.GetAnnotations()))
+            {
+                if(annotation.GetType()!=(int)swAnnotationType_e.swNote) continue;
+                var note=annotation.GetSpecificAnnotation() as Note;
+                if(note!=null && note.GetText().Contains("技术要求")) texts.Add(note.GetText());
+            }
+            if(texts.Count==0) throw new InvalidOperationException("模板技术要求未读取到。");
+            return string.Join("\n",texts);
+        }
+
+        private static string AnnotationSnapshot(DrawingDoc doc)
+        {
+            var values=new List<string>();
+            foreach(var view in PlateMath.Items<SwView>(((Sheet)doc.GetCurrentSheet()).GetViews()))
+                for(var d=view.GetFirstDisplayDimension5() as DisplayDimension;d!=null;d=d.GetNext5() as DisplayDimension)
+                {
+                    var dim=(Dimension)d.GetDimension2(0);
+                    values.Add(view.GetName2()+"|"+dim.Name+"|"+dim.SystemValue.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"|"+DimensionText(d));
+                }
+            return string.Join("\n",values.OrderBy(v=>v,StringComparer.Ordinal));
+        }
+
+        private static void Verify(ModelDoc2 model,string source,string config,int expectedViews,string notes,string annotations)
+        {
+            var doc=(DrawingDoc)model; var sheet=(Sheet)doc.GetCurrentSheet();
+            var p=(double[])sheet.GetProperties2();
+            if(p[4]!=0 || Math.Abs(p[5]-.420)>PlateMath.Epsilon || Math.Abs(p[6]-.297)>PlateMath.Epsilon)
+                throw new InvalidOperationException("图纸幅面/第三角属性核验失败。");
+            if(Requirements(doc)!=notes) throw new InvalidOperationException("模板技术要求发生变化。");
+            if(AnnotationSnapshot(doc)!=annotations) throw new InvalidOperationException("保存重开后标注数值/文本发生变化。");
+            var views=PlateMath.Items<SwView>(sheet.GetViews()).ToList();
+            if(views.Count!=expectedViews) throw new InvalidOperationException("工程图视图数量核验失败。");
+            var dimensions=0;
+            for(var i=0;i<views.Count;i++)
+            {
+                var view=views[i];
+                if(!string.Equals(view.GetReferencedModelName(),source,StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(view.ReferencedConfiguration,config,StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("工程图模型/配置引用核验失败。");
+                if(Math.Abs(view.ScaleDecimal-p[2]/p[3])>1e-8) throw new InvalidOperationException("视图比例不一致。");
+                if(i>0 && view.GetBaseView()==null) throw new InvalidOperationException("投影视图关联丢失。");
+                for(var d=view.GetFirstDisplayDimension5() as DisplayDimension;d!=null;d=d.GetNext5() as DisplayDimension)
+                {
+                    if(((Annotation)d.GetAnnotation()).IsDangling()) throw new InvalidOperationException("检测到悬空标注，未发布工程图。");
+                    dimensions++;
+                }
+            }
+            if(dimensions<3) throw new InvalidOperationException("长宽厚标注不完整。");
+        }
+
+        private void WriteReport(string assembly)
+        {
+            var folder=AppPaths.Ensure(Path.Combine(AppPaths.Root,"plate-drawing-reports"));
+            ReportPath=Path.Combine(folder,"板件出图-"+DateTime.Now.ToString("yyyyMMdd-HHmmss-fff")+".txt");
+            File.WriteAllText(ReportPath,"装配体："+assembly+"\r\n"+(Cancelled?"用户已停止；已生成文件保留。":"处理结束。")+
+                "\r\n范围：关联视图、包络、可识别原生孔规格。槽、公差和密集标注请按待复核项检查。\r\n"+
+                string.Join("\r\n",Results.Select(r=>r.ToString())),new UTF8Encoding(true));
+        }
+    }
+}

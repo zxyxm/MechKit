@@ -96,7 +96,7 @@ namespace MechKit.UI
             _logBox = new TextBox();
             _status = Theme.CreateValueLabel("就绪");
             _runButton = Theme.CreatePrimaryButton("刷新预览");
-            _exportButton = Theme.CreateSecondaryButton("导出 CSV");
+            _exportButton = Theme.CreateSecondaryButton("导出 BOM");
             _exportFilesButton = Theme.CreateSecondaryButton("导出选中件…");
             _selectAll = new CheckBox
             {
@@ -146,24 +146,26 @@ namespace MechKit.UI
 
         private Control BuildSetupPanel()
         {
-            var panel = new Panel { Dock = DockStyle.Top, Height = 208, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
+            var panel = new Panel { Dock = DockStyle.Top, Height = 250, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
 
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 5,
                 BackColor = Theme.Surface
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
             layout.Controls.Add(BuildSourceRow(), 0, 0);
             layout.Controls.Add(BuildSubassemblyRow(), 0, 1);
             layout.Controls.Add(BuildNamingSummaryRow(), 0, 2);
-            layout.Controls.Add(BuildFilterRow(), 0, 3);
+            layout.Controls.Add(BuildQuickFilterRow(), 0, 3);
+            layout.Controls.Add(BuildFilterRow(), 0, 4);
 
             panel.Controls.Add(layout);
             return panel;
@@ -329,6 +331,34 @@ namespace MechKit.UI
             return row;
         }
 
+        private Control BuildQuickFilterRow()
+        {
+            var row = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                WrapContents = false,
+                BackColor = Theme.Surface
+            };
+            var labels = new[] { "应出图未出图", "命名不规范", "显示全部" };
+            var filters = new[] { 6, 7, 0 };
+            for (var i = 0; i < labels.Length; i++)
+            {
+                var filter = filters[i];
+                var button = Theme.CreateSecondaryButton(labels[i]);
+                button.Width = 140;
+                button.Margin = new Padding(0, 2, 10, 2);
+                button.Click += delegate
+                {
+                    if (_running) return;
+                    PullGridEdits();
+                    if (_classificationFilter.SelectedIndex == filter) ShowFilteredRows(false);
+                    else _classificationFilter.SelectedIndex = filter;
+                };
+                row.Controls.Add(button);
+            }
+            return row;
+        }
+
         private Control BuildFilterRow()
         {
             var row = new FlowLayoutPanel
@@ -348,7 +378,8 @@ namespace MechKit.UI
             _classificationFilter.Margin = new Padding(0, 2, 18, 0);
             _classificationFilter.Items.AddRange(new object[]
             {
-                "全部类型", "只看加工件", "只看标准件", "只看库存件", "只看备件", "只看外部图纸"
+                "全部类型", "只看加工件", "只看标准件", "只看库存件", "只看备件", "只看外部图纸",
+                "应出图未出图", "命名不规范"
             });
 
             _onlyMachined.Text = "只列加工件（排除标准件 / 外购件）";
@@ -430,37 +461,34 @@ namespace MechKit.UI
             _grid.MouseClick += OnGridMouseClick;
             _grid.MouseMove += OnGridMouseMove;
 
-            var sequenceColumn = new DataGridViewTextBoxColumn { Name = "sequence", HeaderText = HeaderText(_host.Settings.BomSequenceHeader, "序号"), Width = 50, ReadOnly = true };
-            var locationColumn = new DataGridViewTextBoxColumn { Name = "location", HeaderText = HeaderText(_host.Settings.BomLocationHeader, "位置"), Width = 220, ReadOnly = true };
+            var sequenceColumn = new DataGridViewTextBoxColumn { Name = "sequence", Width = 50, ReadOnly = true };
+            var locationColumn = new DataGridViewTextBoxColumn { Name = "location", Width = 220, ReadOnly = true };
             // 「三维名称」= 零件 / 装配体文件名，可直接编辑（双击文字即可改名）。
             var fullNameColumn = new DataGridViewTextBoxColumn
             {
                 Name = "fullname",
-                HeaderText = HeaderText(_host.Settings.BomFullNameHeader, "三维名称") + "（可编辑）",
                 Width = 210
             };
             var drawingColumn = new DataGridViewTextBoxColumn
             {
                 Name = "drawing",
-                HeaderText = HeaderText(_host.Settings.BomDrawingHeader, "二维工程图"),
                 Width = 170,
                 ReadOnly = true
             };
-            var typeColumn = new DataGridViewTextBoxColumn { Name = "classification", HeaderText = HeaderText(_host.Settings.BomClassificationHeader, "属性"), Width = 76, ReadOnly = true };
+            var typeColumn = new DataGridViewTextBoxColumn { Name = "classification", Width = 76, ReadOnly = true };
             var nameColumn = new DataGridViewTextBoxColumn
             {
                 Name = "name",
-                HeaderText = HeaderText(_host.Settings.BomNameHeader, "零件名称/标准件名称") + "（可编辑）",
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
                 Width = 190,
                 MinimumWidth = 150
             };
-            var materialColumn = new DataGridViewTextBoxColumn { Name = "material", HeaderText = HeaderText(_host.Settings.BomMaterialHeader, "材料/型号") + "（可编辑）", Width = 130 };
-            var processColumn = new DataGridViewTextBoxColumn { Name = "process", HeaderText = HeaderText(_host.Settings.BomProcessHeader, "工艺/渠道") + "（可编辑）", Width = 130 };
-            var surfaceColumn = new DataGridViewTextBoxColumn { Name = "surface", HeaderText = HeaderText(_host.Settings.BomSurfaceHeader, "表面处理"), Width = 110, ReadOnly = true };
-            var quantityColumn = new DataGridViewTextBoxColumn { Name = "quantity", HeaderText = HeaderText(_host.Settings.BomQuantityHeader, "数量"), Width = 60, ReadOnly = true };
-            var assemblyNoteColumn = new DataGridViewTextBoxColumn { Name = "assemblynote", HeaderText = HeaderText(_host.Settings.BomAssemblyNoteHeader, "安装说明"), Width = 120, ReadOnly = true };
-            var remarkColumn = new DataGridViewTextBoxColumn { Name = "remark", HeaderText = HeaderText(_host.Settings.BomRemarkHeader, "备注") + "（可编辑）", Width = 150 };
+            var materialColumn = new DataGridViewTextBoxColumn { Name = "material", Width = 130 };
+            var processColumn = new DataGridViewTextBoxColumn { Name = "process", Width = 130 };
+            var surfaceColumn = new DataGridViewTextBoxColumn { Name = "surface", Width = 110, ReadOnly = true };
+            var quantityColumn = new DataGridViewTextBoxColumn { Name = "quantity", Width = 60, ReadOnly = true };
+            var assemblyNoteColumn = new DataGridViewTextBoxColumn { Name = "assemblynote", Width = 120, ReadOnly = true };
+            var remarkColumn = new DataGridViewTextBoxColumn { Name = "remark", Width = 150 };
 
 
             var columns = new Dictionary<string, DataGridViewColumn>(StringComparer.OrdinalIgnoreCase)
@@ -487,8 +515,11 @@ namespace MechKit.UI
             };
             _grid.Columns.Add(selectColumn);
 
-            foreach (var key in PartListService.ParseColumnOrder(_host.Settings.BomColumnOrder))
+            var headerOptions = PartListService.CreateOptions(_host.Settings);
+            foreach (var key in PartListService.ParseColumnOrder(headerOptions.ColumnOrder))
             {
+                columns[key].HeaderText = PartListService.ColumnHeader(headerOptions, key);
+                if (!columns[key].ReadOnly) columns[key].ToolTipText = "可编辑";
                 _grid.Columns.Add(columns[key]);
             }
 
@@ -527,11 +558,6 @@ namespace MechKit.UI
             };
             panel.Controls.Add(_grid);
             return panel;
-        }
-
-        private static string HeaderText(string value, string fallback)
-        {
-            return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
         }
 
         private Control BuildLogPanel()
@@ -614,7 +640,11 @@ namespace MechKit.UI
             _clearComponentButton.Click += delegate { ClearComponentScope(true); };
             _reloadSubassembliesButton.Click += delegate { ReloadSubassemblies(); };
             _subassemblyCombo.SelectedIndexChanged += delegate { SelectSubassemblyScope(); };
-            _exportButton.Click += delegate { ExportCsv(); };
+            var exportMenu = new ContextMenuStrip();
+            exportMenu.Items.Add("导出 CSV", null, delegate { ExportBom(false); });
+            exportMenu.Items.Add("导出 Excel（含缩略图）", null, delegate { ExportBom(true); });
+            _exportButton.Click += delegate { exportMenu.Show(_exportButton, new Point(0, _exportButton.Height)); };
+            _exportButton.Disposed += delegate { exportMenu.Dispose(); };
             _exportFilesButton.Click += delegate { ExportSelectedFiles(); };
             _selectAll.CheckedChanged += delegate { SetAllRowsSelected(_selectAll.Checked); };
             _writeBackButton.Click += delegate { ApplyBomChanges(); };
@@ -936,7 +966,7 @@ namespace MechKit.UI
             _selectedComponent = null;
             _selectedComponentName = string.Empty;
             _scopeLabel.Text = "BOM 范围：全部装配体";
-            _exportButton.Text = "导出 CSV";
+            _exportButton.Text = "导出 BOM";
 
             if (!_loadingSubassemblies && _subassemblyCombo.Items.Count > 0)
             {
@@ -1222,8 +1252,6 @@ namespace MechKit.UI
                 var row = gridRow.Tag as PartListRow;
                 if (item != null && item.Rows.Contains(row)) gridRow.Selected = true;
             }
-            if (_grid.SelectedRows.Count > 0)
-                _grid.FirstDisplayedScrollingRowIndex = _grid.SelectedRows[0].Index;
         }
 
         private static List<PartListRow> BuildOfflinePreviewRows()
@@ -1273,16 +1301,34 @@ namespace MechKit.UI
         }
 
         /// <summary>
-        /// 双击表格任意一行：打开该零件的工程图（同目录同名 .slddrw）；
-        /// 没有工程图时退回打开零件 / 装配体模型。
-        /// 单元格编辑仍可用单击选中后直接输入或按 F2。
+        /// 双击设计树中的装配/组件名称打开其模型；BOM 名称文字进入编辑，
+        /// 其它 BOM 单元格打开模型，失败时退回工程图。
         /// </summary>
         private void OnGridCellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex < 0 || _running)
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _running)
             {
                 return;
             }
+
+            var columnName = _grid.Columns[e.ColumnIndex].Name;
+            if (columnName == "designTree")
+            {
+                var node = _grid.Rows[e.RowIndex].Cells[e.ColumnIndex].Tag as TreeNode;
+                var item = node == null ? null : node.Tag as DesignTreeItem;
+                if (item == null || (item.Kind != DesignNodeKind.Assembly && item.Kind != DesignNodeKind.Group)) return;
+                var bounds = _grid.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false);
+                var point = _grid.PointToClient(Cursor.Position);
+                var textLeft = bounds.Left + (_designOrder ? node.Level * 16 : 0) + 26;
+                var textRight = Math.Min(bounds.Right - 6,
+                    textLeft + TextRenderer.MeasureText(node.Text, _grid.Font).Width);
+                if (!bounds.Contains(point) || point.X < textLeft || point.X > textRight) return;
+                var model = PartListService.OpenRowModelDocument(_host.SwApp,
+                    new PartListRow { FilePath = item.FilePath, Configuration = item.Configuration }, AppendLog);
+                if (!string.IsNullOrEmpty(model)) _status.Text = "已打开：" + Path.GetFileName(model);
+                return;
+            }
+            if (columnName == "treeLink") return;
 
             var row = _grid.Rows[e.RowIndex].Tag as PartListRow;
             if (row == null)
@@ -1290,8 +1336,6 @@ namespace MechKit.UI
                 return;
             }
 
-            var columnName = _grid.Columns[e.ColumnIndex].Name;
-            if (columnName == "designTree" || columnName == "treeLink") return;
             var onText = IsDoubleClickOnCellText(e);
 
             // 双击名字文字 → 直接在单元格里改名字（提交后按新名字重命名文件）。
@@ -1592,6 +1636,11 @@ namespace MechKit.UI
 
             foreach (var row in _rows)
             {
+                if (_classificationFilter.SelectedIndex == 6 && !PartListService.IsMissingRequiredDrawing(row))
+                    continue;
+                if (_classificationFilter.SelectedIndex == 7 && !row.IsUnmatched &&
+                    row.Classification != PartListService.UnmatchedClassification)
+                    continue;
                 if (classification.Length == 0 ||
                     string.Equals(row.Classification, classification, StringComparison.Ordinal))
                 {
@@ -1628,12 +1677,26 @@ namespace MechKit.UI
             _grid.SuspendLayout();
             try
             {
-                _designOrder = true;
+                var quickFilter = _classificationFilter.SelectedIndex >= 6;
+                _designOrder = !quickFilter;
                 foreach (DataGridViewColumn column in _grid.Columns)
                     column.HeaderCell.SortGlyphDirection = SortOrder.None;
                 _grid.Rows.Clear();
                 _selectAll.Checked = false;
-                var nodes = VisibleDesignNodes();
+                // 问题列表独立于树的展开状态，不保留无关节点的空白占位行。
+                var nodes = quickFilter ? new List<TreeNode>() : VisibleDesignNodes();
+                if (quickFilter)
+                    foreach (var filteredRow in rows)
+                    {
+                        var item = new DesignTreeItem
+                        {
+                            Name = filteredRow.FullName,
+                            Kind = filteredRow.IsUnmatched || filteredRow.Classification == PartListService.UnmatchedClassification
+                                ? DesignNodeKind.Unmatched : DesignNodeKind.Machined
+                        };
+                        item.Rows.Add(filteredRow);
+                        nodes.Add(CreateTreeNode(item));
+                    }
                 var allowed = new HashSet<PartListRow>(rows);
                 var displayed = new HashSet<PartListRow>();
                 var sequence = 0;
@@ -1678,10 +1741,8 @@ namespace MechKit.UI
                     gridRow.Cells["remark"].Value = row.Remark;
 
                     // 类别决定整行底色；缺图提醒只覆盖工程图单元格。
-                    var hasDrawing = !string.IsNullOrEmpty(row.DrawingPath);
-                    var missingDrawing = !hasDrawing && !PartListService.IsSheetMetalWithoutDrawing(row) &&
-                        string.Equals(row.Classification, "加工件", StringComparison.Ordinal);
-                    if (missingDrawing) gridRow.Cells["drawing"].Style.BackColor = MissingDrawingRowColor;
+                    if (PartListService.IsMissingRequiredDrawing(row))
+                        gridRow.Cells["drawing"].Style.BackColor = MissingDrawingRowColor;
                 }
 
                 AutoFitGridColumnsOnce();
@@ -1938,7 +1999,7 @@ namespace MechKit.UI
             }
         }
 
-        private void ExportCsv()
+        private void ExportBom(bool excel)
         {
             if (FilteredRows().Count == 0)
             {
@@ -1967,8 +2028,10 @@ namespace MechKit.UI
                     var title = string.IsNullOrWhiteSpace(_selectedComponentName)
                         ? "明细汇总"
                         : "部件BOM-" + SafeFileName(_selectedComponentName);
-                    var path = PartListService.ExportCsv(activeRows, dialog.SelectedPath, title,
-                        BuildOptions());
+                    var options = BuildOptions();
+                    var path = excel
+                        ? BomExcelExporter.Export(_host.SwApp, activeRows, dialog.SelectedPath, title, options)
+                        : PartListService.ExportCsv(activeRows, dialog.SelectedPath, title, options);
                     AppendLog("已导出：" + path);
                     _host.Settings.OutputFolder = dialog.SelectedPath;
                     SaveSettings();

@@ -163,6 +163,7 @@ namespace MechKit.Harness
             var trailing = new List<CommandSpec>
             {
                 new CommandSpec("批量导出", "批量\r\n导出", 49, 4),
+                new CommandSpec("板件一键出图", "板件一键\r\n出图", 72, 4),
                 new CommandSpec("工具箱面板", "工具\r\n箱面\r\n板", 45, 6),
                 new CommandSpec("智能尺寸", "智能\r\n尺寸", 60, 2),
                 new CommandSpec("公差助手", "公差\r\n助手", 60, 7),

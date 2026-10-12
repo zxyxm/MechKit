@@ -26,7 +26,10 @@ function Item($name, $kind, $row) {
     return $item
 }
 try {
-    $form.CreateControl()
+    $form.ShowInTaskbar = $false
+    $form.Opacity = 0
+    $form.Show()
+    [Windows.Forms.Application]::DoEvents()
     $formType.GetMethod('RunSummary', $flags).Invoke($form, @())
     $rows = $formType.GetField('_rows', $flags).GetValue($form)
     $items = $formType.GetField('_treeItems', $flags).GetValue($form)
@@ -35,6 +38,9 @@ try {
     $items.Clear()
     $assemblyNode = Item '20261010-装配-测试' 'Assembly' $null
     $groupNode = Item '20261010-组件-分组' 'Group' $null
+    $assemblyNode.FilePath = 'C:\test\20261010-装配-测试.SLDASM'
+    $groupNode.FilePath = 'C:\test\20261010-组件-分组.SLDASM'
+    $groupNode.Configuration = '分组配置'
     $groupNode.Children.Add((Item $rows[0].FullName 'Machined' $rows[0]))
     $referenceNode = Item '参考-治具' 'Reference' $null
     $referenceNode.Children.Add((Item '参考件内部零件' 'Machined' $null))
@@ -62,6 +68,28 @@ try {
     $referenceTree = $groupTree.Nodes[1]
     Check 'reference is gray text without background or expansion' ($referenceTree.Nodes.Count -eq 0 -and -not $referenceTree.IsExpanded -and $referenceTree.BackColor -eq [Drawing.Color]::Empty -and $referenceTree.ForeColor -ne [Drawing.Color]::Empty)
     Check 'containers and excluded nodes create aligned gaps' ($grid.Rows.Count -eq 10)
+    $groupGridRow = @($grid.Rows | Where-Object { $_.Cells['designTree'].Tag -eq $groupTree })[0]
+    Check 'container opening retains its own model path and configuration without a BOM row' ($null -eq $groupGridRow.Tag -and $groupTree.Tag.FilePath -eq $groupNode.FilePath -and $groupTree.Tag.Configuration -eq '分组配置' -and -not $groupGridRow.Cells['location'].Value)
+    $savedCursor = [Windows.Forms.Cursor]::Position
+    try {
+        $bounds = $grid.GetCellDisplayRectangle($grid.Columns['designTree'].Index, $groupGridRow.Index, $false)
+        $point = [Drawing.Point]::new($bounds.Left + $groupTree.Level * 16 + 40, $bounds.Top + 8)
+        [Windows.Forms.Cursor]::Position = $grid.PointToScreen($point)
+        $log = $formType.GetField('_logBox', $flags).GetValue($form)
+        $log.Clear()
+        $doubleClick = [Windows.Forms.DataGridViewCellEventArgs]::new($grid.Columns['designTree'].Index, $groupGridRow.Index)
+        $formType.GetMethod('OnGridCellDoubleClick', $flags).Invoke($form, @($null, $doubleClick))
+        Check 'double clicking container text reaches model opening even when BOM tag is null' ($log.Text.Contains('这一行没有对应的零件 / 装配体文件'))
+        $log.Clear()
+        [Windows.Forms.Cursor]::Position = $grid.PointToScreen([Drawing.Point]::new($bounds.Left + $groupTree.Level * 16 + 12, $bounds.Top + 8))
+        $formType.GetMethod('OnGridCellDoubleClick', $flags).Invoke($form, @($null, $doubleClick))
+        Check 'double clicking the expand symbol does not open a model' (-not $log.Text)
+        $tree.SelectedNode = $groupTree
+        $grid.FirstDisplayedScrollingRowIndex = 0
+        $formType.GetMethod('SelectTreeRows', $flags).Invoke($form, @())
+        Check 'selecting a container preserves the row under the cursor for double click' ($grid.FirstDisplayedScrollingRowIndex -eq 0)
+    }
+    finally { [Windows.Forms.Cursor]::Position = $savedCursor }
     $dataRows = @($grid.Rows | Where-Object { $null -ne $_.Tag })
     $sheetGridRow = @($dataRows | Where-Object { $_.Tag -eq $rows[0] })[0]
     Check 'sheet metal without drawing displays sheet-metal label' ($sheetGridRow.Cells['drawing'].Value -eq '钣金')
@@ -97,6 +125,33 @@ try {
     $unmatchedRow = @($grid.Rows | Where-Object { $_.Tag -eq $externalBom })[0]
     Check 'unmatched naming is red across tree connector and every BOM cell' (@($unmatchedRow.Cells | Where-Object { $_.Style.BackColor -ne $missingColor }).Count -eq 0)
     Check 'unmatched naming is distinct from external drawings' ($unmatchedRow.Cells['classification'].Value -eq '命名不规范' -and $unmatchedRow.Cells['designTree'].Value.Contains('[命名不规范]'))
+    $quickButtons = @{}
+    $pendingControls = New-Object Collections.Queue
+    $pendingControls.Enqueue($form)
+    while ($pendingControls.Count -gt 0) {
+        $control = $pendingControls.Dequeue()
+        if ($control -is [Windows.Forms.Button]) { $quickButtons[$control.Text] = $control }
+        foreach ($child in $control.Controls) { $pendingControls.Enqueue($child) }
+    }
+    $filter = $formType.GetField('_classificationFilter', $flags).GetValue($form)
+    $filter.SelectedIndex = 2
+    $quickButtons['命名不规范'].PerformClick()
+    Check 'naming shortcut overrides standard filter and removes unrelated spacers' ($grid.Rows.Count -eq 1 -and $grid.Rows[0].Tag -eq $externalBom)
+    $grid.Rows[0].Cells['remark'].Value = 'pending quick-filter edit'
+    $quickButtons['应出图未出图'].PerformClick()
+    Check 'sheet metal and standard parts do not require drawings' ($grid.Rows.Count -eq 0)
+    Check 'filter changes preserve unsaved edits' ($externalBom.Remark -eq 'pending quick-filter edit')
+    $rows[0].Process = 'CNC'
+    $tree.CollapseAll()
+    $quickButtons['应出图未出图'].PerformClick()
+    Check 'missing drawing shortcut finds parts in collapsed assemblies' ($grid.Rows.Count -eq 1 -and $grid.Rows[0].Tag -eq $rows[0])
+    $rows[0].DrawingPath = 'C:\test\machined.SLDDRW'
+    $quickButtons['应出图未出图'].PerformClick()
+    Check 'machined part with drawing is excluded' ($grid.Rows.Count -eq 0)
+    $rows[0].DrawingPath = ''
+    $rows[0].Process = '钣金'
+    $quickButtons['显示全部'].PerformClick()
+    Check 'show all restores the type filter' ($filter.SelectedIndex -eq 0)
     $externalBom.Classification = '外部图纸'
     $externalBom.IsUnmatched = $false
     $externalItem.Kind = [Enum]::Parse($kindType, 'ExternalDrawing')

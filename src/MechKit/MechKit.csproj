@@ -36,10 +36,13 @@
     </Reference>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\icons\*.png" />
+    <EmbeddedResource Include="Resources\drawings\*.drwdot" />
   </ItemGroup>
 
 </Project>

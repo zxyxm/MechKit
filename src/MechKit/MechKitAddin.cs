@@ -322,7 +322,7 @@ namespace MechKit
 
         /// <summary>
         /// 一键生成 BOM：汇总当前装配体（全部零件，含标准件/外购件），
-        /// 导出 CSV 并直接打开，让 Excel 立即可用。
+        /// 导出带零件缩略图的 Excel 并直接打开。
         /// </summary>
         public void GenerateBom()
         {
@@ -374,7 +374,7 @@ namespace MechKit
                 }
 
                 var folder = ResolveBomFolder(doc);
-                var path = PartListService.ExportCsv(rows, folder, title, options);
+                var path = BomExcelExporter.Export(_swApp, rows, folder, title, options);
                 var summary = PartListService.BuildSummary(rows);
 
                 _settings.OutputFolder = folder;
@@ -428,6 +428,7 @@ namespace MechKit
                 SequenceHeader = _settings.BomSequenceHeader,
                 LocationHeader = _settings.BomLocationHeader,
                 FullNameHeader = _settings.BomFullNameHeader,
+                DrawingHeader = _settings.BomDrawingHeader,
                 ClassificationHeader = _settings.BomClassificationHeader,
                 NameHeader = _settings.BomNameHeader,
                 MaterialHeader = _settings.BomMaterialHeader,
@@ -1374,6 +1375,28 @@ namespace MechKit
             ShowBatchExportDialog();
         }
 
+        public int OnPlateDrawingEnable()
+        {
+            try { return _swApp != null && _swApp.IActiveDoc2 != null &&
+                _swApp.IActiveDoc2.GetType() == SwUtils.DocAssembly && !PlateDrawingForm.Running ? 1 : 0; }
+            catch { return 0; }
+        }
+
+        public void OnPlateDrawing()
+        {
+            if (OnPlateDrawingEnable() == 0) return;
+            try
+            {
+                using (var form = new PlateDrawingForm(_swApp, _settings))
+                    form.ShowDialog(new SwWindow(MainWindowHandle));
+            }
+            catch (Exception ex)
+            {
+                Log.Error("打开板件出图窗口失败", ex);
+                MessageBox.Show(ex.Message, AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         public void OnQuickAnnotation()
         {
             ShowModeless("quick-annotation", delegate { return new QuickAnnotationForm(this); });
@@ -1496,9 +1519,9 @@ namespace MechKit
             };
 
             var handle = MainWindowHandle;
-            if (handle != IntPtr.Zero && key == "quick-annotation")
+            if (handle != IntPtr.Zero && (key == "quick-annotation" || key == "part-list"))
             {
-                // 公差助手需要在连续选择尺寸时保持可见，同时随 SW 窗口隐藏。
+                // 公差助手与 BOM 预览在操作 SW 菜单/图形区时保持可见，并随主窗口隐藏。
                 form.Show(new SwWindow(handle));
                 form.BringToFront();
                 return;
@@ -1618,6 +1641,7 @@ namespace MechKit
                 AddinConstants.CmdConvertUnderscores,
                 AddinConstants.CmdAssemblyName,
                 AddinConstants.CmdBatchExport,
+                AddinConstants.CmdPlateDrawing,
                 AddinConstants.CmdTaskPane,
                 AddinConstants.CmdQuickAnnotation,
                 AddinConstants.CmdExportConfiguration,
@@ -1701,7 +1725,7 @@ namespace MechKit
             var middleNameIndices = layout.MiddleNames;
 
             indices.Add(group.AddCommandItem2("生成BOM", -1,
-                "一键汇总当前装配体，生成材料明细表 BOM（CSV，可用 Excel 打开）",
+                "一键汇总当前装配体，生成带零件缩略图的 Excel BOM",
                 "一键生成 BOM 表", 0, "OnGenerateBom", "OnAlwaysEnable",
                 AddinConstants.CmdGenerateBom, tabItem));
 
@@ -1757,6 +1781,11 @@ namespace MechKit
                 "把工程图 / 零件 / 装配体批量导出为 PDF、DWG、STEP 等格式",
                 "批量导出", 4, "OnBatchExport", "OnAlwaysEnable",
                 AddinConstants.CmdBatchExport, tabItem));
+
+            indices.Add(group.AddCommandItem2("板件一键出图", -1,
+                "识别当前装配中的非钣金板件，生成同名 SLDDRW；跳过已有图并汇总待复核项",
+                "板件一键出图（离线）", 4, "OnPlateDrawing", "OnPlateDrawingEnable",
+                AddinConstants.CmdPlateDrawing, tabItem));
 
             indices.Add(group.AddCommandItem2("工具箱面板", -1,
                 "显示 / 隐藏 MechKit任务面板",
