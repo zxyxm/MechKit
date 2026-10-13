@@ -9,6 +9,7 @@ namespace MechKit.Core
 {
     internal sealed class QuickPartsLibrary
     {
+        public const string Uncategorized = "未分类";
         public static readonly string[] Categories = { "电控件", "气动件", "紧固件", "其他" };
         public string Root { get; private set; }
         public QuickPartsLibrary(string root = null)
@@ -21,10 +22,17 @@ namespace MechKit.Core
         {
             var folder = Categories.Contains(category) ? Path.Combine(Root, category) : Root;
             var words = (query ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            return Directory.EnumerateFiles(folder, "*.sldprt", SearchOption.AllDirectories)
+            return Directory.EnumerateFiles(folder, "*.sldprt", category == Uncategorized ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories)
                 .Where(p => !Path.GetFileName(p).StartsWith("~$") && words.All(w =>
                     p.Substring(Root.Length).IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0))
                 .OrderBy(Path.GetFileName, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        }
+
+        public string GetCategory(string path)
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(path));
+            return string.Equals(directory.TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(Root).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)
+                ? Uncategorized : Path.GetFileName(directory);
         }
 
         public static bool Is2024(object history)
@@ -59,9 +67,9 @@ namespace MechKit.Core
 
         public string Import(ISldWorks sw, string source, string category)
         {
-            if (!Categories.Contains(category)) throw new ArgumentException("请选择入库分类。");
+            if (category != Uncategorized && !Categories.Contains(category)) throw new ArgumentException("请选择入库分类。");
             Validate(sw, source);
-            return CopyUnique(source, Path.Combine(Root, category));
+            return CopyUnique(source, category == Uncategorized ? Root : Path.Combine(Root, category));
         }
 
         public static string CopyUnique(string source, string directory)

@@ -43,6 +43,7 @@ namespace MechKit.UI
             AddButton(actions, "刷新", Reload);
             root.Controls.Add(actions, 0, 1);
             _category.Items.Add("全部分类");
+            _category.Items.Add(QuickPartsLibrary.Uncategorized);
             _category.Items.AddRange(QuickPartsLibrary.Categories);
             _category.SelectedIndex = 0;
             root.Controls.Add(_category, 0, 2);
@@ -96,7 +97,7 @@ namespace MechKit.UI
                 foreach (var file in _library.Search(Convert.ToString(_category.SelectedItem), _search.Text))
                 {
                     var item = new ListViewItem(Path.GetFileNameWithoutExtension(file)) { Tag = file, ToolTipText = file };
-                    item.SubItems.Add(Path.GetFileName(Path.GetDirectoryName(file)));
+                    item.SubItems.Add(_library.GetCategory(file));
                     _list.Items.Add(item);
                 }
                 _list.ShowItemToolTips = true;
@@ -114,6 +115,7 @@ namespace MechKit.UI
                 using (var picker = new Form { Text = "选择入库分类", Width = 310, Height = 140, StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MinimizeBox = false, MaximizeBox = false })
                 {
                     var categories = new ComboBox { Left = 16, Top = 12, Width = 260, DropDownStyle = ComboBoxStyle.DropDownList };
+                    categories.Items.Add(QuickPartsLibrary.Uncategorized);
                     categories.Items.AddRange(QuickPartsLibrary.Categories);
                     categories.SelectedIndex = Math.Max(0, _category.SelectedIndex - 1);
                     var ok = new Button { Text = "添加进库", Left = 174, Top = 48, Width = 100, DialogResult = DialogResult.OK };
