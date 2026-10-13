@@ -23,6 +23,28 @@ namespace MechKit.Features
             throw new InvalidOperationException("零件过大，无法在 A3 图框中清晰排版。");
         }
 
+        // Conservative: axial bores and end faces are fully expressed by an end,
+        // side and axial section. Side milling, radial holes and unknown surfaces
+        // keep the general layout rather than silently losing their projections.
+        private static bool CanSimplifyRoundBody(Body2 body, double[] axis)
+        {
+            if(Math.Max(Math.Abs(axis[0]),Math.Max(Math.Abs(axis[1]),Math.Abs(axis[2])))<.999) return false;
+            foreach(var face in PlateMath.Items<Face2>(body.GetFaces()))
+            {
+                var surface=(Surface)face.GetSurface();
+                double[] direction;
+                if(surface.IsCylinder())
+                {
+                    var c=(double[])surface.CylinderParams;
+                    direction=new[]{c[3],c[4],c[5]};
+                }
+                else if(surface.IsPlane()) direction=(double[])face.Normal;
+                else return false;
+                if(direction==null || Math.Abs(PlateMath.Dot(axis,direction))<.999) return false;
+            }
+            return true;
+        }
+
         internal static List<SwView> Build(ModelDoc2 part, ModelDoc2 model,
             string path, string config, List<string> messages)
         {
@@ -42,9 +64,11 @@ namespace MechKit.Features
             var cylinders=PlateMath.Items<Face2>(bodies[0].GetFaces())
                 .Where(f=>((Surface)f.GetSurface()).IsCylinder()).OrderByDescending(f=>f.GetArea()).ToList();
             var orientationIndex=1; // swFrontView; GetModelViewNames includes *Normal To at index 0.
+            double[] cylinderAxis=null;
             if(cylinders.Count>0)
             {
                 var c=(double[])((Surface)cylinders[0].GetSurface()).CylinderParams;
+                cylinderAxis=new[]{c[3],c[4],c[5]};
                 if(Math.Abs(c[5])>.9) orientationIndex=4;
                 if(Math.Max(Math.Abs(c[3]),Math.Max(Math.Abs(c[4]),Math.Abs(c[5])))<.999)
                     messages.Add("主圆柱轴倾斜于标准基准面，需补正视/辅助视图。");
@@ -58,13 +82,28 @@ namespace MechKit.Features
             main.ReferencedConfiguration=config;
             main.UseSheetScale=1;
             var views=new List<SwView>{main};
-            views.Add(PlateDrawingService.Project(model,main,.060,.180));
-            var right=PlateDrawingService.Project(model,main,.230,.180); views.Add(right);
-            views.Add(PlateDrawingService.Project(model,right,.315,.180));
-            views.Add(PlateDrawingService.Project(model,main,.145,.245));
-            views.Add(PlateDrawingService.Project(model,main,.145,.110));
+            var compact=cylinderAxis!=null && CanSimplifyRoundBody(bodies[0],cylinderAxis);
+            // A Y-axis part's axial projection is above the front view, not to its right.
+            var endAbove=compact && Math.Abs(cylinderAxis[1])>.999;
+            var right=PlateDrawingService.Project(model,main,endAbove?.145:.230,endAbove?.245:.180);
+            views.Add(right);
+            if(!compact)
+            {
+                views.Add(PlateDrawingService.Project(model,main,.060,.180));
+                views.Add(PlateDrawingService.Project(model,right,.315,.180));
+                views.Add(PlateDrawingService.Project(model,main,.145,.245));
+                views.Add(PlateDrawingService.Project(model,main,.145,.110));
+            }
+            messages.Add(compact ? "回转件简化布局：侧视、端视及轴向剖视；省略重复的反向和上下投影。" :
+                "含侧向或尚未识别的结构，保留通用视图布局。");
             foreach(var view in views) {view.ReferencedConfiguration=config;view.UseSheetScale=1;}
             model.ForceRebuild3(false);
+            if(compact && PlateDrawingService.NeedsAdditionalHoleView(bodies[0],views))
+            {
+                var opposite=PlateDrawingService.Project(model,main,endAbove?.145:.060,endAbove?.110:.180);
+                opposite.ReferencedConfiguration=config;opposite.UseSheetScale=1;views.Add(opposite);
+                messages.Add("另一端存在独立孔特征，补充反向端视，避免漏掉孔标注。");
+            }
             if(cylinders.Count>0)
             {
                 // Cut the end view through the dominant cylinder axis. Coordinates in

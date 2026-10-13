@@ -36,7 +36,8 @@ public static class MachiningDrawingLiveTest
             drawing=active;
             if(part.GetSaveFlag()) throw new Exception("Source was changed");
             var views=((object[])((Sheet)((DrawingDoc)drawing).GetCurrentSheet()).GetViews()).Cast<View>().ToArray();
-            if(views.Length<6) throw new Exception("Missing orthographic views");
+            if(views.Length!=3 && views.Length!=4 && views.Length<6) throw new Exception("Incomplete compact or general layout");
+            Console.WriteLine("View count: "+views.Length);
             var keys=new System.Collections.Generic.HashSet<string>();
             foreach(var view in views)
             {

@@ -433,6 +433,13 @@ namespace MechKit.Features
         private static bool FacesView(PlatePlane plane,SwView view)
         { return PlateMath.Dot(plane.Normal,Axis(view,2))>1-1e-7; }
 
+        internal static bool NeedsAdditionalHoleView(Body2 body, List<SwView> views)
+        {
+            var holes=CollectHoles(PlateGeometry.ForHoleInspection(body),new List<string>());
+            return holes.Any(h=>!views.Any(v=>FacesView(h.Plane,v)) &&
+                (h.Feature=="" || !holes.Any(other=>other.Feature==h.Feature && views.Any(v=>FacesView(other.Plane,v)))));
+        }
+
         private static Feature ResolveHoleSeed(Face2 face)
         {
             return face.GetSeedFeature() ?? face.GetPatternSeedFeature() as Feature ?? face.GetFeature() as Feature;
@@ -457,7 +464,12 @@ namespace MechKit.Features
             foreach (var hole in holes)
             {
                 var view = views.FirstOrDefault(v => FacesView(hole.Plane,v));
-                if (view == null) { messages.Add("有孔入口未被当前视图覆盖，需补充侧视图和孔标注。"); continue; }
+                if (view == null)
+                {
+                    if(hole.Feature=="" || !holes.Any(other=>other.Feature==hole.Feature && views.Any(v=>FacesView(other.Plane,v))))
+                        messages.Add("有孔入口未被当前视图覆盖，需补充侧视图和孔标注。");
+                    continue;
+                }
                 var circle = (double[])((Curve)hole.Edge.GetCurve()).CircleParams;
                 var point = (MathPoint)math.CreatePoint(new[] { circle[0], circle[1], circle[2] });
                 var position = (double[])((MathPoint)point.MultiplyTransform(view.ModelToViewTransform)).ArrayData;

@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.3.0",
+    "version":  "0.34.4.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T02:40:13.4864222+08:00",
+    "generatedAt":  "2026-10-14T02:43:24.6040519+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "F7AC8721831E3F1A68CC97F9EDE841A2F665B2B29D67D4D2433DB9ADDE8340AF",
+                      "hash":  "C4DD8C71F31E538641F32307FC1034EB907D47BE434C0690BCD73A5A70226741",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -220,9 +220,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/MachiningDrawingBuilder.cs",
-                      "hash":  "15FCDA68BDC97FA1BAB2CF97352AA24B2AD08F2EA613116C2BC4FA1805E77023",
-                      "bytes":  12013,
-                      "lines":  186
+                      "hash":  "8CBFD802817EE3EFD6E2BC3F7D325E6DA0D24AE4AA2470D4932DC466691ED54B",
+                      "bytes":  14193,
+                      "lines":  225
                   },
                   {
                       "path":  "src/MechKit/Features/PartListService.cs",
@@ -232,9 +232,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
-                      "hash":  "E9BEBB22E783A8315A6E16F0600588D9EAF05A45C20AB2BC687F3EF3A372FC7F",
-                      "bytes":  38147,
-                      "lines":  624
+                      "hash":  "5E5D8F4DEBFFDDA1B1B3648DD14EB1721FB4C83408D98AF578EF35CF96B3D943",
+                      "bytes":  38750,
+                      "lines":  636
                   },
                   {
                       "path":  "src/MechKit/Features/PlateGeometry.cs",
@@ -640,9 +640,9 @@
                   },
                   {
                       "path":  "tools/testdata/MachiningDrawingLiveTest.cs",
-                      "hash":  "6FC95C46B7462E6C97E15A70303D1D3DCC033B1EC91C5D564CD287C5E5ADD4DA",
-                      "bytes":  4113,
-                      "lines":  74
+                      "hash":  "5720F8BFEFAA8012DF8631CE8559902209AE6217EFF30960C29E6A0369F1DCCE",
+                      "bytes":  4221,
+                      "lines":  75
                   },
                   {
                       "path":  "tools/testdata/PlateDrawingLiveTest.cs",
