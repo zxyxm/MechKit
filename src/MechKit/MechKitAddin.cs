@@ -741,6 +741,9 @@ namespace MechKit
 
         private void RenameSelectedComponentFiles(Func<string, string> transform, string actionName)
         {
+            Form bomWindow;
+            if (_openForms.TryGetValue("part-list", out bomWindow) && bomWindow is PartListForm bom &&
+                !bom.IsDisposed && bom.Visible && bom.PreviewQuickNaming(transform, actionName)) return;
             var doc = SwUtils.ActiveDoc(_swApp);
             var assembly = doc as AssemblyDoc;
             if (doc == null || assembly == null)
@@ -1331,6 +1334,9 @@ namespace MechKit
         /// <summary>撤回最近一次由 MechKit 快捷按钮执行的命名操作。</summary>
         public void OnMachinedUndoCommand()
         {
+            Form bomWindow;
+            if (_openForms.TryGetValue("part-list", out bomWindow) && bomWindow is PartListForm bom &&
+                !bom.IsDisposed && bom.Visible && bom.UndoQuickNamingPreview()) return;
             var doc = SwUtils.ActiveDoc(_swApp);
             if (doc == null || string.IsNullOrEmpty(_lastNamingUndoDocument))
             {

@@ -16,6 +16,7 @@ namespace MechKit.UI
     internal sealed class PartListForm : Form
     {
         private readonly IAddinHost _host;
+        private Dictionary<PartListRow,string> _quickNamingUndo;
         private readonly RadioButton _sourceDocument;
         private readonly Button _selectComponentButton;
         private readonly Button _clearComponentButton;
@@ -357,6 +358,10 @@ namespace MechKit.UI
             refresh.Click += delegate { if (!_running) RunSummary(); };
             _runButton.EnabledChanged += delegate { refresh.Enabled = _runButton.Enabled; };
             row.Controls.Add(refresh);
+            var arrange=Theme.CreateSecondaryButton("三栏布局");
+            arrange.AutoSize=true;
+            arrange.Click+=(s,e)=>ArrangeWorkspace();
+            row.Controls.Add(arrange);
             var labels = new[] { "应出图未出图", "命名不规范", "显示全部" };
             var filters = new[] { 3, 4, 0 };
             for (var i = 0; i < labels.Length; i++)
@@ -707,6 +712,8 @@ namespace MechKit.UI
 
             Shown += delegate
             {
+                ArrangeWorkspace();
+                WindowLayout.KeepAlongsideHost(this, _host.MainWindowHandle);
                 BeginInvoke((MethodInvoker)delegate
                 {
                     ReloadSubassemblies();
@@ -1678,6 +1685,83 @@ namespace MechKit.UI
             }
         }
 
+        internal bool PreviewQuickNaming(Func<string,string> transform,string action)
+        {
+            if (_running) return true;
+            var selected=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach(DataGridViewCell cell in _grid.SelectedCells)
+            {
+                var row=_grid.Rows[cell.RowIndex].Tag as PartListRow;
+                if(row!=null && !string.IsNullOrEmpty(row.FilePath)) selected.Add(row.FilePath);
+            }
+            if(selected.Count==0) return false;
+            _running=true;
+            try
+            {
+                PullGridEdits();
+                var updates=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                foreach(var row in _rows)
+                {
+                    if(!selected.Contains(row.FilePath) || updates.ContainsKey(row.FilePath)) continue;
+                    var name=(transform(row.FullName)??string.Empty).Trim();
+                    if(name.Length==0 || name.IndexOfAny(Path.GetInvalidFileNameChars())>=0)
+                        throw new InvalidOperationException("名称为空或含非法字符："+name);
+                    updates.Add(row.FilePath,name);
+                }
+                var undo=new Dictionary<PartListRow,string>();
+                foreach(var row in _rows)
+                {
+                    string name;
+                    if(!string.IsNullOrEmpty(row.FilePath) && updates.TryGetValue(row.FilePath,out name))
+                    {undo[row]=row.FullName;row.FullName=name;}
+                }
+                _quickNamingUndo=undo;
+                // Update cells in place: preserve selected rows, scroll position, export
+                // marks and other pending edits while the user clicks several shortcuts.
+                foreach(DataGridViewRow gridRow in _grid.Rows)
+                {
+                    var row=gridRow.Tag as PartListRow;
+                    if(row!=null && selected.Contains(row.FilePath))
+                        gridRow.Cells["fullname"].Value=row.FullName;
+                }
+                _status.Text=action+"：已预览 "+updates.Count+" 个文件的新名称；点“按规则重命名文件”同步模型、图纸和装配引用。";
+                AppendLog(_status.Text);
+                PublishBomSelection();
+            }
+            catch(Exception ex) { AppendLog("快捷命名失败："+ex.Message); }
+            finally { _running=false;UpdateSourceState(); }
+            return true;
+        }
+
+        internal bool UndoQuickNamingPreview()
+        {
+            if(_quickNamingUndo==null) return false;
+            foreach(var pair in _quickNamingUndo)
+                if(!_rows.Contains(pair.Key) || !pair.Key.HasFullNameEdit)
+                {_quickNamingUndo=null;return false;}
+            foreach(var pair in _quickNamingUndo) pair.Key.FullName=pair.Value;
+            foreach(DataGridViewRow gridRow in _grid.Rows)
+            {
+                var row=gridRow.Tag as PartListRow;
+                if(row!=null && _quickNamingUndo.ContainsKey(row)) gridRow.Cells["fullname"].Value=row.FullName;
+            }
+            _quickNamingUndo=null;
+            _status.Text="已撤回最近一次快捷命名预览；文件未修改。";
+            return true;
+        }
+
+        private void ArrangeWorkspace()
+        {
+            try
+            {
+                var active=_host.SwApp==null?null:_host.SwApp.IActiveDoc2;
+                var view=active==null?null:active.IActiveView;
+                WindowLayout.PlaceInGraphicsArea(this,_host.MainWindowHandle,
+                    view==null?IntPtr.Zero:new IntPtr(view.GetViewHWndx64()));
+            }
+            catch(Exception ex) {AppendLog("三栏布局失败："+ex.Message);}
+        }
+
         /// <summary>勾选 / 取消勾选当前表格里的所有行。</summary>
         private void SetAllRowsSelected(bool selected)
         {
@@ -2063,7 +2147,7 @@ namespace MechKit.UI
             var changed = 0;
             foreach (var row in activeRows)
             {
-                if (row.HasNamingEdits)
+                if (row.HasNamingEdits || row.HasFullNameEdit)
                 {
                     changed++;
                 }

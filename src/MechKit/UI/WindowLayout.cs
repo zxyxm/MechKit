@@ -17,6 +17,8 @@ namespace MechKit.UI
         private delegate IntPtr KeyboardProc(int code, IntPtr key, IntPtr flags);
         private static readonly KeyboardProc KeyboardCallback = OnKeyboard;
         private static IntPtr _keyboardHook;
+        private static readonly System.Collections.Generic.HashSet<Form> LoweredForms =
+            new System.Collections.Generic.HashSet<Form>();
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr SetWindowsHookEx(int hook, KeyboardProc callback, IntPtr module, uint thread);
@@ -66,6 +68,7 @@ namespace MechKit.UI
                 if (target.WindowState == FormWindowState.Minimized)
                     target.WindowState = FormWindowState.Normal;
                 target.TopMost = true;
+                LoweredForms.Remove(target);
                 target.BringToFront();
                 target.Activate();
             }
@@ -84,6 +87,7 @@ namespace MechKit.UI
             form.BeginInvoke(new Action(delegate
             {
                 if (form.IsDisposed || !form.Visible) return;
+                LoweredForms.Add(form);
                 form.TopMost = false;
                 form.SendToBack();
                 SetForegroundWindow(solidWorksWindow);
@@ -123,6 +127,57 @@ namespace MechKit.UI
 
         private const uint GaRoot = 2;
         private const uint GaParent = 1;
+
+        internal static Rectangle BomWorkspace(Rectangle host, Rectangle graphics, Rectangle working)
+        {
+            var area=Rectangle.Intersect(host,working);
+            if(area.Width<=0 || area.Height<=0) area=working;
+            // Prefer the actual graphics client: it already excludes FeatureManager
+            // and the task pane, including user-resized panes and non-primary monitors.
+            var center=Rectangle.Intersect(graphics,area);
+            if(center.Width<300 || center.Height<250 || center.Width>area.Width-100)
+            {
+                int side=Math.Min(300,area.Width/5);
+                center=Rectangle.FromLTRB(area.Left+side,area.Top+120,area.Right-side,area.Bottom-35);
+            }
+            center.Inflate(-6,-6);
+            return center;
+        }
+
+        internal static void PlaceInGraphicsArea(Form form,IntPtr host,IntPtr graphics)
+        {
+            RECT main,view;
+            if(!GetWindowRect(host,out main)) return;
+            var mainBounds=Rectangle.FromLTRB(main.Left,main.Top,main.Right,main.Bottom);
+            var viewBounds=GetWindowRect(graphics,out view)
+                ?Rectangle.FromLTRB(view.Left,view.Top,view.Right,view.Bottom):Rectangle.Empty;
+            var bounds=BomWorkspace(mainBounds,viewBounds,Screen.FromHandle(host).WorkingArea);
+            form.WindowState=FormWindowState.Normal;
+            form.MinimumSize=new Size(Math.Min(720,bounds.Width),Math.Min(480,bounds.Height));
+            form.StartPosition=FormStartPosition.Manual;
+            form.Bounds=bounds;
+        }
+
+        internal static void KeepAlongsideHost(Form form,IntPtr host)
+        {
+            // An unowned modeless window otherwise disappears behind all of SW as
+            // soon as the user clicks the tree/task pane. Do not stay above other apps.
+            var timer=new Timer {Interval=200};
+            form.Activated+=(s,e)=>LoweredForms.Remove(form);
+            form.Deactivate+=(s,e)=>
+            {
+                if(GetForegroundWindow()==host && !LoweredForms.Contains(form)) form.TopMost=true;
+            };
+            timer.Tick+=(s,e)=>
+            {
+                if(form.IsDisposed || !form.Visible) return;
+                var foreground=GetForegroundWindow();
+                if(foreground==form.Handle) LoweredForms.Remove(form);
+                form.TopMost=!LoweredForms.Contains(form) && (foreground==host || foreground==form.Handle);
+            };
+            form.FormClosed+=(s,e)=>{timer.Stop();timer.Dispose();LoweredForms.Remove(form);};
+            timer.Start();
+        }
 
         /// <summary>
         /// 鼠标当前是否落在 SOLIDWORKS 的三维图形区上：
@@ -263,6 +318,7 @@ namespace MechKit.UI
                     {
                         if (!form.IsDisposed && form.Visible)
                         {
+                            LoweredForms.Add(form);
                             form.TopMost = false;
                             form.SendToBack();
                         }
