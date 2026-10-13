@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.4.0",
+    "version":  "0.34.5.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T02:43:24.6040519+08:00",
+    "generatedAt":  "2026-10-14T02:44:59.0546122+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "C4DD8C71F31E538641F32307FC1034EB907D47BE434C0690BCD73A5A70226741",
+                      "hash":  "027ABE8AA67848D758E7741472734E803392EE22DE510E3F67E0AD3AA390C9E0",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -388,9 +388,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "12EB459793A2F63F5A987FF9A78F95B4CB0670E32C2984B0FDFE6D775BF76406",
-                      "bytes":  106847,
-                      "lines":  2382
+                      "hash":  "B3C1C28A65FE1E9C61B2ED3C902A4A937F60CA50C363284C68EE2662AF5A63E7",
+                      "bytes":  108542,
+                      "lines":  2413
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -562,9 +562,9 @@
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",
-                      "hash":  "9FDDC99A3B42A4B2885E1FA7A78F11076F8379230757A32F7E7464585AD2516B",
-                      "bytes":  14748,
-                      "lines":  210
+                      "hash":  "CCAF75E5350AD0BCD10A57F9D260D2FDEB8D30725442B80D136CC44E52C801C3",
+                      "bytes":  15757,
+                      "lines":  220
                   },
                   {
                       "path":  "tools/Test-DrawingToleranceLive.ps1",

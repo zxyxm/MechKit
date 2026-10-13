@@ -120,6 +120,16 @@ try {
     $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$last))
     $formType.GetMethod('EndMarkRows',$flags).Invoke($form,@())
     Check 'drag from a checked header clears crossed rows' (@($dataRows | Where-Object {$_.Cells['select'].Value}).Count -eq 0)
+    $formType.GetMethod('BeginMarkRows',$flags).Invoke($form,@($null,[Windows.Forms.MouseEventArgs]$down))
+    $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$last))
+    Check 'drag has visible rectangle' (-not $formType.GetMethod('MarkSelectionBounds',$flags).Invoke($form,@()).IsEmpty)
+    $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$last))
+    Check 'moving inside same row does not toggle again' (@($dataRows | Where-Object {-not $_.Cells['select'].Value}).Count -eq 0)
+    $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$first))
+    Check 'reverse stroke clears re-entered rows' (@($dataRows | Select-Object -SkipLast 1 | Where-Object {$_.Cells['select'].Value}).Count -eq 0)
+    Check 'turning row is toggled only on re-entry' ($dataRows[-1].Cells['select'].Value)
+    $formType.GetMethod('EndMarkRows',$flags).Invoke($form,@())
+    Check 'release removes rectangle' ($formType.GetMethod('MarkSelectionBounds',$flags).Invoke($form,@()).IsEmpty)
     Check 'design tree and connectors remain frozen on horizontal scroll' ($grid.Columns['designTree'].Frozen -and $grid.Columns['treeLink'].Frozen)
     foreach ($row in $dataRows) {
         $node = $row.Cells['designTree'].Tag

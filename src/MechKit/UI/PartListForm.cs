@@ -65,7 +65,7 @@ namespace MechKit.UI
         private bool _renameEditPending;
         private ModelDoc2 _bomAssembly;
         private bool _markDragging;
-        private bool _markValue;
+        private int _markStartRow;
         private int _markLastRow;
         private readonly Timer _markScroll = new Timer { Interval = 80 };
 
@@ -492,6 +492,7 @@ namespace MechKit.UI
             _grid.MouseMove += OnGridMouseMove;
             _grid.MouseDown += BeginMarkRows;
             _grid.MouseUp += delegate { EndMarkRows(); };
+            _grid.Paint += PaintMarkSelection;
             _grid.MouseCaptureChanged += delegate { if (!_grid.Capture) EndMarkRows(); };
             _markScroll.Tick += delegate { ScrollMarkedRows(); };
             Disposed += delegate { _markScroll.Dispose(); };
@@ -1625,8 +1626,8 @@ namespace MechKit.UI
             if (hit.Type != DataGridViewHitTestType.RowHeader || hit.RowIndex < 0) return;
             if (!(_grid.Rows[hit.RowIndex].Tag is PartListRow)) return;
             _grid.EndEdit();
-            _markValue = !IsRowMarkedForExport(_grid.Rows[hit.RowIndex]);
-            _markLastRow = hit.RowIndex;
+            _markStartRow = hit.RowIndex;
+            _markLastRow = -1;
             _markDragging = true;
             _grid.Capture = true;
             MarkThroughRow(hit.RowIndex);
@@ -1635,10 +1636,39 @@ namespace MechKit.UI
 
         private void MarkThroughRow(int row)
         {
-            for (int i = Math.Min(row, _markLastRow); i <= Math.Max(row, _markLastRow); i++)
+            if(row < 0 || row >= _grid.Rows.Count || row == _markLastRow) return;
+            var step = _markLastRow < 0 || row > _markLastRow ? 1 : -1;
+            var first = _markLastRow < 0 ? row : _markLastRow + step;
+            // Toggle only newly entered rows. Re-entering on a reverse stroke toggles
+            // again; repeated mouse moves inside the same row must not flicker.
+            for (int i = first; step > 0 ? i <= row : i >= row; i += step)
                 if (_grid.Rows[i].Visible && _grid.Rows[i].Tag is PartListRow)
-                    _grid.Rows[i].Cells["select"].Value = _markValue;
+                    _grid.Rows[i].Cells["select"].Value = !IsRowMarkedForExport(_grid.Rows[i]);
             _markLastRow = row;
+            _grid.Invalidate();
+        }
+
+        private Rectangle MarkSelectionBounds()
+        {
+            if(!_markDragging || _markLastRow < 0 || _markStartRow >= _grid.Rows.Count ||
+                _markLastRow >= _grid.Rows.Count) return Rectangle.Empty;
+            var start = _grid.GetCellDisplayRectangle(-1,_markStartRow,false);
+            var end = _grid.GetCellDisplayRectangle(-1,_markLastRow,false);
+            var check = _grid.GetCellDisplayRectangle(_grid.Columns["select"].Index,_markLastRow,false);
+            var top = Math.Max(_grid.ColumnHeadersHeight,Math.Min(start.Top,end.Top));
+            var bottom = Math.Min(_grid.ClientSize.Height-1,Math.Max(start.Bottom,end.Bottom));
+            return bottom > top ? Rectangle.FromLTRB(1,top,Math.Max(_grid.RowHeadersWidth,check.Right-1),bottom-1) : Rectangle.Empty;
+        }
+
+        private void PaintMarkSelection(object sender, PaintEventArgs e)
+        {
+            var bounds=MarkSelectionBounds();
+            if(bounds.IsEmpty) return;
+            using(var pen=new Pen(Theme.Accent,2))
+            {
+                pen.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;
+                e.Graphics.DrawRectangle(pen,bounds);
+            }
         }
 
         private void ScrollMarkedRows()
@@ -1659,6 +1689,7 @@ namespace MechKit.UI
             _markDragging = false;
             _markScroll.Stop();
             if (_grid.Capture) _grid.Capture = false;
+            _grid.Invalidate();
         }
 
         /// <summary>把表格里选中的行对应的零件文件告诉插件（供选项卡快捷按钮使用）。</summary>
