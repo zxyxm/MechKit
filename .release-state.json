@@ -1,19 +1,13 @@
 {
-    "version":  "0.32.5.0",
+    "version":  "0.32.6.0",
     "level":  "none",
-    "generatedAt":  "2026-10-13T22:38:41.8924012+08:00",
+    "generatedAt":  "2026-10-13T23:55:42.2780349+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "tools/Test-BomMerge.ps1",
-                      "hash":  "38AD610BBD1C6AADAB580EF0AE4E8A0BA1DB3B35177CBD5AA6F579F043E8FD3F",
-                      "bytes":  3834,
-                      "lines":  56
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -64,7 +58,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "E6423EE2088EDCFBADBF044F8F2DCE408BEEC6A4760A4D8CE1D614182812C188",
+                      "hash":  "6093DEEDFA4953FF0072E68377DC8ED3AE0BBE8DF86B2CAD225CC5880E06B261",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -364,9 +358,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "29289EDF1F754013A48F6C6A76DC7134EC823134A12FD49273AF2309D765C3FD",
-                      "bytes":  95058,
-                      "lines":  2172
+                      "hash":  "0464465417787ACF699B85B4888B4AF70298EF0F13746648D7EAA4419C835CAA",
+                      "bytes":  95591,
+                      "lines":  2174
                   },
                   {
                       "path":  "src/MechKit/UI/PlateDrawingForm.cs",
@@ -493,6 +487,12 @@
                       "hash":  "6F0A5BC7C8408556F204988C86866A68AC1683BA52A0FB159654F08B93808E4D",
                       "bytes":  15655,
                       "lines":  323
+                  },
+                  {
+                      "path":  "tools/Test-BomMerge.ps1",
+                      "hash":  "38AD610BBD1C6AADAB580EF0AE4E8A0BA1DB3B35177CBD5AA6F579F043E8FD3F",
+                      "bytes":  3834,
+                      "lines":  56
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",

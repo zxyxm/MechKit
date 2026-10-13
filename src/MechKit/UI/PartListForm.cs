@@ -133,13 +133,17 @@ namespace MechKit.UI
 
         private Control BuildHeader()
         {
-            var panel = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
+            var panel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 2,
+                Padding = new Padding(14, 8, 14, 8), BackColor = Theme.Accent };
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             var title = Theme.CreateLabel("预览 BOM", Theme.Title, Color.White);
-            title.Location = new Point(14, 9);
+            title.Margin = new Padding(0, 0, 0, 4);
 
             var subtitle = Theme.CreateLabel("双击可编辑字段；列宽首次自动适配，之后可拖动表头边界调整",
                 Theme.Small, Color.FromArgb(214, 232, 248));
-            subtitle.Location = new Point(15, 32);
+            subtitle.Margin = new Padding(0);
 
             panel.Controls.Add(title);
             panel.Controls.Add(subtitle);
@@ -148,7 +152,7 @@ namespace MechKit.UI
 
         private Control BuildSetupPanel()
         {
-            var panel = new Panel { Dock = DockStyle.Top, Height = 250, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
+            var panel = new Panel { Dock = DockStyle.Top, Height = 224, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
 
             var layout = new TableLayoutPanel
             {
@@ -159,7 +163,7 @@ namespace MechKit.UI
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
@@ -196,7 +200,7 @@ namespace MechKit.UI
             _scopeLabel.ForeColor = Theme.Text;
             _scopeLabel.Margin = new Padding(0, 10, 0, 0);
 
-            var hint = Theme.CreateLabel("先在装配树或图形区选中零件/子装配体，再点「选择部件」",
+            var hint = Theme.CreateLabel("选中零件或子装配体后，点击「选择部件」",
                 Theme.Small, Theme.Muted);
             hint.Margin = new Padding(16, 10, 0, 0);
 
@@ -216,18 +220,18 @@ namespace MechKit.UI
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
                 BackColor = Theme.Surface,
-                Padding = new Padding(28, 0, 0, 0)
+                Padding = new Padding(0)
             };
 
             var label = Theme.CreateFieldLabel("部件装配体");
-            label.Width = 92;
+            label.AutoSize = true;
             label.Margin = new Padding(0, 9, 8, 0);
 
             _subassemblyCombo.Margin = new Padding(0, 6, 8, 0);
             _reloadSubassembliesButton.Width = 118;
             _reloadSubassembliesButton.Margin = new Padding(0, 4, 10, 0);
 
-            var hint = Theme.CreateLabel("选择后自动生成该部件的 BOM（包含其下级子装配体）",
+            var hint = Theme.CreateLabel("选择后自动汇总，包含下级子装配体",
                 Theme.Small, Theme.Muted);
             hint.Margin = new Padding(0, 10, 0, 0);
 
@@ -260,7 +264,7 @@ namespace MechKit.UI
             summary.Text = DescribeRule();
             _ruleSummary = summary;
 
-            var button = Theme.CreatePrimaryButton("命名规则设置…");
+            var button = Theme.CreateSecondaryButton("命名规则设置…");
             button.Dock = DockStyle.Fill;
             button.Margin = new Padding(0, 2, 0, 2);
             button.Click += delegate
@@ -278,7 +282,7 @@ namespace MechKit.UI
         /// <summary>把当前命名规则写成人话。</summary>
         private string DescribeRule()
         {
-            return "识别规则：参考不识别；淘宝/代理为标准件；日期-装配表示装配关系；日期-组件仅分组；日期开头且材料段非空为加工件；日期-焊接整体计入、不展开；库存/备件整体计入；外部图纸前缀在设置中维护。";
+            return "按命名规则识别零件类型、名称与材料；详细规则可在右侧设置。";
         }
 
         private Control BuildNamingRow()
@@ -348,6 +352,7 @@ namespace MechKit.UI
                 var filter = filters[i];
                 var button = Theme.CreateSecondaryButton(labels[i]);
                 button.Width = 140;
+                button.Height = 34;
                 button.Margin = new Padding(0, 2, 10, 2);
                 button.Click += delegate
                 {
@@ -387,7 +392,7 @@ namespace MechKit.UI
             _onlyMachined.Text = "只列加工件（排除标准件 / 外购件）";
             _excludeToolbox.Visible = false;
             _excludeSuppressed.Text = "忽略压缩的组件";
-            _readProperties.Text = "读取零件自定义属性（较慢，但图号 / 材料更准）";
+            _readProperties.Text = "读取自定义属性";
             _detectVendor.Visible = false;
 
             foreach (var box in new[] { _onlyMachined, _excludeToolbox, _detectVendor, _excludeSuppressed, _readProperties })
@@ -397,19 +402,19 @@ namespace MechKit.UI
                 box.Margin = new Padding(0, 4, 16, 0);
             }
 
-            _useSegments.Text = "名称/材料按文件名分段：";
+            _useSegments.Text = "按文件名分段";
             _useSegments.Font = Theme.Body;
             _useSegments.AutoSize = true;
             _useSegments.Margin = new Padding(0, 4, 4, 0);
 
-            _segmentSeparator.Width = 52;
+            _segmentSeparator.Width = 106;
             _segmentSeparator.ReadOnly = true;
             _segmentSeparator.TextAlign = HorizontalAlignment.Center;
             _segmentSeparator.Margin = new Padding(0, 2, 4, 0);
 
             _materialSegment.DropDownStyle = ComboBoxStyle.DropDownList;
             _materialSegment.Font = Theme.Body;
-            _materialSegment.Width = 108;
+            _materialSegment.Width = 156;
             _materialSegment.Margin = new Padding(0, 2, 14, 0);
             _materialSegment.Items.AddRange(new object[] { "材料=倒数第二段", "材料=最后一段", "材料=倒数第三段", "材料不取自名称" });
 
@@ -420,9 +425,9 @@ namespace MechKit.UI
             row.Controls.Add(_excludeSuppressed);
             row.Controls.Add(_detectVendor);
             row.Controls.Add(_readProperties);
-            row.Controls.Add(_useSegments);
-            row.Controls.Add(_segmentSeparator);
-            row.Controls.Add(_materialSegment);
+            var namingHint = Theme.CreateLabel("分段方式在「命名规则设置」中维护", Theme.Small, Theme.Muted);
+            namingHint.Margin = new Padding(8, 6, 0, 0);
+            row.Controls.Add(namingHint);
             return row;
         }
 
@@ -564,79 +569,76 @@ namespace MechKit.UI
 
         private Control BuildLogPanel()
         {
-            var panel = new Panel { Dock = DockStyle.Bottom, Height = 116, BackColor = Theme.Canvas, Padding = new Padding(12, 0, 12, 0) };
-
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 2,
-                BackColor = Theme.Canvas
-            };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 20f));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-
-            layout.Controls.Add(Theme.CreateLabel("处理日志", Theme.BodyBold, Theme.Text), 0, 0);
+            var panel = new Panel { Dock = DockStyle.Bottom, Height = 32, BackColor = Theme.Canvas,
+                Padding = new Padding(12, 0, 12, 0) };
+            var toggle = Theme.CreateLinkButton("处理日志 ▸");
+            toggle.Dock = DockStyle.Top;
+            toggle.Height = 30;
+            toggle.TextAlign = ContentAlignment.MiddleLeft;
             Theme.StyleLogBox(_logBox);
             _logBox.Dock = DockStyle.Fill;
-            layout.Controls.Add(_logBox, 0, 1);
-
-            panel.Controls.Add(layout);
+            _logBox.Visible = false;
+            toggle.Click += delegate
+            {
+                var expanded = !_logBox.Visible;
+                _logBox.Visible = expanded;
+                panel.Height = expanded ? toggle.Height + 84 : toggle.Height + 2;
+                toggle.Text = expanded ? "处理日志 ▾" : "处理日志 ▸";
+            };
+            panel.Controls.Add(_logBox);
+            panel.Controls.Add(toggle);
             return panel;
         }
 
         private Control BuildFooter()
         {
-            var panel = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = Theme.Canvas, Padding = new Padding(12, 8, 12, 8) };
-
+            var panel = new Panel { Dock = DockStyle.Bottom, Height = 88, BackColor = Theme.Canvas,
+                Padding = new Padding(12, 6, 12, 8) };
+            // 操作按钮独占一行，状态说明独占一行，避免两者互相挤压。
+            _status.Dock = DockStyle.Bottom;
+            _status.Height = 26;
+            _status.Margin = new Padding(0);
             var layout = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill,
-                ColumnCount = 9,
-                RowCount = 1,
-                BackColor = Theme.Canvas
+                Dock = DockStyle.Fill, ColumnCount = 9, RowCount = 1,
+                BackColor = Theme.Canvas, Margin = new Padding(0)
             };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140f));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84f));
-
-            _status.Dock = DockStyle.Fill;
-            _status.Margin = new Padding(0);
-            layout.Controls.Add(_status, 0, 0);
-
-            foreach (var button in new[]
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            _selectAll.AutoSize = true;
+            _selectAll.Anchor = AnchorStyles.Left;
+            _selectAll.Margin = new Padding(0, 0, 16, 0);
+            _selectAll.Text = "全选";
+            layout.Controls.Add(_selectAll, 0, 0);
+            foreach (var button in new[] { _runButton, _exportButton, _mergeExportButton,
+                _exportFilesButton, _writeBackButton, _renameComponentsButton, _closeButton })
             {
-                _runButton, _exportButton, _mergeExportButton, _exportFilesButton, _writeBackButton,
-                _renameComponentsButton, _closeButton
-            })
-            {
+                button.AutoSize = true;
+                button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                button.MinimumSize = new Size(button == _mergeExportButton ? 120 : 80, 36);
+                button.Padding = new Padding(10, 0, 10, 0);
                 button.Dock = DockStyle.Fill;
-                button.Margin = new Padding(4, 8, 4, 8);
+                button.Margin = new Padding(0, 0, 8, 8);
             }
-
-            _selectAll.Dock = DockStyle.Fill;
-            _selectAll.Margin = new Padding(4, 0, 8, 0);
-            _selectAll.TextAlign = ContentAlignment.MiddleLeft;
-
-            layout.Controls.Add(_selectAll, 1, 0);
-            layout.Controls.Add(_runButton, 2, 0);
-            layout.Controls.Add(_exportButton, 3, 0);
-            layout.Controls.Add(_mergeExportButton, 4, 0);
-            layout.Controls.Add(_exportFilesButton, 5, 0);
+            _closeButton.Margin = new Padding(0, 0, 0, 8);
+            layout.Controls.Add(_runButton, 1, 0);
+            layout.Controls.Add(_exportButton, 2, 0);
+            layout.Controls.Add(_mergeExportButton, 3, 0);
+            layout.Controls.Add(_exportFilesButton, 4, 0);
             layout.Controls.Add(_writeBackButton, 6, 0);
             layout.Controls.Add(_renameComponentsButton, 7, 0);
             layout.Controls.Add(_closeButton, 8, 0);
-
             panel.Controls.Add(layout);
+            panel.Controls.Add(_status);
             return panel;
         }
-
         private void WireEvents()
         {
             _runButton.Click += delegate { RunSummary(); };
