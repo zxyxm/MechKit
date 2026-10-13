@@ -43,7 +43,6 @@ namespace MechKit.UI
                 Append(labels, actions, _addin.BuildPrefixButtonList(), "", _addin.OnPrefixCommand);
                 Append(labels, actions, _addin.BuildMiddleNameButtonList(), "", _addin.OnMiddleNameCommand);
                 AddGroup("标准件", Color.FromArgb(231,242,255), labels, actions, 10, 1, _addin.BuildPrefixButtonList().Count);
-                AddGroup("装配 / 组件", Color.FromArgb(238,230,250), new[] { "添加装配前缀" }, new Action[] { _addin.OnAssemblyNameCommand }, 10);
                 AddGroup("库存件", Color.FromArgb(224,245,242), new[] { "添加库存前缀" }, new Action[] { _addin.OnStockPartCommand }, 10);
                 AddGroup("备件", Color.FromArgb(240,229,250), new[] { "添加备件前缀" }, new Action[] { _addin.OnSparePartCommand }, 10);
                 AddGroup("外部图纸", Color.FromArgb(255,247,210), new[] { "图纸前缀设置" }, new Action[] { _addin.OnExternalDrawingCommand }, 10);

@@ -1,7 +1,7 @@
 {
-    "version":  "0.32.9.0",
+    "version":  "0.32.10.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T00:36:42.2339720+08:00",
+    "generatedAt":  "2026-10-14T00:47:06.3622469+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -58,8 +58,8 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "500A9007D55CAA870EC120FE9FFFFBDFDA0B1BA6818A21D130DD99CE63B83382",
-                      "bytes":  1062,
+                      "hash":  "6654245111A95A815E5D6F37FDFF5C0F5BFF5B5E04DE4784A632CA4A8361F742",
+                      "bytes":  1063,
                       "lines":  25
                   },
                   {
@@ -352,9 +352,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/CommandPanel.cs",
-                      "hash":  "F0D0E063F38F628F8FB5A3AEC67AE144BE8FC3B83F520585E57C93FCB7244A11",
-                      "bytes":  7457,
-                      "lines":  115
+                      "hash":  "8AD3A79394B357762567DF89335E5494543CB42798130964A7489BACE58A9183",
+                      "bytes":  7300,
+                      "lines":  114
                   },
                   {
                       "path":  "src/MechKit/UI/NamingRuleForm.cs",
@@ -508,7 +508,7 @@
                   },
                   {
                       "path":  "tools/Test-CommandPanel.ps1",
-                      "hash":  "4DCAC2F18A06452C0F6519573AEEC0F7CE37A59B9DB2B8F6E5D2E177C1479621",
+                      "hash":  "46A78B0F55568777A401AAA8B7DA23B7686A27ABAD56ADFEFB3DAFADED1298F1",
                       "bytes":  2323,
                       "lines":  44
                   },
