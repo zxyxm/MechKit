@@ -1,13 +1,19 @@
 {
-    "version":  "0.32.6.0",
+    "version":  "0.32.7.0",
     "level":  "none",
-    "generatedAt":  "2026-10-13T23:55:42.2780349+08:00",
+    "generatedAt":  "2026-10-14T00:02:03.3845127+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "tools/Test-BomPreview.ps1",
+                      "hash":  "A455B9FD38932A1795999A3C71E6418913F799F7890FAC6C777A1084A5A9A9A5",
+                      "bytes":  1877,
+                      "lines":  31
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -58,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "6093DEEDFA4953FF0072E68377DC8ED3AE0BBE8DF86B2CAD225CC5880E06B261",
+                      "hash":  "11A30CDFA5CA6760ED5B64F0A292F281BF4EC04419600AE225EDEB4CD1820DEC",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -184,9 +190,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/BomExcelExporter.cs",
-                      "hash":  "A8CAC733781392D37B4207EFFB957BDB0541D28FC1409B51FD570CB243EBEA9B",
-                      "bytes":  11644,
-                      "lines":  188
+                      "hash":  "678833DE61818854F5600480EB764A1AA937EDA56A4DE62644B7D9838F97634E",
+                      "bytes":  13426,
+                      "lines":  221
                   },
                   {
                       "path":  "src/MechKit/Features/CustomProperty.cs",

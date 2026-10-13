@@ -112,21 +112,15 @@ namespace MechKit.Features
             var temp = Path.Combine(Path.GetTempPath(), "MechKit-preview-" + Guid.NewGuid().ToString("N") + ".bmp");
             try
             {
-                if (!app.GetPreviewBitmapFile(row.FilePath, row.Configuration ?? "", temp) || !File.Exists(temp)) return null;
-                using (var source = Image.FromFile(temp))
-                using (var target = new Bitmap(104, 72))
-                using (var graphics = Graphics.FromImage(target))
-                using (var stream = new MemoryStream())
+                var configuration = row.Configuration;
+                if (string.IsNullOrWhiteSpace(configuration))
                 {
-                    graphics.Clear(Color.White);
-                    graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                    var scale = Math.Min(104f / source.Width, 72f / source.Height);
-                    var width = source.Width * scale;
-                    var height = source.Height * scale;
-                    graphics.DrawImage(source, (104 - width) / 2, (72 - height) / 2, width, height);
-                    target.Save(stream, ImageFormat.Png);
-                    return stream.ToArray();
+                    var names = app.GetConfigurationNames(row.FilePath) as string[];
+                    if (names == null || names.Length == 0) return null;
+                    configuration = names[0];
                 }
+                if (!app.GetPreviewBitmapFile(row.FilePath, configuration, temp) || !File.Exists(temp)) return null;
+                return PreviewPng(File.ReadAllBytes(temp));
             }
             catch (Exception ex)
             {
@@ -137,6 +131,45 @@ namespace MechKit.Features
             {
                 try { if (File.Exists(temp)) File.Delete(temp); }
                 catch (Exception ex) { Log.Warn("清理 BOM 缩略图失败：" + ex.Message); }
+            }
+        }
+
+        internal static byte[] RepairPreviewBitmap(byte[] data)
+        {
+            // SW can emit an 8-bit grayscale RLE BMP with no RGBQUAD table at all.
+            // GDI+ otherwise reads the compressed pixels as a palette (green/black corruption).
+            // Only repair this exact malformed layout; preserve real palettes and RGB images.
+            if (data == null || data.Length < 54 || data[0] != 'B' || data[1] != 'M'
+                || BitConverter.ToInt32(data, 14) != 40 || BitConverter.ToInt32(data, 10) != 54
+                || BitConverter.ToInt16(data, 26) != 1 || BitConverter.ToInt16(data, 28) != 8
+                || BitConverter.ToInt32(data, 30) != 1 || BitConverter.ToInt32(data, 46) != 0)
+                return data;
+            var result = new byte[checked(data.Length + 1024)];
+            Buffer.BlockCopy(data, 0, result, 0, 54);
+            Buffer.BlockCopy(BitConverter.GetBytes(result.Length), 0, result, 2, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(1078), 0, result, 10, 4);
+            for (var i = 0; i < 256; i++)
+                result[54 + i * 4] = result[55 + i * 4] = result[56 + i * 4] = (byte)i;
+            Buffer.BlockCopy(data, 54, result, 1078, data.Length - 54);
+            return result;
+        }
+
+        internal static byte[] PreviewPng(byte[] bitmap)
+        {
+            using (var input = new MemoryStream(RepairPreviewBitmap(bitmap)))
+            using (var source = Image.FromStream(input))
+            using (var target = new Bitmap(312, 216))
+            using (var graphics = Graphics.FromImage(target))
+            using (var stream = new MemoryStream())
+            {
+                graphics.Clear(Color.White);
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                var scale = Math.Min(312f / source.Width, 216f / source.Height);
+                var width = source.Width * scale;
+                var height = source.Height * scale;
+                graphics.DrawImage(source, (312 - width) / 2, (216 - height) / 2, width, height);
+                target.Save(stream, ImageFormat.Png);
+                return stream.ToArray();
             }
         }
 
