@@ -1,19 +1,13 @@
 {
-    "version":  "0.34.1.0",
+    "version":  "0.34.2.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T02:32:37.7472315+08:00",
+    "generatedAt":  "2026-10-14T02:34:47.1125183+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "tools/Test-BomWorkspace.ps1",
-                      "hash":  "5E380C3D96B48038435080CD63A6B5C48620136F12E9A61139A1411B76A128C3",
-                      "bytes":  2619,
-                      "lines":  39
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -70,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "C88548CBBC2874F6024B6C59A0A45196BE61C42D614AC93EDD87F45257E47173",
+                      "hash":  "5BCC480C5B034166E3A06A6BD5D9B46DBB1D16BB08B75175DA8907A38F033471",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -394,9 +388,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "FCA224BE920765933D372D1748B3E670E6DDAC70728347B2D61D25844F13775D",
-                      "bytes":  105911,
-                      "lines":  2370
+                      "hash":  "5EE9C97B5E2365F2A30D46B9BA4C8E426936DDBD87464B87B79842051FBF8931",
+                      "bytes":  106581,
+                      "lines":  2379
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -547,6 +541,12 @@
                       "hash":  "6D41C2244DDB181494FC0D2592DFA22E5BDEA5A628579739C0F4F4F7A1B966EA",
                       "bytes":  476,
                       "lines":  6
+                  },
+                  {
+                      "path":  "tools/Test-BomWorkspace.ps1",
+                      "hash":  "5E380C3D96B48038435080CD63A6B5C48620136F12E9A61139A1411B76A128C3",
+                      "bytes":  2619,
+                      "lines":  39
                   },
                   {
                       "path":  "tools/Test-Categories.ps1",

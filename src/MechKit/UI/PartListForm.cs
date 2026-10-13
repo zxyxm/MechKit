@@ -1156,6 +1156,7 @@ namespace MechKit.UI
                 var item = new DesignTreeItem
                 {
                     Name = row.FullName,
+                    FilePath = row.FilePath,
                     Kind = row.IsUnmatched || row.Classification == PartListService.UnmatchedClassification ? DesignNodeKind.Unmatched :
                         row.Classification == "库存件" ? DesignNodeKind.Stock :
                         row.Classification == "备件" ? DesignNodeKind.Spare :
@@ -1196,7 +1197,14 @@ namespace MechKit.UI
                 case DesignNodeKind.Stock: node.BackColor = Color.FromArgb(224, 245, 242); break;
                 case DesignNodeKind.ExternalDrawing: node.BackColor = Color.FromArgb(255, 247, 210); break;
                 case DesignNodeKind.Spare: node.BackColor = Color.FromArgb(240, 229, 250); break;
-                case DesignNodeKind.Unmatched: node.BackColor = MissingDrawingRowColor; break;
+                case DesignNodeKind.Unmatched:
+                    // File type takes precedence for assembly color; naming validity
+                    // remains in the label/filter, including virtual assemblies.
+                    var assembly=string.Equals(Path.GetExtension(item.FilePath),".sldasm",StringComparison.OrdinalIgnoreCase);
+                    foreach(var row in item.Rows)
+                        assembly |= string.Equals(Path.GetExtension(row.FilePath),".sldasm",StringComparison.OrdinalIgnoreCase);
+                    node.BackColor = assembly ? Color.FromArgb(238,230,250) : MissingDrawingRowColor;
+                    break;
             }
             if (item.Kind == DesignNodeKind.Reference)
             {
@@ -1898,6 +1906,7 @@ namespace MechKit.UI
                         var item = new DesignTreeItem
                         {
                             Name = filteredRow.FullName,
+                            FilePath = filteredRow.FilePath,
                             Kind = filteredRow.IsUnmatched || filteredRow.Classification == PartListService.UnmatchedClassification
                                 ? DesignNodeKind.Unmatched : DesignNodeKind.Machined
                         };
