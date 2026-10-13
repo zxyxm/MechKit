@@ -1509,6 +1509,7 @@ namespace MechKit.UI
             var answer = MessageBox.Show(this,
                 "同步重命名模型及同名工程图，并保存装配引用？\r\n\r\n" +
                 currentBase + "  →  " + newBase + "\r\n\r\n" +
+                "虚拟组件会以新名称另存到总装所在文件夹，成为独立文件。\r\n\r\n" +
                 "· “是”＝现在就重命名文件（引用同步更新）；\r\n" +
                 "· “否”＝只保留表格里的名字，稍后点「按规则重命名文件」再统一执行。",
                 AddinConstants.Title, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
@@ -2143,6 +2144,7 @@ namespace MechKit.UI
                 return;
             }
 
+            ActivateBomAssembly();
             var active = SwUtils.ActiveDoc(_host.SwApp);
             if (active == null || active.GetType() != SwUtils.DocAssembly)
             {
@@ -2173,7 +2175,8 @@ namespace MechKit.UI
                 "将按当前命名规则反推并重命名 {0} 行对应的零件文件：\r\n\r\n" +
                 "1. 加工件：保留日期、变更序号和拓展代号，用材料/工艺反查材料段，用零件名更新名称段；\r\n" +
                 "2. 标准件：按“工艺-零件名-材料/型号”重新组装文件名；\r\n" +
-                "3. 更新当前装配体引用并保存装配体。\r\n\r\n" +
+                "3. 虚拟组件另存到总装所在文件夹，成为独立文件；同名文件不覆盖；\r\n" +
+                "4. 更新当前装配体引用并保存装配体。\r\n\r\n" +
                 "不会写入任何自定义属性；备注不参与文件名。是否继续？",
                 changed);
             if (MessageBox.Show(this, message, AddinConstants.Title,

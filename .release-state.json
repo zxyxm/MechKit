@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.2.0",
+    "version":  "0.34.3.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T02:34:47.1125183+08:00",
+    "generatedAt":  "2026-10-14T02:40:13.4864222+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "5BCC480C5B034166E3A06A6BD5D9B46DBB1D16BB08B75175DA8907A38F033471",
+                      "hash":  "F7AC8721831E3F1A68CC97F9EDE841A2F665B2B29D67D4D2433DB9ADDE8340AF",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -226,9 +226,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PartListService.cs",
-                      "hash":  "98C2911CB22441125636220880B0EFF1982EBDCADC5F67766F7D5DC4B87C2D43",
-                      "bytes":  110435,
-                      "lines":  2533
+                      "hash":  "DE386375D5C673A7580BFF39F05B02B68169684EB925FA768CB9F7E621911503",
+                      "bytes":  113783,
+                      "lines":  2578
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
@@ -388,9 +388,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "5EE9C97B5E2365F2A30D46B9BA4C8E426936DDBD87464B87B79842051FBF8931",
-                      "bytes":  106581,
-                      "lines":  2379
+                      "hash":  "12EB459793A2F63F5A987FF9A78F95B4CB0670E32C2984B0FDFE6D775BF76406",
+                      "bytes":  106847,
+                      "lines":  2382
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -634,9 +634,9 @@
                   },
                   {
                       "path":  "tools/testdata/BomRenameChecks.cs",
-                      "hash":  "E859A88BFDE7C4864B3F52B2741F08FA49F23F67880561ECB75C3B8F494CCF7C",
-                      "bytes":  3914,
-                      "lines":  68
+                      "hash":  "CB73A92B24AE79044DAECBE3B4B07927F0896CFAC8C1FC6F02BB0378750D976D",
+                      "bytes":  6539,
+                      "lines":  109
                   },
                   {
                       "path":  "tools/testdata/MachiningDrawingLiveTest.cs",

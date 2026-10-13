@@ -1257,30 +1257,23 @@ namespace MechKit.Features
                 return renamed;
             }
 
+            // Snapshot identities before saving a virtual parent can change its children's paths.
+            var componentsByPath = new Dictionary<string, Component2>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in components)
+            {
+                var candidate = item as Component2;
+                if (candidate == null) continue;
+                try
+                {
+                    var path = candidate.GetPathName();
+                    if (!string.IsNullOrWhiteSpace(path)) componentsByPath[path] = candidate;
+                }
+                catch { }
+            }
             foreach (var target in desiredByPath)
             {
                 Component2 component = null;
-                foreach (var item in components)
-                {
-                    var candidate = item as Component2;
-                    if (candidate == null)
-                    {
-                        continue;
-                    }
-                    try
-                    {
-                        if (string.Equals(candidate.GetPathName(), target.Key,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            component = candidate;
-                            break;
-                        }
-                    }
-                    catch
-                    {
-                        // 继续查找同一路径的其他实例。
-                    }
-                }
+                componentsByPath.TryGetValue(target.Key, out component);
 
                 if (component == null)
                 {
@@ -1293,7 +1286,8 @@ namespace MechKit.Features
                     var sourcePath = target.Key;
                     var desired = target.Value;
                     var currentBase = NamingOptions.GetFileNameWithoutExtension(sourcePath);
-                    if (string.Equals(currentBase, desired, StringComparison.OrdinalIgnoreCase))
+                    var isVirtual = component.IsVirtual;
+                    if (!isVirtual && string.Equals(currentBase, desired, StringComparison.OrdinalIgnoreCase))
                     {
                         foreach (var row in rows)
                         {
@@ -1306,8 +1300,9 @@ namespace MechKit.Features
                         continue;
                     }
 
-                    var targetPath = Path.Combine(Path.GetDirectoryName(sourcePath) ?? string.Empty,
-                        desired + Path.GetExtension(sourcePath));
+                    var targetPath = isVirtual ? VirtualComponentTarget(doc, component, desired) :
+                        Path.Combine(Path.GetDirectoryName(sourcePath) ?? string.Empty,
+                            desired + Path.GetExtension(sourcePath));
                     if (File.Exists(targetPath))
                     {
                         log("✗ 目标文件已存在：" + targetPath);
@@ -1328,10 +1323,13 @@ namespace MechKit.Features
                         continue;
                     }
 
-                    RenameWithDrawing(swApp, doc, component, sourcePath, targetPath, desired, log);
+                    if (isVirtual)
+                        SaveVirtualComponentExternal(doc, component, targetPath);
+                    else
+                        RenameWithDrawing(swApp, doc, component, sourcePath, targetPath, desired, log);
 
                     renamed++;
-                    log(string.Format("✓ 零件文件重命名：{0} → {1}",
+                    log(string.Format(isVirtual ? "✓ 虚拟组件已保存为外部文件：{0} → {1}" : "✓ 零件文件重命名：{0} → {1}",
                         Path.GetFileName(sourcePath), Path.GetFileName(targetPath)));
 
                     foreach (var row in rows)
@@ -1380,6 +1378,53 @@ namespace MechKit.Features
             }
 
             return renamed;
+        }
+
+        private static string VirtualComponentTarget(ModelDoc2 assembly, Component2 component, string desired)
+        {
+            var root = assembly.GetPathName();
+            if (string.IsNullOrWhiteSpace(root) || !File.Exists(root))
+                throw new IOException("请先保存当前总装配体，再将虚拟组件保存为外部文件。");
+            if (string.IsNullOrWhiteSpace(desired) || desired.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                desired.EndsWith(".") || desired.EndsWith(" ") || desired.IndexOf('^') >= 0)
+                throw new IOException("目标名称无效，请去掉路径、虚拟组件后缀及非法字符。");
+            var model = component.GetModelDoc2() as ModelDoc2;
+            if (model == null) throw new IOException("无法读取虚拟组件，请先解除压缩并完全解析。");
+            var type = model.GetType();
+            if (type != SwUtils.DocPart && type != SwUtils.DocAssembly)
+                throw new IOException("仅支持虚拟零件和虚拟装配体。");
+            return Path.Combine(Path.GetDirectoryName(root), desired +
+                (type == SwUtils.DocAssembly ? ".SLDASM" : ".SLDPRT"));
+        }
+
+        private static void SaveVirtualComponentExternal(ModelDoc2 assembly, Component2 component, string target)
+        {
+            if (File.Exists(target)) throw new IOException("目标文件已存在，未覆盖：" + target);
+            // Use the component API, not SaveAsCopy: it changes the assembly's live reference as well.
+            if (!component.SaveVirtualComponent(target))
+                throw new IOException("虚拟组件保存到外部文件失败：" + target);
+            if (!File.Exists(target) || component.IsVirtual ||
+                !string.Equals(component.GetPathName(), target, StringComparison.OrdinalIgnoreCase))
+                throw new IOException("外部文件或组件引用校验失败，请保留当前文档并检查：" + target);
+
+            // Save owning subassemblies from the inside out, including virtual parents.
+            var parent = component.GetParent();
+            while (parent != null)
+            {
+                var owner = parent.GetModelDoc2() as ModelDoc2;
+                if (owner != null && !parent.IsVirtual) SaveExternalizedOwner(owner, target);
+                parent = parent.GetParent();
+            }
+            SaveExternalizedOwner(assembly, target);
+        }
+
+        private static void SaveExternalizedOwner(ModelDoc2 owner, string target)
+        {
+            owner.EditRebuild3();
+            int errors = 0, warnings = 0;
+            if (!owner.Save3((int)(swSaveAsOptions_e.swSaveAsOptions_Silent | swSaveAsOptions_e.swSaveAsOptions_SaveReferenced),
+                    ref errors, ref warnings) || errors != 0)
+                throw new IOException("外部文件已生成，但装配引用保存失败（" + errors + "）。请勿关闭文档，检查后保存：" + target);
         }
 
         private static void RenameWithDrawing(ISldWorks sw, ModelDoc2 assembly, Component2 component,

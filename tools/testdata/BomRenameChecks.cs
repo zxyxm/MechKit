@@ -12,6 +12,7 @@ public sealed class BomProxy : RealProxy {
 }
 public static class BomRenameChecks {
  public static void Run(string root,string dll){
+  CheckVirtual(root,dll);
   var method=Assembly.LoadFrom(dll).GetType("MechKit.Features.PartListService").GetMethod("RenameWithDrawing",BindingFlags.NonPublic|BindingFlags.Static);
   foreach(var mode in new[]{"success","collision","bad-reference","save-failure","drawing-save-failure"}){
    var folder=Path.Combine(root,mode);Directory.CreateDirectory(folder);
@@ -63,6 +64,46 @@ public static class BomRenameChecks {
     if(mode=="collision"&&File.ReadAllText(newDrawing)!="existing")throw new Exception("Overwrote existing drawing");
    }
    Console.WriteLine("PASS: "+mode);
+  }
+ }
+ static void CheckVirtual(string root,string dll){
+  var service=Assembly.LoadFrom(dll).GetType("MechKit.Features.PartListService");
+  var save=service.GetMethod("SaveVirtualComponentExternal",BindingFlags.Static|BindingFlags.NonPublic);
+  var makeTarget=service.GetMethod("VirtualComponentTarget",BindingFlags.Static|BindingFlags.NonPublic);
+  foreach(var mode in new[]{"assembly","part","collision","api-failure","wrong-reference","still-virtual","owner-save-failure","unsaved-root","invalid-name"}){
+   var folder=Path.Combine(root,"virtual-"+mode);Directory.CreateDirectory(folder);
+   var rootPath=Path.Combine(folder,"root.SLDASM");File.WriteAllText(rootPath,"assembly");
+   bool external=false,called=false,ownerSaved=false;
+   string target=Path.Combine(folder,"new"+(mode=="part"?".SLDPRT":".SLDASM"));
+   var model=BomProxy.Make<ModelDoc2>(m=>m.MethodName=="GetType"?(object)(mode=="part"?1:2):null);
+   var owner=BomProxy.Make<ModelDoc2>(m=>{
+    if(m.MethodName=="GetPathName")return mode=="unsaved-root"?"":rootPath;
+    if(m.MethodName=="EditRebuild3")return true;
+    if(m.MethodName=="Save3"){if(!external)throw new Exception("Save ordering");ownerSaved=true;return mode!="owner-save-failure";}
+    return null;
+   });
+   var component=BomProxy.Make<Component2>(m=>{
+    if(m.MethodName=="GetModelDoc2")return model;
+    if(m.MethodName=="get_IsVirtual")return !external||mode=="still-virtual";
+    if(m.MethodName=="GetPathName")return mode=="wrong-reference"?"wrong":target;
+    if(m.MethodName=="SaveVirtualComponent"){
+     called=true;if(mode=="api-failure")return false;
+     File.WriteAllText((string)m.Args[0],"external");external=true;return true;
+    }return null;
+   });
+   if(mode=="collision")File.WriteAllText(target,"existing");
+   bool failed=false;
+   try{
+    var actual=(string)makeTarget.Invoke(null,new object[]{owner,component,mode=="invalid-name"?"../bad":"new"});
+    if(actual!=target)throw new Exception("Wrong root or extension");
+    save.Invoke(null,new object[]{owner,component,actual});
+   }catch(TargetInvocationException){failed=true;}
+   bool success=mode=="assembly"||mode=="part";
+   if(success&&(failed||!external||!ownerSaved))throw new Exception("External save failed: "+mode);
+   if(!success&&!failed)throw new Exception("Expected safe failure: "+mode);
+   if((mode=="collision"||mode=="unsaved-root"||mode=="invalid-name")&&called)throw new Exception("Preflight mutation: "+mode);
+   if(mode=="collision"&&File.ReadAllText(target)!="existing")throw new Exception("Collision overwritten");
+   Console.WriteLine("PASS: virtual-"+mode);
   }
  }
 }
