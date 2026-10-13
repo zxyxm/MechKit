@@ -121,14 +121,14 @@ namespace MechKit.UI
             StartPosition = FormStartPosition.CenterParent;
             WindowLayout.Attach(this, _host.Settings, new Size(1180, 700), new Size(1040, 600));
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
+            var header = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 2, Padding = new Padding(14, 8, 14, 8), BackColor = Theme.Accent };
             var title = Theme.CreateLabel("设置", Theme.Title, Color.White);
-            title.Location = new Point(14, 9);
+            title.Margin = new Padding(0, 0, 0, 4);
             var subtitle = Theme.CreateLabel("BOM 格式 · 装配层级 · 个人配置与设置迁移",
                 Theme.Small, Color.FromArgb(214, 232, 248));
-            subtitle.Location = new Point(15, 32);
-            header.Controls.Add(title);
-            header.Controls.Add(subtitle);
+            subtitle.Margin = Padding.Empty;
+            header.Controls.Add(title, 0, 0);
+            header.Controls.Add(subtitle, 0, 1);
 
             var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 10, 14, 6), BackColor = Theme.Canvas };
 
@@ -149,7 +149,7 @@ namespace MechKit.UI
                 RowCount = 3,
                 BackColor = Theme.Canvas
             };
-            personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 214f));
+            personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 246f));
             personal.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             personal.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             personal.Controls.Add(BuildFolderPanel(), 0, 0);
@@ -228,7 +228,7 @@ namespace MechKit.UI
             levelEditor.Controls.Add(levelHint);
             layout.Controls.Add(levelEditor, 1, 1);
 
-            _requirePattern.Text = "收录加工件、标准件、库存件、备件和外部图纸；参考件不进入 BOM";
+            _requirePattern.Text = "加工件、标准件及已启用的大类；排除项在“大类与前缀”中设置";
             _requirePattern.AutoSize = true;
             _requirePattern.ForeColor = Theme.Text;
             _requirePattern.Margin = new Padding(0, 8, 0, 0);
@@ -257,8 +257,8 @@ namespace MechKit.UI
             layout.Controls.Add(propertySource, 1, 3);
 
             var mapping = BuildFieldMappingTable();
-            layout.Controls.Add(BomLabel("表头字段映射"), 0, 4);
-            layout.Controls.Add(mapping, 1, 4);
+            layout.Controls.Add(mapping, 0, 4);
+            layout.SetColumnSpan(mapping, 2);
 
             var actions = new FlowLayoutPanel
             {
@@ -268,7 +268,7 @@ namespace MechKit.UI
                 BackColor = Theme.Surface
             };
             var save = Theme.CreatePrimaryButton("保存 BOM 设置");
-            save.Width = 130;
+            save.AutoSize = true; save.MinimumSize = new Size(156, 34);
             save.Click += delegate { SaveSettings(); };
             var naming = Theme.CreateSecondaryButton("命名规则设置…");
             naming.Width = 140;
@@ -279,15 +279,15 @@ namespace MechKit.UI
             };
             actions.Controls.Add(save);
             actions.Controls.Add(naming);
-            var moveLabel = Theme.CreateLabel("移动表头", Theme.Small, Theme.Muted);
+            var moveLabel = Theme.CreateLabel("调整列顺序", Theme.Small, Theme.Muted);
             moveLabel.AutoSize = true;
             moveLabel.Margin = new Padding(22, 7, 6, 0);
             _columnOrderSelector.Margin = new Padding(0, 2, 6, 0);
-            var moveLeft = Theme.CreateSecondaryButton("← 左移");
+            var moveLeft = Theme.CreateSecondaryButton("↑ 上移");
             moveLeft.Width = 72;
             moveLeft.Margin = new Padding(0, 0, 4, 0);
             moveLeft.Click += delegate { MoveSelectedColumn(-1); };
-            var moveRight = Theme.CreateSecondaryButton("右移 →");
+            var moveRight = Theme.CreateSecondaryButton("下移 ↓");
             moveRight.Width = 72;
             moveRight.Margin = new Padding(0);
             moveRight.Click += delegate { MoveSelectedColumn(1); };
@@ -295,7 +295,8 @@ namespace MechKit.UI
             actions.Controls.Add(_columnOrderSelector);
             actions.Controls.Add(moveLeft);
             actions.Controls.Add(moveRight);
-            layout.Controls.Add(actions, 1, 5);
+            layout.Controls.Add(actions, 0, 5);
+            layout.SetColumnSpan(actions, 2);
 
             panel.Controls.Add(layout);
             return panel;
@@ -312,24 +313,13 @@ namespace MechKit.UI
             };
             var table = new TableLayoutPanel
             {
-                Location = new Point(0, 0),
-                Size = new Size(1870, 158),
-                ColumnCount = 12,
-                RowCount = 3,
-                BackColor = Color.FromArgb(248, 249, 250),
-                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single,
-                Padding = new Padding(0)
+                Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 3, RowCount = 1, BackColor = Theme.Surface,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.Single, Padding = Padding.Empty
             };
-            table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72f));
-            var widths = new[] { 90f, 130f, 210f, 90f, 230f, 170f, 210f, 190f, 90f, 200f, 170f };
-            for (var i = 0; i < widths.Length; i++)
-            {
-                table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, widths[i]));
-            }
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
-
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 26));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 37));
+            table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 37));
             _mappingTable = table;
             if (_columnOrder.Count == 0)
             {
@@ -351,27 +341,29 @@ namespace MechKit.UI
             try
             {
                 _mappingTable.Controls.Clear();
-                var corner = Theme.CreateLabel(string.Empty, Theme.Small, Theme.Text);
-                corner.Dock = DockStyle.Fill;
-                _mappingTable.Controls.Add(corner, 0, 0);
-
-                var standard = new List<Control>();
-                var machined = new List<Control>();
-                for (var column = 0; column < _columnOrder.Count; column++)
+                _mappingTable.RowStyles.Clear();
+                _mappingTable.RowCount = _columnOrder.Count + 1;
+                var headings = new[] { "BOM 表头（可编辑）", "标准件 · 字段来源", "加工件 · 字段来源" };
+                for(var c=0;c<3;c++)
                 {
-                    var key = _columnOrder[column];
-                    var editor = HeaderEditor(key);
-                    editor.Dock = DockStyle.Fill;
-                    editor.Margin = new Padding(2, 5, 2, 5);
-                    editor.TextAlign = HorizontalAlignment.Center;
-                    editor.Font = Theme.Small;
-                    _mappingTable.Controls.Add(editor, column + 1, 0);
-                    standard.Add(MappingControl(key, true));
-                    machined.Add(MappingControl(key, false));
+                    var label=Theme.CreateLabel(headings[c],Theme.BodyBold,Theme.Text);
+                    label.Dock=DockStyle.Fill;label.TextAlign=ContentAlignment.MiddleLeft;
+                    label.BackColor=Color.FromArgb(231,242,255);
+                    _mappingTable.Controls.Add(label,c,0);
                 }
-
-                AddMappingRow(_mappingTable, 1, "标准件", standard.ToArray());
-                AddMappingRow(_mappingTable, 2, "加工件", machined.ToArray());
+                _mappingTable.RowStyles.Add(new RowStyle(SizeType.Absolute,36));
+                for(var row=0;row<_columnOrder.Count;row++)
+                {
+                    var key=_columnOrder[row];
+                    _mappingTable.RowStyles.Add(new RowStyle(SizeType.Absolute,40));
+                    var controls=new Control[] { HeaderEditor(key), MappingControl(key,true), MappingControl(key,false) };
+                    for(var c=0;c<3;c++)
+                    {
+                        controls[c].Dock=DockStyle.Fill;
+                        controls[c].Margin=new Padding(6,6,6,6);
+                        _mappingTable.Controls.Add(controls[c],c,row+1);
+                    }
+                }
             }
             finally
             {
@@ -762,7 +754,7 @@ namespace MechKit.UI
             _prefixes.Dock = DockStyle.Fill;
             _prefixes.Margin = new Padding(0, 4, 6, 4);
 
-            _requirePattern.Text = "收录加工件、标准件、库存件、备件和外部图纸；参考件不进入 BOM";
+            _requirePattern.Text = "加工件、标准件及已启用的大类；排除项在“大类与前缀”中设置";
             _requirePattern.AutoSize = true;
             _requirePattern.ForeColor = Theme.Text;
             _requirePattern.Margin = new Padding(0, 8, 0, 0);

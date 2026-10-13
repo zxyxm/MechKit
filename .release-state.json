@@ -1,13 +1,19 @@
 {
-    "version":  "0.32.14.0",
+    "version":  "0.32.15.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T01:01:22.5913686+08:00",
+    "generatedAt":  "2026-10-14T01:04:11.8463685+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "tools/Test-SettingsLayout.ps1",
+                      "hash":  "4DA0DB09054860A50154674CA1C2595D515AA2699FCC9AE5ACD8EF09B73EDF8F",
+                      "bytes":  1351,
+                      "lines":  19
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -58,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "ECBE937A6D94CF5729BA212083744076C942183EB338FE2696E5A5972BBD0FCD",
+                      "hash":  "48BFF5F61F302B0F8383DCDA65B71808B6FC0EE53DF9087B7954DDB2FEAF6AF1",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -394,9 +400,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/SettingsForm.cs",
-                      "hash":  "5D6BC36CD2F50EFFE1D225F5E24D2B25A39A6B64305B1A75B06997FBB4953AED",
-                      "bytes":  58802,
-                      "lines":  1331
+                      "hash":  "D82569E1DB402FA8610AF7F69E97ECA673523C222FAB702B785B1BFB6E5C049E",
+                      "bytes":  58853,
+                      "lines":  1323
                   },
                   {
                       "path":  "src/MechKit/UI/TaskPaneControl.cs",
