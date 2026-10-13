@@ -2491,7 +2491,7 @@ namespace MechKit
         /// 前缀快捷按钮列表 = 用户在标准件设置中维护的前缀（去重，最多 12 个）。
         /// 顺序即按钮顺序，OnPrefixCommand(序号) 用的就是这个列表。
         /// </summary>
-        private List<string> BuildPrefixButtonList()
+        internal List<string> BuildPrefixButtonList()
         {
             var result = new List<string>();
             var visible = new HashSet<string>(
@@ -2515,7 +2515,7 @@ namespace MechKit
         }
 
         /// <summary>中文中间名快捷按钮列表（去重，最多 12 个）。</summary>
-        private List<string> BuildMiddleNameButtonList()
+        internal List<string> BuildMiddleNameButtonList()
         {
             var result = new List<string>();
             var visible = new HashSet<string>(
@@ -2537,13 +2537,13 @@ namespace MechKit
             return result;
         }
 
-        private List<string> BuildMachinedLevel2ButtonList()
+        internal List<string> BuildMachinedLevel2ButtonList()
         {
             return BuildSelectedButtonList(_settings.MachinedLevel2Values,
                 _settings.MachinedTabLevel2Values, AddinConstants.MaxMachinedLevel2Commands);
         }
 
-        private List<string> BuildMachinedLevel3ButtonList()
+        internal List<string> BuildMachinedLevel3ButtonList()
         {
             return BuildSelectedButtonList(_settings.MachinedLevel3Values,
                 _settings.MachinedTabLevel3Values, AddinConstants.MaxMachinedLevel3Commands);

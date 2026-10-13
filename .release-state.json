@@ -1,7 +1,7 @@
 {
-    "version":  "0.32.7.0",
+    "version":  "0.32.8.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T00:02:03.3845127+08:00",
+    "generatedAt":  "2026-10-14T00:21:19.1316395+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -9,10 +9,16 @@
                       },
     "files":  [
                   {
-                      "path":  "tools/Test-BomPreview.ps1",
-                      "hash":  "A455B9FD38932A1795999A3C71E6418913F799F7890FAC6C777A1084A5A9A9A5",
-                      "bytes":  1877,
-                      "lines":  31
+                      "path":  "src/MechKit/UI/CommandPanel.cs",
+                      "hash":  "F0E2FB85472901BE4B93A8E52A167E23E2C50D7DC861C2633CD57954B6498C97",
+                      "bytes":  6538,
+                      "lines":  104
+                  },
+                  {
+                      "path":  "tools/Test-CommandPanel.ps1",
+                      "hash":  "C53E4B3F5DBB89892382294DD1C0C4A2D10A4E18814CBABC63D0091A0EB28451",
+                      "bytes":  2222,
+                      "lines":  43
                   },
                   {
                       "path":  ".gitignore",
@@ -64,7 +70,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "11A30CDFA5CA6760ED5B64F0A292F281BF4EC04419600AE225EDEB4CD1820DEC",
+                      "hash":  "0DA7A91C594DBB414ABFB58939C85CF952B3351EE6B495EF8CAE5D6683A3CC92",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -250,8 +256,8 @@
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "E77D2BD03152C70078AD0EF0E22CF7CE63E9D2B5E1E8F1DF7D0C174CAF26D58F",
-                      "bytes":  107487,
+                      "hash":  "13A365CCF2CDA6E998261A6D258E034CECA9D902E0CBB43C72CC594FF713AEFA",
+                      "bytes":  107491,
                       "lines":  2685
                   },
                   {
@@ -394,9 +400,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/TaskPaneControl.cs",
-                      "hash":  "937BC03A93A2E59F5497AB7168A6000625CF48F39962BF69915A5F41F547F910",
-                      "bytes":  29795,
-                      "lines":  774
+                      "hash":  "BD769EC480B96F35F9581270C2108BDB22B1D3F450E20735C5DC11F661A44044",
+                      "bytes":  30463,
+                      "lines":  786
                   },
                   {
                       "path":  "src/MechKit/UI/Theme.cs",
@@ -499,6 +505,12 @@
                       "hash":  "38AD610BBD1C6AADAB580EF0AE4E8A0BA1DB3B35177CBD5AA6F579F043E8FD3F",
                       "bytes":  3834,
                       "lines":  56
+                  },
+                  {
+                      "path":  "tools/Test-BomPreview.ps1",
+                      "hash":  "A455B9FD38932A1795999A3C71E6418913F799F7890FAC6C777A1084A5A9A9A5",
+                      "bytes":  1877,
+                      "lines":  31
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",

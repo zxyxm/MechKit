@@ -28,6 +28,7 @@ namespace MechKit.UI
         private readonly Button _addButton;
         private readonly Button _removeButton;
         private TableLayoutPanel _actionLayout;
+        private CommandPanel _commandPanel;
         private readonly Dictionary<string, CustomProperty> _original =
             new Dictionary<string, CustomProperty>(StringComparer.OrdinalIgnoreCase);
 
@@ -220,7 +221,17 @@ namespace MechKit.UI
             root.Controls.Add(BuildActionPanel(), 0, 3);
             root.Controls.Add(BuildStatusBar(), 0, 4);
 
-            Controls.Add(root);
+            var addin = _host as MechKitAddin;
+            if (addin == null) { Controls.Add(root); return; }
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var commands = new TabPage("命令面板");
+            var properties = new TabPage("文档属性");
+            _commandPanel = new CommandPanel(addin);
+            commands.Controls.Add(_commandPanel);
+            properties.Controls.Add(root);
+            tabs.TabPages.Add(commands);
+            tabs.TabPages.Add(properties);
+            Controls.Add(tabs);
         }
 
         private Control BuildHeader()
@@ -425,6 +436,7 @@ namespace MechKit.UI
         /// </summary>
         public void RefreshNamingShortcuts()
         {
+            if (_commandPanel != null && !_commandPanel.IsDisposed) _commandPanel.Rebuild();
             if (IsDisposed || _actionLayout == null || _actionLayout.IsDisposed)
             {
                 return;
