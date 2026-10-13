@@ -10,6 +10,21 @@ namespace MechKit.Features
     internal static class PlateMath
     {
         public const double Epsilon = 1e-7;
+        public static bool LeaderSegmentsCross(double ax, double ay, double bx, double by,
+            double cx, double cy, double dx, double dy)
+        {
+            var p = (bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+            var q = (bx-ax)*(dy-ay)-(by-ay)*(dx-ax);
+            var r = (dx-cx)*(ay-cy)-(dy-cy)*(ax-cx);
+            var s = (dx-cx)*(by-cy)-(dy-cy)*(bx-cx);
+            if (Math.Abs(p)<1e-12 && Math.Abs(q)<1e-12 && Math.Abs(r)<1e-12 && Math.Abs(s)<1e-12)
+            {
+                if (Math.Abs(bx-ax)>Math.Abs(by-ay))
+                    return Math.Min(Math.Max(ax,bx),Math.Max(cx,dx))-Math.Max(Math.Min(ax,bx),Math.Min(cx,dx)) > Epsilon;
+                return Math.Min(Math.Max(ay,by),Math.Max(cy,dy))-Math.Max(Math.Min(ay,by),Math.Min(cy,dy)) > Epsilon;
+            }
+            return p*q < -1e-20 && r*s < -1e-20;
+        }
         public static double Dot(double[] a, double[] b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
         public static double[] Scale(double[] a, double s) { return new[] { a[0]*s, a[1]*s, a[2]*s }; }
         public static double[] Cross(double[] a, double[] b)

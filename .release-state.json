@@ -1,7 +1,7 @@
 {
-    "version":  "0.33.9.0",
+    "version":  "0.33.10.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T01:50:40.7906285+08:00",
+    "generatedAt":  "2026-10-14T01:54:53.7394212+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,8 +64,8 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "A3D9D24EF477D994B9BF0096B7D36E2502DE1DA5B92DCCAF10F86352EF5835A3",
-                      "bytes":  1062,
+                      "hash":  "2A4BC098E6A137A057FE74D076B01B3B316B7238650B7284D7DE561D784B52EF",
+                      "bytes":  1063,
                       "lines":  25
                   },
                   {
@@ -226,15 +226,15 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
-                      "hash":  "347149236F8EDB706E3B546B277CC35426152B57318728E1CDB3256E2045778C",
-                      "bytes":  34111,
-                      "lines":  550
+                      "hash":  "7410F6AAC20C53F34D13B997B5125D9E3DCC1026F41A6A6008C6F75C64D9D508",
+                      "bytes":  37250,
+                      "lines":  611
                   },
                   {
                       "path":  "src/MechKit/Features/PlateGeometry.cs",
-                      "hash":  "5EE8664A87D7D2D2B1C0E251840680B92944AACDBC4754E32B94A1C7361FD3A9",
-                      "bytes":  6556,
-                      "lines":  118
+                      "hash":  "E8D6065580FB6D101F9046024A45317B1ACF624D2D87EED4DA2FD18E11196047",
+                      "bytes":  7403,
+                      "lines":  133
                   },
                   {
                       "path":  "src/MechKit/Features/PropertyService.cs",
@@ -580,9 +580,9 @@
                   },
                   {
                       "path":  "tools/Test-PlateDrawing.ps1",
-                      "hash":  "D2F52998E86A2E3E804B7B24158E8A768BFFD77AFD34DBE66CE5BC59FE8B0773",
-                      "bytes":  2750,
-                      "lines":  39
+                      "hash":  "1BD15BB55F181181959009945431E8450C377E4336A57CBCCE66DE0E98A091E8",
+                      "bytes":  3183,
+                      "lines":  43
                   },
                   {
                       "path":  "tools/Test-QuickAnnotation.ps1",

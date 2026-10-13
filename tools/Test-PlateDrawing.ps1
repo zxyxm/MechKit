@@ -1,4 +1,4 @@
-param([string[]]$Parts, [string[]]$RejectParts, [switch]$Live, [switch]$Mirror)
+﻿param([string[]]$Parts, [string[]]$RejectParts, [switch]$Live, [switch]$Mirror)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -24,6 +24,10 @@ $template = $service.GetMethod('ExtractTemplate').Invoke($null, @())
 if (-not (Test-Path -LiteralPath $template)) { throw 'Embedded template missing' }
 $addin = $assembly.GetType('MechKit.MechKitAddin', $true)
 if (-not $addin.GetMethod('OnPlateDrawing') -or -not $addin.GetMethod('OnPlateDrawingEnable')) { throw 'Menu callback missing' }
+if (-not (Invoke-Math 'LeaderSegmentsCross' @([double]0,0,1,1,0,1,1,0))) { throw 'Crossed leaders missed' }
+if (Invoke-Math 'LeaderSegmentsCross' @([double]0,0,1,0,0,1,1,1)) { throw 'Parallel leaders rejected' }
+if (-not (Invoke-Math 'LeaderSegmentsCross' @([double]0,0,1,0,0.5,0,2,0))) { throw 'Overlapping leaders missed' }
+if (Invoke-Math 'LeaderSegmentsCross' @([double]0,0,1,1,1,1,2,0)) { throw 'Shared endpoint rejected' }
 Write-Host 'Offline plate drawing checks passed.'
 if ($Live) {
     if (-not $Parts -and -not $RejectParts) { throw 'Live test requires -Parts or -RejectParts with saved fixture source files. Only copies are edited.' }

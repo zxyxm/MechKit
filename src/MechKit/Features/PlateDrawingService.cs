@@ -425,31 +425,75 @@ namespace MechKit.Features
             return face.GetSeedFeature() ?? face.GetPatternSeedFeature() as Feature ?? face.GetFeature() as Feature;
         }
 
-        private static void AddHoles(ModelDoc2 model,List<SwView> views,List<Hole> holes,List<string> messages)
+        private sealed class HolePlacement
+        {
+            public Hole Hole;
+            public SwView View;
+            public double X, Y, Distance;
+            public bool Left;
+        }
+
+        private void AddHoles(ModelDoc2 model,List<SwView> views,List<Hole> holes,List<string> messages)
         {
             // One native callout per source feature, across all reused instances and views.
             // SOLIDWORKS owns the quantity prefix; never parse, recalculate or validate it.
             var grouped=new HashSet<string>();
             var through=new HashSet<string>();
-            var calloutRows=new Dictionary<string,int>();
-            foreach(var hole in holes)
+            var placements = new List<HolePlacement>();
+            var math = (MathUtility)app.GetMathUtility();
+            foreach (var hole in holes)
             {
+                var view = views.FirstOrDefault(v => FacesView(hole.Plane,v));
+                if (view == null) { messages.Add("有孔入口未被当前视图覆盖，需补充侧视图和孔标注。"); continue; }
+                var circle = (double[])((Curve)hole.Edge.GetCurve()).CircleParams;
+                var point = (MathPoint)math.CreatePoint(new[] { circle[0], circle[1], circle[2] });
+                var position = (double[])((MathPoint)point.MultiplyTransform(view.ModelToViewTransform)).ArrayData;
+                var box = (double[])view.GetOutline();
+                var left = position[0] - box[0] < box[2] - position[0];
+                placements.Add(new HolePlacement { Hole=hole, View=view, X=position[0], Y=position[1], Left=left,
+                    Distance=Math.Min(Math.Abs(position[0]-box[0]),Math.Abs(box[2]-position[0])) });
+            }
+            // Prefer the outermost reusable instance instead of the arbitrary topology order.
+            var selected = placements.GroupBy(p => p.Hole.Feature == "" ? "unknown:"+placements.IndexOf(p) : "feature:"+p.Hole.Feature)
+                .SelectMany(g => g.OrderBy(p=>p.Distance).ThenByDescending(p=>p.Y).Take(1))
+                .OrderByDescending(p=>p.Y).ToList();
+            var placed = new List<DisplayDimension>();
+            var lanes = new Dictionary<string,double>();
+            foreach(var placement in selected)
+            {
+                var hole = placement.Hole;
                 if(hole.Feature!="" && grouped.Contains(hole.Feature)) continue;
-                var view=views.FirstOrDefault(v=>FacesView(hole.Plane,v));
-                if(view==null) { messages.Add("有孔入口未被当前视图覆盖，需补充侧视图和孔标注。"); continue; }
+                var view=placement.View;
                 var outline=(double[])view.GetOutline();
-                int row; calloutRows.TryGetValue(view.GetName2(),out row);
-                var textY=outline[3]-.008-row*.018;
+                var lane=view.GetName2()+(placement.Left?"/left":"/right");
+                double previous;
+                var textY=placement.Y;
+                if(lanes.TryGetValue(lane,out previous)) textY=Math.Min(textY,previous-.014);
                 if(textY<.090)
                 { messages.Add("孔标注超出预留空间，已停止增加该处标注，请人工排版补充。"); continue; }
                 if(views.Any(v=>v!=view && textY<((double[])v.GetOutline())[3]+.006 && textY>((double[])v.GetOutline())[1]-.006))
                     messages.Add("孔标注与其他视图处于相近高度，请复核引线排版。");
                 model.ClearSelection2(true); ((DrawingDoc)model).ActivateView(view.GetName2());
                 if(!view.SelectEntity(hole.Edge,false)) { messages.Add("孔入口边选择失败，需人工孔标注。"); continue; }
-                var display=(DisplayDimension)((DrawingDoc)model).AddHoleCallout2(outline[2]+.012,textY,0);
+                var textX=placement.Left?outline[0]-.018:outline[2]+.012;
+                var display=(DisplayDimension)((DrawingDoc)model).AddHoleCallout2(textX,textY,0);
                 if(display==null) { messages.Add("原生孔标注失败（导入孔/非孔特征），需人工核对规格。"); continue; }
-                if(hole.Feature!="") grouped.Add(hole.Feature);
-                calloutRows[view.GetName2()]=row+1;
+                var annotation=(Annotation)display.GetAnnotation();
+                bool clear=false;
+                for(int attempt=0;attempt<7;attempt++)
+                {
+                    var y=textY-attempt*.004;
+                    if(y<.090 || y<outline[1]-.018) break;
+                    if(!annotation.SetPosition2(textX,y,0)) continue;
+                    model.GraphicsRedraw2();
+                    if(!placed.Any(other=>CalloutLeadersCross(display,other))) {textY=y;clear=true;break;}
+                }
+                if(!clear)
+                {
+                    RemoveHoleCallout(model,display);
+                    messages.Add("孔标注在靠近孔的一侧找不到不交叉的排布位置，需人工补充该孔组标注。");
+                    continue;
+                }
                 var text=DimensionText(display);
                 var isThrough=text.Contains("贯穿") || text.IndexOf("THRU",StringComparison.OrdinalIgnoreCase)>=0;
                 var throughKey=hole.AxisKey+"|"+text;
@@ -458,15 +502,32 @@ namespace MechKit.Features
                     if(!through.Add(throughKey))
                     {
                         RemoveHoleCallout(model,display);
-                        calloutRows[view.GetName2()]=row;
                         continue;
                     }
                 }
                 if(hole.Feature=="") messages.Add("孔组源特征无法回读，请复核标注。");
-                if(row>=3) messages.Add("孔标注较密集，需复核引线与相邻视图间距。");
+                if(hole.Feature!="") grouped.Add(hole.Feature);
+                placed.Add(display);
+                lanes[lane]=textY;
                 // Blind parameters may intentionally exceed stock thickness; never rewrite them.
                 if(text.Length==0) messages.Add("原生孔标注文本无法回读，请复核。");
             }
+        }
+
+        private static bool CalloutLeadersCross(DisplayDimension first, DisplayDimension second)
+        {
+            var a=(Annotation)first.GetAnnotation(); var b=(Annotation)second.GetAnnotation();
+            for(int i=0;i<a.GetLeaderCount();i++)
+            for(int j=0;j<b.GetLeaderCount();j++)
+            {
+                var p=a.GetLeaderPointsAtIndex(i) as double[];
+                var q=b.GetLeaderPointsAtIndex(j) as double[];
+                if(p==null || q==null) continue;
+                for(int k=0;k+5<p.Length;k+=3)
+                for(int l=0;l+5<q.Length;l+=3)
+                    if(PlateMath.LeaderSegmentsCross(p[k],p[k+1],p[k+3],p[k+4],q[l],q[l+1],q[l+3],q[l+4])) return true;
+            }
+            return false;
         }
 
         private static void RemoveHoleCallout(ModelDoc2 model,DisplayDimension display)
