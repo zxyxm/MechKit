@@ -108,6 +108,18 @@ try {
     $missingColor = $formType.GetField('MissingDrawingRowColor', [Reflection.BindingFlags]'Static, NonPublic').GetValue($null)
     Check 'sheet metal without drawing is not painted as missing drawing' ($sheetGridRow.Cells['drawing'].Style.BackColor -ne $missingColor)
     Check 'exactly one BOM row per recognized leaf' ($dataRows.Count -eq 6)
+    $first = $dataRows[0].Index
+    $last = $dataRows[-1].Index
+    $bounds = $grid.GetCellDisplayRectangle(-1, $first, $false)
+    $down = New-Object Windows.Forms.MouseEventArgs ([Windows.Forms.MouseButtons]::Left),1,10,($bounds.Top+3),0
+    $formType.GetMethod('BeginMarkRows',$flags).Invoke($form,@($null,[Windows.Forms.MouseEventArgs]$down))
+    $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$last))
+    $formType.GetMethod('EndMarkRows',$flags).Invoke($form,@())
+    Check 'drag from row header checks all crossed data rows' (@($dataRows | Where-Object {-not $_.Cells['select'].Value}).Count -eq 0)
+    $formType.GetMethod('BeginMarkRows',$flags).Invoke($form,@($null,[Windows.Forms.MouseEventArgs]$down))
+    $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$last))
+    $formType.GetMethod('EndMarkRows',$flags).Invoke($form,@())
+    Check 'drag from a checked header clears crossed rows' (@($dataRows | Where-Object {$_.Cells['select'].Value}).Count -eq 0)
     Check 'design tree and connectors remain frozen on horizontal scroll' ($grid.Columns['designTree'].Frozen -and $grid.Columns['treeLink'].Frozen)
     foreach ($row in $dataRows) {
         $node = $row.Cells['designTree'].Tag

@@ -1328,13 +1328,7 @@ namespace MechKit.Features
                         continue;
                     }
 
-                    var error = doc.Extension.RenameDocument(desired);
-                    if (error != (int)swRenameDocumentError_e.swRenameDocumentError_None)
-                    {
-                        log(string.Format("✗ 文件重命名失败：{0} → {1}（错误 {2}：{3}）",
-                            currentBase, desired, error, DescribeRenameError(error)));
-                        continue;
-                    }
+                    RenameWithDrawing(swApp, doc, component, sourcePath, targetPath, desired, log);
 
                     renamed++;
                     log(string.Format("✓ 零件文件重命名：{0} → {1}",
@@ -1348,6 +1342,7 @@ namespace MechKit.Features
                             row.FilePath = targetPath;
                             row.PartNumber = desired;
                             row.FullName = desired;
+                            row.DrawingPath = FindDrawingFor(targetPath);
                             row.MarkNamingClean();
                         }
                     }
@@ -1366,7 +1361,7 @@ namespace MechKit.Features
                     doc.EditRebuild3();
                     int saveErrors = 0;
                     int saveWarnings = 0;
-                    var saved = doc.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                    var saved = doc.Save3((int)(swSaveAsOptions_e.swSaveAsOptions_Silent | swSaveAsOptions_e.swSaveAsOptions_SaveReferenced),
                         ref saveErrors, ref saveWarnings);
                     if (!saved || saveErrors != 0)
                     {
@@ -1385,6 +1380,82 @@ namespace MechKit.Features
             }
 
             return renamed;
+        }
+
+        private static void RenameWithDrawing(ISldWorks sw, ModelDoc2 assembly, Component2 component,
+            string source, string target, string desired, Action<string> log)
+        {
+            var drawingPath = FindDrawingFor(source);
+            var targetDrawing = string.IsNullOrEmpty(drawingPath) ? null :
+                Path.Combine(Path.GetDirectoryName(drawingPath), desired + Path.GetExtension(drawingPath));
+            ModelDoc2 drawing = null;
+            bool openedHere = false;
+            if (!string.IsNullOrEmpty(drawingPath))
+            {
+                if (File.Exists(targetDrawing)) throw new IOException("目标工程图已存在：" + targetDrawing);
+                if ((File.GetAttributes(drawingPath) & FileAttributes.ReadOnly) != 0)
+                    throw new IOException("工程图为只读，未执行改名：" + drawingPath);
+            }
+            try
+            {
+                int errors = 0, warnings = 0;
+                if (!string.IsNullOrEmpty(drawingPath))
+                {
+                    drawing = sw.GetOpenDocumentByName(drawingPath) as ModelDoc2;
+                    if (drawing == null)
+                    {
+                        drawing = sw.OpenDoc6(drawingPath, SwUtils.DocDrawing,
+                            (int)swOpenDocOptions_e.swOpenDocOptions_Silent, "", ref errors, ref warnings);
+                        openedHere = drawing != null;
+                    }
+                    if (drawing == null) throw new IOException("无法打开关联工程图，未执行改名：" + drawingPath);
+                    if (!DocumentReferences(drawing, source))
+                        throw new IOException("同名工程图未引用该模型，未执行改名：" + drawingPath);
+                }
+                sw.ActivateDoc3(assembly.GetPathName(), false, 0, ref errors);
+                assembly.ClearSelection2(true);
+                if (!component.Select4(false, null, false)) throw new IOException("无法选择待改名组件。");
+                var renameError = assembly.Extension.RenameDocument(desired);
+                if (renameError != 0) throw new IOException("模型改名失败：" + DescribeRenameError(renameError));
+                assembly.EditRebuild3();
+                errors = warnings = 0;
+                if (!assembly.Save3((int)(swSaveAsOptions_e.swSaveAsOptions_Silent | swSaveAsOptions_e.swSaveAsOptions_SaveReferenced), ref errors, ref warnings)
+                    || errors != 0 || !File.Exists(target))
+                    throw new IOException("模型已在内存中改名，但装配体及引用保存失败（" + errors + "），请保留当前文档并检查保存状态。");
+                if (drawing != null)
+                {
+                    // RenameDocument updates references in open documents. Check before writing the renamed drawing.
+                    if (!DocumentReferences(drawing, target))
+                        throw new IOException("模型已改名，但工程图引用未更新；原工程图保留，请检查关联：" + drawingPath);
+                    sw.ActivateDoc3(drawing.GetPathName(), false, 0, ref errors);
+                    drawing.ClearSelection2(true);
+                    drawing.EditRebuild3();
+                    errors = warnings = 0;
+                    if (!drawing.Extension.SaveAs(targetDrawing, 0, (int)swSaveAsOptions_e.swSaveAsOptions_Silent,
+                        null, ref errors, ref warnings) || errors != 0 || !File.Exists(targetDrawing))
+                        throw new IOException("模型已改名，工程图另存失败（" + errors + "）；原图纸保留：" + drawingPath);
+                    if (!DocumentReferences(drawing, target)) throw new IOException("工程图保存后的模型引用校验失败，请检查：" + targetDrawing);
+                    // Only remove the old drawing after the new drawing and its model reference are verified.
+                    try { if (File.Exists(drawingPath)) File.Delete(drawingPath); }
+                    catch (Exception ex) { log("⚠ 新图纸已保存，旧图纸未能删除：" + drawingPath + "；" + ex.Message); }
+                    log("✓ 工程图同步改名并保留模型关联：" + Path.GetFileName(targetDrawing));
+                }
+            }
+            finally
+            {
+                if (openedHere && drawing != null && !drawing.GetSaveFlag()) sw.CloseDoc(drawing.GetTitle());
+                int activateError = 0;
+                sw.ActivateDoc3(assembly.GetPathName(), false, 0, ref activateError);
+            }
+        }
+
+        private static bool DocumentReferences(ModelDoc2 document, string path)
+        {
+            var dependencies = document.GetDependencies2(false, false, false) as Array;
+            if (dependencies == null) return false;
+            for (int i = 1; i < dependencies.Length; i += 2)
+                if (string.Equals(Convert.ToString(dependencies.GetValue(i)), path, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         internal static string BuildComponentBaseName(PartListRow row, NamingOptions naming)

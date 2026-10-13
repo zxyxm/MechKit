@@ -62,6 +62,11 @@ namespace MechKit.UI
         private bool _loadingSubassemblies;
         private bool _running;
         private bool _renameEditPending;
+        private ModelDoc2 _bomAssembly;
+        private bool _markDragging;
+        private bool _markValue;
+        private int _markLastRow;
+        private readonly Timer _markScroll = new Timer { Interval = 80 };
 
         public PartListForm(IAddinHost host)
         {
@@ -345,6 +350,13 @@ namespace MechKit.UI
                 WrapContents = false,
                 BackColor = Theme.Surface
             };
+            var refresh = Theme.CreatePrimaryButton("刷新预览");
+            refresh.AutoSize = true;
+            refresh.Height = 34;
+            refresh.Margin = new Padding(0, 2, 10, 2);
+            refresh.Click += delegate { if (!_running) RunSummary(); };
+            _runButton.EnabledChanged += delegate { refresh.Enabled = _runButton.Enabled; };
+            row.Controls.Add(refresh);
             var labels = new[] { "应出图未出图", "命名不规范", "显示全部" };
             var filters = new[] { 3, 4, 0 };
             for (var i = 0; i < labels.Length; i++)
@@ -446,6 +458,11 @@ namespace MechKit.UI
             // 双击任意一行打开该零件的图：优先同名的工程图，没有工程图时打开模型。
             _grid.CellDoubleClick += OnGridCellDoubleClick;
             _grid.CellEndEdit += OnGridCellEndEdit;
+            _grid.CellBeginEdit += (sender, e) =>
+            {
+                var name = _grid.Columns[e.ColumnIndex].Name;
+                if (name == "fullname" || name == "name") _renameEditPending = true;
+            };
             // 勾选框点一下就要立即生效，不要等离开单元格才提交。
             _grid.CurrentCellDirtyStateChanged += delegate
             {
@@ -468,6 +485,11 @@ namespace MechKit.UI
                 "打开「设置 → BOM 格式」：表头名称、字段来源和列顺序都在那里改";
             _grid.MouseClick += OnGridMouseClick;
             _grid.MouseMove += OnGridMouseMove;
+            _grid.MouseDown += BeginMarkRows;
+            _grid.MouseUp += delegate { EndMarkRows(); };
+            _grid.MouseCaptureChanged += delegate { if (!_grid.Capture) EndMarkRows(); };
+            _markScroll.Tick += delegate { ScrollMarkedRows(); };
+            Disposed += delegate { _markScroll.Dispose(); };
 
             var sequenceColumn = new DataGridViewTextBoxColumn { Name = "sequence", Width = 50, ReadOnly = true };
             var locationColumn = new DataGridViewTextBoxColumn { Name = "location", Width = 220, ReadOnly = true };
@@ -1058,6 +1080,7 @@ namespace MechKit.UI
                     }
 
                     var docType = doc.GetType();
+                    _bomAssembly = docType == SwUtils.DocAssembly ? doc : null;
                     if (docType == SwUtils.DocAssembly)
                     {
                         var assembly = doc as AssemblyDoc;
@@ -1444,18 +1467,19 @@ namespace MechKit.UI
         /// <summary>把这一行改成的新名字同步到零件文件（SOLIDWORKS 重命名接口，保持装配关系）。</summary>
         private void PromptRenameRow(PartListRow row)
         {
-            if (_running || row == null || !row.HasFullNameEdit)
+            if (_running || row == null || (!row.HasFullNameEdit && !row.HasNamingEdits))
             {
                 return;
             }
 
-            if (row.IsUnmatched || string.IsNullOrEmpty(row.FilePath))
+            if (string.IsNullOrEmpty(row.FilePath))
             {
                 AppendLog("这一行没有可重命名的零件文件，名字只保留在表格里。");
                 return;
             }
 
-            var newBase = NamingOptions.GetFileNameWithoutExtension(row.FullName).Trim();
+            var newBase = row.HasFullNameEdit ? NamingOptions.GetFileNameWithoutExtension(row.FullName).Trim() :
+                PartListService.BuildComponentBaseName(row, NamingOptionsFactory.FromSettings(_host.Settings));
             var currentBase = Path.GetFileNameWithoutExtension(row.FilePath);
             if (newBase.Length == 0 || string.Equals(newBase, currentBase, StringComparison.OrdinalIgnoreCase))
             {
@@ -1463,7 +1487,7 @@ namespace MechKit.UI
             }
 
             var answer = MessageBox.Show(this,
-                "把这一行的零件 / 装配体文件重命名，并保持装配关系？\r\n\r\n" +
+                "同步重命名模型及同名工程图，并保存装配引用？\r\n\r\n" +
                 currentBase + "  →  " + newBase + "\r\n\r\n" +
                 "· “是”＝现在就重命名文件（引用同步更新）；\r\n" +
                 "· “否”＝只保留表格里的名字，稍后点「按规则重命名文件」再统一执行。",
@@ -1480,11 +1504,27 @@ namespace MechKit.UI
 
             try
             {
+                var previousPath = row.FilePath;
+                ActivateBomAssembly();
                 var renamed = PartListService.RenameAssemblyFilesByBomRules(_host.SwApp,
                     new List<PartListRow> { row }, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
+                if (renamed > 0)
+                {
+                    foreach (var duplicate in _rows)
+                    {
+                        if (!string.Equals(duplicate.FilePath, previousPath, StringComparison.OrdinalIgnoreCase)) continue;
+                        duplicate.FilePath = row.FilePath;
+                        duplicate.FullName = row.FullName;
+                        duplicate.PartNumber = row.PartNumber;
+                        duplicate.DrawingPath = row.DrawingPath;
+                        duplicate.MarkNamingClean();
+                    }
+                    UpdateRenamedTree(_treeItems, previousPath, row.FilePath, row.FullName);
+                    ShowDesignTree();
+                }
                 _status.Text = renamed > 0
                     ? "已重命名：" + newBase
-                    : "重命名未执行（详见处理日志）。";
+                    : "重命名未全部完成（详见处理日志）。";
                 ShowFilteredRows(false);
             }
             catch (Exception ex)
@@ -1493,6 +1533,29 @@ namespace MechKit.UI
                 MessageBox.Show(this, "重命名失败：" + ex.Message, AddinConstants.Title,
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private static void UpdateRenamedTree(IEnumerable<DesignTreeItem> items, string oldPath, string newPath, string name)
+        {
+            foreach (var item in items)
+            {
+                if (string.Equals(item.FilePath, oldPath, StringComparison.OrdinalIgnoreCase))
+                { item.FilePath = newPath; item.Name = name; }
+                UpdateRenamedTree(item.Children, oldPath, newPath, name);
+            }
+        }
+
+        private void ActivateBomAssembly()
+        {
+            if (_bomAssembly == null || string.IsNullOrEmpty(_bomAssembly.GetPathName()))
+                throw new InvalidOperationException("请先保存装配体并刷新 BOM，再执行同步改名。");
+            var path = _bomAssembly.GetPathName();
+            if (_host.SwApp.GetOpenDocumentByName(path) == null)
+                throw new InvalidOperationException("BOM 来源装配体已关闭，请重新打开并刷新。");
+            int error = 0;
+            _host.SwApp.ActivateDoc3(path, false, 0, ref error);
+            if (!string.Equals(_host.SwApp.IActiveDoc2.GetPathName(), path, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("无法激活 BOM 来源装配体。");
         }
 
         /// <summary>表格左上角「表头设置」的热区：行头宽度 × 列头高度。</summary>
@@ -1516,6 +1579,12 @@ namespace MechKit.UI
 
         private void OnGridMouseMove(object sender, MouseEventArgs e)
         {
+            if (_markDragging)
+            {
+                var hit = _grid.HitTest(e.X, e.Y);
+                if (hit.RowIndex >= 0) MarkThroughRow(hit.RowIndex);
+                return;
+            }
             if (!_grid.RowHeadersVisible)
             {
                 return;
@@ -1526,6 +1595,49 @@ namespace MechKit.UI
             {
                 _grid.Cursor = wanted;
             }
+        }
+
+        private void BeginMarkRows(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || _running) return;
+            var hit = _grid.HitTest(e.X, e.Y);
+            if (hit.Type != DataGridViewHitTestType.RowHeader || hit.RowIndex < 0) return;
+            if (!(_grid.Rows[hit.RowIndex].Tag is PartListRow)) return;
+            _grid.EndEdit();
+            _markValue = !IsRowMarkedForExport(_grid.Rows[hit.RowIndex]);
+            _markLastRow = hit.RowIndex;
+            _markDragging = true;
+            _grid.Capture = true;
+            MarkThroughRow(hit.RowIndex);
+            _markScroll.Start();
+        }
+
+        private void MarkThroughRow(int row)
+        {
+            for (int i = Math.Min(row, _markLastRow); i <= Math.Max(row, _markLastRow); i++)
+                if (_grid.Rows[i].Visible && _grid.Rows[i].Tag is PartListRow)
+                    _grid.Rows[i].Cells["select"].Value = _markValue;
+            _markLastRow = row;
+        }
+
+        private void ScrollMarkedRows()
+        {
+            if (!_markDragging || (Control.MouseButtons & MouseButtons.Left) == 0) { EndMarkRows(); return; }
+            var point = _grid.PointToClient(Cursor.Position);
+            int direction = point.Y < _grid.ColumnHeadersHeight + 10 ? -1 : point.Y > _grid.ClientSize.Height - 24 ? 1 : 0;
+            if (direction == 0) return;
+            int next = _grid.FirstDisplayedScrollingRowIndex + direction;
+            if (next < 0 || next >= _grid.Rows.Count) return;
+            _grid.FirstDisplayedScrollingRowIndex = next;
+            var hit = _grid.HitTest(_grid.RowHeadersWidth / 2, direction < 0 ? _grid.ColumnHeadersHeight + 2 : _grid.ClientSize.Height - 25);
+            if (hit.RowIndex >= 0) MarkThroughRow(hit.RowIndex);
+        }
+
+        private void EndMarkRows()
+        {
+            _markDragging = false;
+            _markScroll.Stop();
+            if (_grid.Capture) _grid.Capture = false;
         }
 
         /// <summary>把表格里选中的行对应的零件文件告诉插件（供选项卡快捷按钮使用）。</summary>
@@ -1981,13 +2093,14 @@ namespace MechKit.UI
 
             try
             {
+                ActivateBomAssembly();
                 var renamed = PartListService.RenameAssemblyFilesByBomRules(
                     _host.SwApp, activeRows, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
 
                 _status.Text = string.Format("已按规则重命名 {0} 个零件文件。", renamed);
                 Log.Info(string.Format("BOM 按规则重命名：{0} 个零件文件。", renamed));
                 MessageBox.Show(this,
-                    string.Format("处理完成。\r\n\r\n零件文件重命名：{0} 个\r\n\r\n没有写入自定义属性；当前装配体引用已同步更新。",
+                    string.Format("同步改名成功：{0} 个。\r\n\r\n成功项已保存装配引用及同名工程图；未完成项请查看处理日志。",
                         renamed),
                     AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
