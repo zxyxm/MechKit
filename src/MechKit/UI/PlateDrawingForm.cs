@@ -21,10 +21,13 @@ namespace MechKit.UI
         private readonly ISldWorks app;
         private readonly AddinSettings settings;
         private readonly ModelDoc2 source;
-        public PlateDrawingForm(ISldWorks app,AddinSettings settings)
+        private readonly bool machining;
+        public PlateDrawingForm(ISldWorks app,AddinSettings settings,bool machining=false)
         {
+            this.machining=machining;
             this.app=app; this.settings=settings; source=app.IActiveDoc2;
             Text="MechKit · 板件一键出图"; Size=new Size(980,520); MinimumSize=new Size(700,360);
+            if(machining) Text="MechKit · 车铣件出图（尺寸覆盖检查）";
             StartPosition=FormStartPosition.CenterParent;
             rows.Columns.Add("状态",130); rows.Columns.Add("零件 / 配置",260); rows.Columns.Add("处理结果",540);
             var buttons=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=45,Padding=new Padding(8),FlowDirection=FlowDirection.RightToLeft};
@@ -34,6 +37,7 @@ namespace MechKit.UI
                 ? "为当前零件的活动配置出图，已有同名工程图保留。"
                 : "识别当前装配体中的非钣金板件。相同零件去重，已有同名工程图保留。")+
                 "\r\n仅生成非钣金板件的同目录、同名 SLDDRW；不限定 6061 材料。";
+            if(machining) status.Text="车铣件关联视图、模型尺寸及孔标注；已有同名工程图保留。\r\n输出尺寸覆盖清单；内腔剖视、模型缺失尺寸及加工要求需复核。";
             stop.Click+=(s,e)=>{if(finished) Close(); else {cancel=true;stop.Enabled=false;status.Text="正在停止，当前零件完成后结束…";}};
             FormClosing+=(s,e)=>{if(Running && !finished){cancel=true;e.Cancel=true;}};
             Shown+=(s,e)=>BeginInvoke(new Action(Execute));
@@ -50,7 +54,7 @@ namespace MechKit.UI
         {
             if(Running) {Close();return;}
             Running=true;
-            var service=new PlateDrawingService(app,settings);
+            var service=new PlateDrawingService(app,settings,machining);
             try
             {
                 service.Run(source,(index,total,name)=>

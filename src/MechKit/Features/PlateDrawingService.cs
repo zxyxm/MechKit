@@ -22,12 +22,15 @@ namespace MechKit.Features
     {
         private readonly ISldWorks app;
         private readonly NamingOptions naming;
+        private readonly bool machining;
         public readonly List<PlateDrawingResult> Results = new List<PlateDrawingResult>();
         public string ReportPath { get; private set; }
         public bool Cancelled { get; private set; }
 
-        public PlateDrawingService(ISldWorks app, AddinSettings settings)
-        { this.app=app; naming=NamingOptionsFactory.FromSettings(settings); }
+        public PlateDrawingService(ISldWorks app, AddinSettings settings) : this(app,settings,false) { }
+
+        public PlateDrawingService(ISldWorks app, AddinSettings settings, bool machining)
+        { this.app=app; naming=NamingOptionsFactory.FromSettings(settings); this.machining=machining; }
 
         private sealed class Candidate
         {
@@ -188,13 +191,23 @@ namespace MechKit.Features
                 if(part.GetSaveFlag()) throw new InvalidOperationException("零件有未保存修改，请先保存后再出图。");
                 if(!string.Equals(part.ConfigurationManager.ActiveConfiguration.Name,config,StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("装配引用配置与已打开零件的活动配置不同，请激活引用配置后重试。");
-                var geometry=PlateGeometry.Inspect(part);
+                var geometry=machining?null:PlateGeometry.Inspect(part);
                 result.Status="失败"; // From this point failures are generation failures, not exclusions.
                 drawing=(ModelDoc2)app.NewDocument(template,0,0,0);
                 if(drawing==null) throw new InvalidOperationException("无法新建工程图。");
                 var drw=(DrawingDoc)drawing;
                 var notes=Requirements(drw);
                 SetScale(drw,1);
+                var messages=new List<string>();
+                List<SwView> views;
+                if(machining)
+                {
+                    views=MachiningDrawingBuilder.Build(part,drawing,path,config,messages);
+                    var body=PlateMath.Items<Body2>(((PartDoc)part).GetBodies2(0,false)).Single();
+                    AddHoles(drawing,views,CollectHoles(PlateGeometry.ForHoleInspection(body),messages),messages);
+                }
+                else
+                {
 
                 Activate(part);
                 part.ClearSelection2(true);
@@ -224,11 +237,10 @@ namespace MechKit.Features
                 var backY=sideY-(width+geometry.Thickness)*scale/2-.021;
                 var side=Project(drawing,main,.175,sideY);
                 var back=Project(drawing,side,.175,backY);
-                var views=new List<SwView>{main,side,back};
+                views=new List<SwView>{main,side,back};
                 SetScale(drw,scale);
                 foreach(var view in views) view.UseSheetScale=1;
                 drawing.ForceRebuild3(false);
-                var messages=new List<string>();
                 if(PlateMath.Items<Loop2>(geometry.Front.Face.GetLoops()).Where(l=>l.IsOuter())
                     .Any(l=>PlateMath.Items<Edge>(l.GetEdges()).Count()>4))
                     messages.Add("外轮廓含多段边/缺口；请复核开口槽及局部槽尺寸。");
@@ -250,6 +262,7 @@ namespace MechKit.Features
                 AddHoles(drawing,views,holes,messages);
                 if(geometry.HasUnclassifiedSlots)
                     messages.Add("存在台阶/槽或孔底平面；槽型未自动确认，槽尺寸及专用公差需复核。");
+                }
                 drawing.ClearSelection2(true); drw.ActivateView(""); drawing.ForceRebuild3(false);
                 var annotationSnapshot=AnnotationSnapshot(drw);
                 Verify(drawing,path,config,views.Count,notes,annotationSnapshot);
@@ -293,13 +306,13 @@ namespace MechKit.Features
             return PlateMath.Unit(new[]{a[column],a[3+column],a[6+column]});
         }
 
-        private static void SetScale(DrawingDoc doc,double scale)
+        internal static void SetScale(DrawingDoc doc,double scale)
         {
             var sheet=(Sheet)doc.GetCurrentSheet(); var p=(double[])sheet.GetProperties2();
-            sheet.SetProperties2((int)p[0],(int)p[1],1,1/scale,false,p[5],p[6],p[7]!=0);
+            sheet.SetProperties2((int)p[0],(int)p[1],scale>=1?scale:1,scale>=1?1:1/scale,false,p[5],p[6],p[7]!=0);
         }
 
-        private static SwView Project(ModelDoc2 model,SwView parent,double x,double y)
+        internal static SwView Project(ModelDoc2 model,SwView parent,double x,double y)
         {
             var doc=(DrawingDoc)model; model.ClearSelection2(true);
             doc.ActivateView(parent.GetName2());
@@ -602,9 +615,9 @@ namespace MechKit.Features
         private void WriteReport(string source)
         {
             var folder=AppPaths.Ensure(Path.Combine(AppPaths.Root,"plate-drawing-reports"));
-            ReportPath=Path.Combine(folder,"板件出图-"+DateTime.Now.ToString("yyyyMMdd-HHmmss-fff")+".txt");
+            ReportPath=Path.Combine(folder,(machining?"车铣件出图-":"板件出图-")+DateTime.Now.ToString("yyyyMMdd-HHmmss-fff")+".txt");
             File.WriteAllText(ReportPath,"源文档："+source+"\r\n"+(Cancelled?"用户已停止；已生成文件保留。":"处理结束。")+
-                "\r\n范围：关联视图、包络、可识别原生孔规格。槽、公差和密集标注请按待复核项检查。\r\n"+
+                (machining?"\r\n范围：关联六向视图、模型尺寸、孔标注和已有制造注解；模型尺寸覆盖不等于制造尺寸完整，请检查待复核项。\r\n":"\r\n范围：关联视图、包络、可识别原生孔规格。槽、公差和密集标注请按待复核项检查。\r\n")+
                 string.Join("\r\n",Results.Select(r=>r.ToString())),new UTF8Encoding(true));
         }
     }

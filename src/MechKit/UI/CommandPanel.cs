@@ -51,8 +51,8 @@ namespace MechKit.UI
                 _images.Clear();
                 AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM", "属性批量写入", "大类管理" },
                     new Action[] { _addin.OnPartList, _addin.OnPropertyTool, _addin.OnExternalDrawingCommand }, 10);
-                AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "标注助手" },
-                    new Action[] { _addin.OnPlateDrawing, _addin.OnQuickAnnotation }, 7, 2);
+                AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "车铣件出图", "标注助手" },
+                    new Action[] { _addin.OnPlateDrawing, _addin.OnMachiningDrawing, _addin.OnQuickAnnotation }, 7);
                 AddGroup("命名工具", Theme.Canvas, new[] { "下划线转短横线", "撤回命名" },
                     new Action[] { _addin.OnConvertUnderscoresCommand, _addin.OnMachinedUndoCommand }, 10);
                 AddGroup("日期", Color.White, new[] { "写入当天日期" }, new Action[] { _addin.OnMachinedDateCommand }, 2);

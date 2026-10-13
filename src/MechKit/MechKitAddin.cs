@@ -1406,6 +1406,21 @@ namespace MechKit
             }
         }
 
+        public void OnMachiningDrawing()
+        {
+            if (OnPlateDrawingEnable() == 0) return;
+            try
+            {
+                using (var form = new PlateDrawingForm(_swApp, _settings, true))
+                    form.ShowDialog(new SwWindow(MainWindowHandle));
+            }
+            catch (Exception ex)
+            {
+                Log.Error("打开车铣件出图窗口失败", ex);
+                MessageBox.Show(ex.Message, AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         public void OnQuickAnnotation()
         {
             ShowModeless("quick-annotation", delegate { return new QuickAnnotationForm(this); });

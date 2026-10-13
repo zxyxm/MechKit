@@ -89,16 +89,7 @@ namespace MechKit.Features
                 if (f.GetTypeName2() == "SheetMetal" || f.GetTypeName2() == "SMBaseFlange")
                     throw new InvalidOperationException("具有钣金特征，按规则不出图。");
 
-            var result = new PlateGeometry {Body=body, Edges=PlateMath.Items<Edge>(body.GetEdges()).ToList(), Planes=new List<PlatePlane>()};
-            foreach (var face in PlateMath.Items<Face2>(body.GetFaces()))
-            {
-                var surface = face.GetSurface() as Surface;
-                if (surface == null || !surface.IsPlane()) continue;
-                var parameters = (double[])surface.PlaneParams;
-                var normal = PlateMath.Unit((double[])face.Normal);
-                result.Planes.Add(new PlatePlane { Face=face, Normal=normal, Area=face.GetArea(),
-                    Offset=PlateMath.Dot(new[] {parameters[3],parameters[4],parameters[5]},normal) });
-            }
+            var result = ForHoleInspection(body);
             // Both largest opposing outer planes must bound the entire solid.
             // No name/material-only decision, and no arbitrary fixed width/thickness ratio.
             foreach (var plane in result.Planes.OrderByDescending(p=>p.Area))
@@ -128,6 +119,21 @@ namespace MechKit.Features
         {
             var feature=face.GetFeature() as Feature;
             return feature!=null && feature.GetTypeName2()=="HoleWzd";
+        }
+
+        internal static PlateGeometry ForHoleInspection(Body2 body)
+        {
+            var result=new PlateGeometry {Body=body,Edges=PlateMath.Items<Edge>(body.GetEdges()).ToList(),Planes=new List<PlatePlane>()};
+            foreach(var face in PlateMath.Items<Face2>(body.GetFaces()))
+            {
+                var surface=face.GetSurface() as Surface;
+                if(surface==null || !surface.IsPlane()) continue;
+                var p=(double[])surface.PlaneParams;
+                var normal=PlateMath.Unit((double[])face.Normal);
+                result.Planes.Add(new PlatePlane {Face=face,Normal=normal,Area=face.GetArea(),
+                    Offset=PlateMath.Dot(new[]{p[3],p[4],p[5]},normal)});
+            }
+            return result;
         }
     }
 }
