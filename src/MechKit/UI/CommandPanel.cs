@@ -53,8 +53,8 @@ namespace MechKit.UI
                     new Action[] { _addin.OnPartList, _addin.OnPropertyTool, _addin.OnExternalDrawingCommand }, 10);
                 AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "标注助手" },
                     new Action[] { _addin.OnPlateDrawing, _addin.OnQuickAnnotation }, 7, 2);
-                AddGroup("命名工具", Theme.Canvas, new[] { "下划线转短横线", "装配命名", "撤回命名" },
-                    new Action[] { _addin.OnConvertUnderscoresCommand, _addin.OnAssemblyNameCommand, _addin.OnMachinedUndoCommand }, 10);
+                AddGroup("命名工具", Theme.Canvas, new[] { "下划线转短横线", "撤回命名" },
+                    new Action[] { _addin.OnConvertUnderscoresCommand, _addin.OnMachinedUndoCommand }, 10);
                 AddGroup("日期", Color.White, new[] { "写入当天日期" }, new Action[] { _addin.OnMachinedDateCommand }, 2);
                 var labels = new List<string> { "命名规则" };
                 var actions = new List<Action> { _addin.OnPartNamingRule };
@@ -66,6 +66,8 @@ namespace MechKit.UI
                 Append(labels, actions, _addin.BuildPrefixButtonList(), "", _addin.OnPrefixCommand);
                 Append(labels, actions, _addin.BuildMiddleNameButtonList(), "", _addin.OnMiddleNameCommand);
                 AddGroup("标准件", Color.FromArgb(231,242,255), labels, actions, 10, 1, _addin.BuildPrefixButtonList().Count, new[] { 1, 2 });
+                AddGroup("装配 / 组件", Color.FromArgb(238,230,250), new[] { "写入装配", "写入组件" },
+                    new Action[] { _addin.OnAssemblyNameCommand, _addin.OnComponentNameCommand }, 10, 2);
                 foreach(var category in PartCategory.Load(_addin.Settings))
                 {
                     var prefixes=NamingOptionsFactory.ParsePrefixes(category.Prefixes,true);

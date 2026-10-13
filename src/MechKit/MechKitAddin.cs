@@ -1319,6 +1319,15 @@ namespace MechKit
             }, "装配命名");
         }
 
+        /// <summary>组件快捷按钮：有日期时插在日期后，否则插到文件名最前面。</summary>
+        public void OnComponentNameCommand()
+        {
+            RenameSelectedComponentFiles(delegate(string name)
+            {
+                return NamingOptions.InsertTokenAfterDateOrStart(name, "组件");
+            }, "组件命名");
+        }
+
         /// <summary>撤回最近一次由 MechKit 快捷按钮执行的命名操作。</summary>
         public void OnMachinedUndoCommand()
         {
