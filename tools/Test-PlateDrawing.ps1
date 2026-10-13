@@ -13,6 +13,17 @@ if (Invoke-Math 'PlateDimensions' @(0.1, 0.06, 0.0)) { throw 'Zero thickness acc
 $scale = Invoke-Math 'ChooseScale' @(0.450, 0.046, 0.01)
 if (0.450*$scale -gt 0.205 -or (2*0.046+0.01)*$scale -gt 0.145) { throw 'Scale does not fit' }
 $service = $assembly.GetType('MechKit.Features.PlateDrawingService', $true)
+$holeKey = $service.GetMethod('CountedHoleKey', [Reflection.BindingFlags]'Static, NonPublic')
+function Hole-Key($feature, $text, [double[]]$normal, [double]$offset, [bool]$through) {
+    $holeKey.Invoke($null, @($feature, $text, $normal, $offset, $through))
+}
+$front = Hole-Key 'seed1' '8 x M3 THRU' @(0,0,1) 0.01 $true
+$back = Hole-Key 'seed1' '8 x M3 THRU' @(0,0,-1) 0 $true
+if ($front -ne $back) { throw 'Through pattern duplicated across views' }
+if ($front -eq (Hole-Key 'seed2' '8 x M3 THRU' @(0,0,1) 0.01 $true)) { throw 'Independent hole groups merged' }
+if ($front -eq (Hole-Key 'seed1' '8 x M4 THRU' @(0,0,1) 0.01 $true)) { throw 'Different hole specs merged' }
+if ((Hole-Key 'seed1' '4 x M3 depth 5' @(0,0,1) 0.01 $false) -eq
+    (Hole-Key 'seed1' '4 x M3 depth 5' @(0,0,-1) 0 $false)) { throw 'Opposing blind entrances merged' }
 $supports = $service.GetMethod('SupportsDocumentType')
 foreach ($kind in @(1, 2)) {
     if (-not $supports.Invoke($null, @($kind))) { throw 'Part or assembly command disabled' }

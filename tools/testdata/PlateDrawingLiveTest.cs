@@ -82,6 +82,23 @@ public static class PlateDrawingLiveTest
                     if(drawing==null) throw new Exception("Final output cannot reopen");
                     var drw=(DrawingDoc)drawing;
                     var views=(object[])((Sheet)drw.GetCurrentSheet()).GetViews();
+                    if(Path.GetFileName(input).Contains("扫码枪滑板"))
+                    {
+                        var callouts=new System.Collections.Generic.List<string>();
+                        foreach(View v in views)
+                            for(var d=v.GetFirstDisplayDimension5() as DisplayDimension;d!=null;d=d.GetNext5() as DisplayDimension)
+                            {
+                                var data=(DisplayData)d.GetDisplayData();var text="";
+                                if(data!=null) for(var i=0;i<data.GetTextCount();i++) text+=data.GetTextAtIndex(i)+" ";
+                                callouts.Add(text);
+                            }
+                        var m3=callouts.Where(t=>System.Text.RegularExpressions.Regex.IsMatch(t,@"8\s*[x×]\s*M3\b")).ToArray();
+                        if(m3.Length!=1) throw new Exception("Expected one 8 x M3 pattern callout, found "+m3.Length);
+                        if(!callouts.Any(t=>t.Contains("M8")) || !callouts.Any(t=>t.Contains("5.50")) ||
+                            !callouts.Any(t=>System.Text.RegularExpressions.Regex.IsMatch(t,@"4\s*[x×]")))
+                            throw new Exception("Independent hole callouts lost");
+                        Console.WriteLine("PASS pattern: one 8 x M3, M8/counterbore/dowel callouts retained");
+                    }
                     foreach(View v in views)
                         if(!string.Equals(v.GetReferencedModelName(),source,StringComparison.OrdinalIgnoreCase))
                             throw new Exception("Final rename broke model reference");
