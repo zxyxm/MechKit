@@ -57,9 +57,9 @@ namespace MechKit.UI
             var hint = new Label { AutoSize = true, Dock = DockStyle.Fill, Text = "按名称、型号检索。拖到装配体绘图区后松开，复制并插入；Esc 取消。", ForeColor = Color.DimGray, Margin = new Padding(0, 6, 0, 8) };
             root.Controls.Add(hint, 0, 4);
             root.SizeChanged += (s, e) => { hint.MaximumSize = new Size(Math.Max(100, root.ClientSize.Width - 24), 0); _status.MaximumSize = hint.MaximumSize; };
+            _list.Columns.Add("分类", 110);
             _list.Columns.Add("零件 / 型号", 230);
-            _list.Columns.Add("分类", 75);
-            _list.SizeChanged += (s, e) => _list.Columns[0].Width = Math.Max(100, _list.ClientSize.Width - 96);
+            _list.SizeChanged += (s, e) => _list.Columns[1].Width = Math.Max(100, _list.ClientSize.Width - _list.Columns[0].Width - 21);
             root.Controls.Add(_list, 0, 5);
             root.Controls.Add(_status, 0, 6);
             Controls.Add(root);
@@ -105,8 +105,8 @@ namespace MechKit.UI
                 _list.Items.Clear();
                 foreach (var file in _library.Search(Convert.ToString(_category.SelectedItem), _search.Text))
                 {
-                    var item = new ListViewItem(Path.GetFileNameWithoutExtension(file)) { Tag = file, ToolTipText = file };
-                    item.SubItems.Add(_library.GetCategory(file));
+                    var item = new ListViewItem(_library.GetCategory(file)) { Tag = file, ToolTipText = file };
+                    item.SubItems.Add(Path.GetFileNameWithoutExtension(file));
                     _list.Items.Add(item);
                 }
                 _list.ShowItemToolTips = true;
