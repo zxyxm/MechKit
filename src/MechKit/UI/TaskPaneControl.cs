@@ -212,7 +212,7 @@ namespace MechKit.UI
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 146f));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 214f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 178f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f));
 
             root.Controls.Add(BuildHeader(), 0, 0);
@@ -387,44 +387,38 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 6,
+                RowCount = 5,
                 BackColor = Theme.Canvas
             };
             _actionLayout = layout;
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-            var partListButton = Theme.CreatePrimaryButton("明细汇总（图号 / 材料 / 数量）…");
+            var partListButton = Theme.CreatePrimaryButton("预览和导出 BOM…");
             partListButton.Dock = DockStyle.Fill;
             partListButton.Margin = new Padding(0, 2, 0, 2);
             partListButton.Click += delegate { _host.ShowPartListDialog(); };
             layout.Controls.Add(partListButton, 0, 0);
 
-            var exportButton = Theme.CreateSecondaryButton("批量导出 PDF / DWG / STEP…");
-            exportButton.Dock = DockStyle.Fill;
-            exportButton.Margin = new Padding(0, 2, 0, 2);
-            exportButton.Click += delegate { _host.ShowBatchExportDialog(); };
-            layout.Controls.Add(exportButton, 0, 1);
-
             var propertyButton = Theme.CreateSecondaryButton("属性批量写入…");
             propertyButton.Dock = DockStyle.Fill;
             propertyButton.Margin = new Padding(0, 2, 0, 2);
             propertyButton.Click += delegate { _host.ShowPropertyToolDialog(); };
-            layout.Controls.Add(propertyButton, 0, 2);
+            layout.Controls.Add(propertyButton, 0, 1);
 
-            layout.Controls.Add(BuildPrefixRow(), 0, 3);
-            layout.Controls.Add(BuildMiddleNameRow(), 0, 4);
+            layout.Controls.Add(BuildPrefixRow(), 0, 2);
+            layout.Controls.Add(BuildMiddleNameRow(), 0, 3);
 
             _syncDelete.Text = "应用时删除表中未列出的属性";
             _syncDelete.Font = Theme.Small;
             _syncDelete.ForeColor = Theme.Muted;
             _syncDelete.AutoSize = true;
             _syncDelete.Margin = new Padding(0, 4, 0, 0);
-            layout.Controls.Add(_syncDelete, 0, 5);
+            layout.Controls.Add(_syncDelete, 0, 4);
 
             panel.Controls.Add(layout);
             return panel;
@@ -445,8 +439,8 @@ namespace MechKit.UI
             _actionLayout.SuspendLayout();
             try
             {
-                ReplaceActionRow(3, BuildPrefixRow());
-                ReplaceActionRow(4, BuildMiddleNameRow());
+                ReplaceActionRow(2, BuildPrefixRow());
+                ReplaceActionRow(3, BuildMiddleNameRow());
             }
             finally
             {

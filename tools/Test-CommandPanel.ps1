@@ -17,7 +17,7 @@ try {
  $form.Show()
  [Windows.Forms.Application]::DoEvents()
  $groups=$panel.Controls[0]
- if($groups.Controls.Count -ne (4 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Category count' }
+ if($groups.Controls.Count -ne (5 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Category count' }
  foreach($section in $groups.Controls) {
   $grid=$section.GetControlFromPosition(0,1)
   if($grid.RowCount -gt 6) { throw 'Too many rows' }
@@ -27,9 +27,9 @@ try {
    if($button.Height -lt 28 -or $button.Width -lt $button.PreferredSize.Width) { throw 'Clipped button' }
   }
  }
- if($groups.Controls[2].GetControlFromPosition(0,1).GetControlFromPosition(0,1).Text -match '材料') { throw 'Material label prefix remains' }
+ if($groups.Controls[3].GetControlFromPosition(0,1).GetControlFromPosition(0,1).Text -match '材料') { throw 'Material label prefix remains' }
  $t.GetMethod('Rebuild',[Reflection.BindingFlags]'Instance,NonPublic').Invoke($panel,@())
- if($groups.Controls.Count -ne (4 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Rebuild duplicated categories' }
+ if($groups.Controls.Count -ne (5 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Rebuild duplicated categories' }
  [Windows.Forms.Application]::DoEvents()
  if($PreviewPath) {
   $bmp=New-Object Drawing.Bitmap 660,900

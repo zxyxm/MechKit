@@ -18,7 +18,7 @@ namespace MechKit.UI
         public QuickAnnotationForm(IAddinHost host)
         {
             _host = host;
-            Text = "公差助手 - MechKit（右键单元格自定义）";
+            Text = "标注助手 - MechKit（右键单元格自定义）";
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             ShowInTaskbar = false;
@@ -30,7 +30,7 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
             var tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
-            var toolNames = new[] { "智能尺寸", "公差助手", "孔标注", "销钉符号" };
+            var toolNames = new[] { "智能尺寸", "标注助手", "孔标注", "销钉符号" };
             var toolCommands = new[] { AddinConstants.NativeSmartDimension, 0, AddinConstants.NativeHoleCallout, AddinConstants.NativeDowelPinSymbol };
             for (var i = 0; i < toolNames.Length; i++)
             {

@@ -99,7 +99,7 @@ namespace MechKit.UI
             _runButton = Theme.CreatePrimaryButton("刷新预览");
             _exportButton = Theme.CreateSecondaryButton("导出 BOM");
             _mergeExportButton = Theme.CreateSecondaryButton("合并导出 BOM");
-            _exportFilesButton = Theme.CreateSecondaryButton("导出选中件…");
+            _exportFilesButton = Theme.CreateSecondaryButton("导出 PDF / STP…");
             _selectAll = new CheckBox
             {
                 Text = "全选",
@@ -118,7 +118,7 @@ namespace MechKit.UI
 
         private void BuildLayout()
         {
-            Text = "预览 BOM - " + AddinConstants.Title;
+            Text = "预览和导出 BOM - " + AddinConstants.Title;
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             StartPosition = FormStartPosition.CenterParent;
@@ -138,7 +138,7 @@ namespace MechKit.UI
                 Padding = new Padding(14, 8, 14, 8), BackColor = Theme.Accent };
             panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            var title = Theme.CreateLabel("预览 BOM", Theme.Title, Color.White);
+            var title = Theme.CreateLabel("预览和导出 BOM", Theme.Title, Color.White);
             title.Margin = new Padding(0, 0, 0, 4);
 
             var subtitle = Theme.CreateLabel("双击可编辑字段；列宽首次自动适配，之后可拖动表头边界调整",
@@ -1624,7 +1624,7 @@ namespace MechKit.UI
             {
                 MessageBox.Show(this,
                     "请先在最左侧的「导出」列勾选要导出的行。\r\n\r\n" +
-                    "· 勾选后点“导出选中件…”即可选择格式（PDF / DWG / DXF / STEP / IGES / STL）和输出目录；\r\n" +
+                    "· 勾选后点“导出 PDF / STP…”即可选择格式（PDF / DWG / DXF / STEP / IGES / STL）和输出目录；\r\n" +
                     "· 有同名工程图的零件会自动导出它的工程图，没有工程图的按零件 / 装配体导出。",
                     AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;

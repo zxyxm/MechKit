@@ -1597,6 +1597,7 @@ namespace MechKit
             public int GroupId;
             public bool ReusedStoredLayout;
             public int ToleranceIndex;
+            public int DrawingIndex;
             public readonly List<int> Fixed = new List<int>();
             public readonly List<int> MachinedQuick = new List<int>();
             public readonly List<int> MachinedLevel2 = new List<int>();
@@ -1629,7 +1630,7 @@ namespace MechKit
             var machinedLevel3Buttons = BuildMachinedLevel3ButtonList();
             var expectedIds = new List<int>
             {
-                AddinConstants.CmdGenerateBom,
+
                 AddinConstants.CmdPartList,
                 AddinConstants.CmdPartNamingRule,
                 AddinConstants.CmdStandardPrefix,
@@ -1640,7 +1641,7 @@ namespace MechKit
                 AddinConstants.CmdMachinedDate,
                 AddinConstants.CmdConvertUnderscores,
                 AddinConstants.CmdAssemblyName,
-                AddinConstants.CmdBatchExport,
+
                 AddinConstants.CmdPlateDrawing,
                 AddinConstants.CmdTaskPane,
                 AddinConstants.CmdQuickAnnotation,
@@ -1724,14 +1725,9 @@ namespace MechKit
             var prefixIndices = layout.Prefixes;
             var middleNameIndices = layout.MiddleNames;
 
-            indices.Add(group.AddCommandItem2("生成BOM", -1,
-                "一键汇总当前装配体，生成带零件缩略图的 Excel BOM",
-                "一键生成 BOM 表", 0, "OnGenerateBom", "OnAlwaysEnable",
-                AddinConstants.CmdGenerateBom, tabItem));
-
-            indices.Add(group.AddCommandItem2("明细汇总", -1,
+            indices.Add(group.AddCommandItem2("预览和导出 BOM", -1,
                 "按装配位置汇总加工件与标准件，可预览并编辑 BOM",
-                "明细汇总 / BOM 预览", 1, "OnPartList", "OnAlwaysEnable",
+                "预览和导出 BOM / PDF / STP", 1, "OnPartList", "OnAlwaysEnable",
                 AddinConstants.CmdPartList, tabItem));
 
             indices.Add(group.AddCommandItem2("加工件命名规则", -1,
@@ -1762,22 +1758,18 @@ namespace MechKit
                 "装配：装配", 3, "OnAssemblyNameCommand", "OnAlwaysEnable",
                 AddinConstants.CmdAssemblyName, tabItem));
 
-            indices.Add(group.AddCommandItem2("批量导出", -1,
-                "把工程图 / 零件 / 装配体批量导出为 PDF、DWG、STEP 等格式",
-                "批量导出", 4, "OnBatchExport", "OnAlwaysEnable",
-                AddinConstants.CmdBatchExport, tabItem));
-
-            indices.Add(group.AddCommandItem2("板件一键出图", -1,
+            layout.DrawingIndex = group.AddCommandItem2("板件一键出图", -1,
                 "为当前零件或装配中的非钣金板件生成同名 SLDDRW；跳过已有图并汇总待复核项",
                 "板件一键出图（离线）", 4, "OnPlateDrawing", "OnPlateDrawingEnable",
-                AddinConstants.CmdPlateDrawing, tabItem));
+                AddinConstants.CmdPlateDrawing, tabItem);
+            indices.Add(layout.DrawingIndex);
 
             indices.Add(group.AddCommandItem2("工具箱面板", -1,
                 "显示 / 隐藏 MechKit任务面板",
                 "工具箱面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",
                 AddinConstants.CmdTaskPane, tabItem));
 
-            layout.ToleranceIndex = group.AddCommandItem2("公差助手", -1,
+            layout.ToleranceIndex = group.AddCommandItem2("标注助手", -1,
                 "给工程图尺寸或孔标注参数应用公差，右键自定义常用预设",
                 "快捷给公差", 7, "OnQuickAnnotation", "OnAlwaysEnable",
                 AddinConstants.CmdQuickAnnotation, tabItem);
@@ -1947,13 +1939,13 @@ namespace MechKit
                     }
 
                     // 左侧常用功能。
-                    AddCommandTabBox(tab, new List<int> { fixedIndices[0], fixedIndices[1] },
+                    AddCommandTabBox(tab, new List<int> { fixedIndices[0] },
                         (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
 
                     // 加工件固定分组：设置 + 时间 + _→- + 装配。
                     var machinedIds = new List<int>();
                     var machinedStyles = new List<int>();
-                    AppendCommandTabItem(machinedIds, machinedStyles, fixedIndices[2],
+                    AppendCommandTabItem(machinedIds, machinedStyles, fixedIndices[1],
                         (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
                     AppendCommandTabItems(machinedIds, machinedStyles, machinedQuickIndices,
                         (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
@@ -1987,7 +1979,7 @@ namespace MechKit
                     // 二级排在后，SOLIDWORKS 按行铺开时就是“上排一级、下排二级”。
                     var standardIds = new List<int>();
                     var standardStyles = new List<int>();
-                    AppendCommandTabItem(standardIds, standardStyles, fixedIndices[3],
+                    AppendCommandTabItem(standardIds, standardStyles, fixedIndices[2],
                         (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
                     AddMixedCommandTabBox(tab, standardIds, standardStyles);
                     AddFourColumnCommandBoxes(tab, prefixIndices);
@@ -2007,11 +1999,17 @@ namespace MechKit
                         AddMixedCommandTabBox(tab, annotationIds, annotationStyles);
                     }
 
-                    // 参考件、库存件、备件、外部图纸，以及右侧工具功能。
+                    if (docType != (int)swDocumentTypes_e.swDocDRAWING)
+                        AddCommandTabBox(tab, new List<int> { layout.DrawingIndex, layout.ToleranceIndex },
+                            (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
+                    else
+                        AddCommandTabBox(tab, new List<int> { layout.DrawingIndex },
+                            (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
+                    // 其余工具功能。
                     var trailing = new List<int>();
-                    for (var i = 4; i < fixedIndices.Count; i++)
+                    for (var i = 3; i < fixedIndices.Count; i++)
                     {
-                        if (docType == (int)swDocumentTypes_e.swDocDRAWING && fixedIndices[i] == layout.ToleranceIndex)
+                        if (fixedIndices[i] == layout.ToleranceIndex || fixedIndices[i] == layout.DrawingIndex)
                             continue;
                         trailing.Add(fixedIndices[i]);
                     }

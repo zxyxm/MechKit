@@ -30,8 +30,10 @@ namespace MechKit.UI
                 while (_groups.Controls.Count > 0) _groups.Controls[0].Dispose();
                 foreach (var image in _images) image.Dispose();
                 _images.Clear();
-                AddGroup("常用工具", Color.White, new[] { "生成 BOM", "明细汇总", "批量导出", "板件一键出图", "公差助手", "导出配置", "设置", "关于" },
-                    new Action[] { _addin.OnGenerateBom, _addin.OnPartList, _addin.OnBatchExport, _addin.OnPlateDrawing, _addin.OnQuickAnnotation, _addin.OnExportConfiguration, _addin.OnSettings, _addin.OnAbout }, 0);
+                AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM", "导出配置", "设置", "关于" },
+                    new Action[] { _addin.OnPartList, _addin.OnExportConfiguration, _addin.OnSettings, _addin.OnAbout }, 0);
+                AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "标注助手" },
+                    new Action[] { _addin.OnPlateDrawing, _addin.OnQuickAnnotation }, 7, 2);
                 AddGroup("", Theme.Canvas, new[] { "下划线转短横线" }, new Action[] { _addin.OnConvertUnderscoresCommand }, 10);
                 var labels = new List<string> { "命名规则", "写入当天日期" };
                 var actions = new List<Action> { _addin.OnPartNamingRule, _addin.OnMachinedDateCommand };
@@ -88,7 +90,7 @@ namespace MechKit.UI
                     using (var strip = new Bitmap(IconResources.SmallIcons[0]))
                     {
                         var size = strip.Height;
-                        var iconIndex = icon == 0 ? new[] { 0, 1, 4, 4, 7, 4, 7, 8 }[i] : icon;
+                        var iconIndex = icon == 0 ? new[] { 1, 4, 7, 8 }[i] : icon;
                         if ((iconIndex + 1) * size <= strip.Width)
                         {
                             button.Image = strip.Clone(new Rectangle(iconIndex * size, 0, size, size), strip.PixelFormat);
