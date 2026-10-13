@@ -1148,7 +1148,7 @@ namespace MechKit
             else ApplyPrefix(prefixes[0], false);
         }
 
-        public void OnExternalDrawingCommand() { ShowNamingRuleDialog(5); }
+        public void OnExternalDrawingCommand() { ShowNamingRuleDialog(2); }
 
         /// <summary>参考件快捷按钮：增加“参考-”前缀，并替换已有标准件/参考件前缀。</summary>
         public void OnReferencePartCommand()
@@ -1633,9 +1633,9 @@ namespace MechKit
                 AddinConstants.CmdPartList,
                 AddinConstants.CmdPartNamingRule,
                 AddinConstants.CmdStandardPrefix,
-                AddinConstants.CmdReferencePart,
-                AddinConstants.CmdStockPart,
-                AddinConstants.CmdSparePart,
+
+
+
                 AddinConstants.CmdExternalDrawing,
                 AddinConstants.CmdMachinedDate,
                 AddinConstants.CmdConvertUnderscores,
@@ -1744,24 +1744,9 @@ namespace MechKit
                 "标准件前缀设置", 3, "OnStandardPrefix", "OnAlwaysEnable",
                 AddinConstants.CmdStandardPrefix, tabItem));
 
-            indices.Add(group.AddCommandItem2("参考件", -1,
-                "给选中的零件或子装配体增加“参考-”前缀；参考件默认不进入 BOM",
-                "参考件：增加参考-前缀", 10, "OnReferencePartCommand", "OnAlwaysEnable",
-                AddinConstants.CmdReferencePart, tabItem));
-
-            indices.Add(group.AddCommandItem2("库存件", -1,
-                "给选中零件添加库存件前缀；整体计入 BOM，装配体不展开",
-                "库存件：添加配置的库存前缀", 10, "OnStockPartCommand", "OnAlwaysEnable",
-                AddinConstants.CmdStockPart, tabItem));
-            indices.Add(group.AddCommandItem2("备件", -1,
-                "给选中零件添加备件前缀；整体计入 BOM，装配体不展开",
-                "备件：添加配置的备件前缀", 10, "OnSparePartCommand", "OnAlwaysEnable",
-                AddinConstants.CmdSparePart, tabItem));
-            indices.Add(group.AddCommandItem2("外部图纸", -1,
-                "设置按零件名开头识别的外部图纸前缀，例如 BRC",
-                "外部图纸前缀设置", 3, "OnExternalDrawingCommand", "OnAlwaysEnable",
-                AddinConstants.CmdExternalDrawing, tabItem));
-
+            indices.Add(group.AddCommandItem2("大类管理", -1,
+                "新增、修改或删除其他大类及其前缀", "大类管理", 3,
+                "OnExternalDrawingCommand", "OnAlwaysEnable", AddinConstants.CmdExternalDrawing, tabItem));
             machinedQuickIndices.Add(group.AddCommandItem2("时间", -1,
                 "把当天日期写入选中零件文件名的第一段",
                 "加工件：写入当天时间", 2, "OnMachinedDateCommand", "OnAlwaysEnable",

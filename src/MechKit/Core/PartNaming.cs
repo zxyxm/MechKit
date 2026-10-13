@@ -149,6 +149,18 @@ namespace MechKit.Core
             return IsBomItem(kind);
         }
 
+        internal List<PartCategory> Categories { get; set; }
+        internal PartCategory MatchCategory(string name)
+        {
+            PartCategory best=null;var length=0;
+            foreach(var category in Categories ?? new List<PartCategory>())
+            {var prefix=category.Match(name);if(prefix.Length>length){best=category;length=prefix.Length;}}
+            return best;
+        }
+        internal bool IsReference(string name)
+        {
+            return Categories == null ? IsReferenceName(name) : MatchCategory(name)?.ExcludeFromBom == true;
+        }
         public string[] StockPrefixes { get; set; } = new[] { "库存" };
         public string[] SparePrefixes { get; set; } = new[] { "备件" };
         public string[] ExternalDrawingPrefixes { get; set; } = new[] { "外部图纸" };
@@ -161,6 +173,7 @@ namespace MechKit.Core
 
         internal string CategoryPrefix(string name, DesignNodeKind kind)
         {
+            if (Categories != null) return MatchCategory(name)?.Match(name) ?? "";
             var prefixes = kind == DesignNodeKind.Stock ? StockPrefixes :
                 kind == DesignNodeKind.Spare ? SparePrefixes : ExternalDrawingPrefixes;
             var clean = GetFileNameWithoutExtension(name ?? string.Empty).Trim();
@@ -175,7 +188,12 @@ namespace MechKit.Core
         public DesignNodeKind RecognizeDesignNode(string name)
         {
             var clean = GetFileNameWithoutExtension(name ?? string.Empty).Trim();
-            if (IsReferenceName(clean)) return DesignNodeKind.Reference;
+            if (Categories != null)
+            {
+                var category=MatchCategory(clean);
+                if(category != null) return category.ExcludeFromBom ? DesignNodeKind.Reference : category.Name == "库存件" ? DesignNodeKind.Stock : DesignNodeKind.ExternalDrawing;
+            }
+            if (IsReference(clean)) return DesignNodeKind.Reference;
             if (CategoryPrefix(clean, DesignNodeKind.ExternalDrawing).Length > 0) return DesignNodeKind.ExternalDrawing;
             if (CategoryPrefix(clean, DesignNodeKind.Stock).Length > 0) return DesignNodeKind.Stock;
             if (CategoryPrefix(clean, DesignNodeKind.Spare).Length > 0) return DesignNodeKind.Spare;

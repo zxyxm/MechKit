@@ -180,18 +180,11 @@ namespace MechKit.UI
 
             tabs.TabPages.Add(partPage);
             tabs.TabPages.Add(standardPage);
-            var referencePage = new TabPage("参考件") { BackColor = Theme.Surface, Padding = new Padding(16) };
-            referencePage.Controls.Add(Theme.CreateLabel("参考开头的零件归为参考件，不读取下层，不进入 BOM。", Theme.Body, Theme.Text));
-            tabs.TabPages.Add(referencePage);
-            var categories = new[] { "库存件", "备件", "外部图纸" };
-            for (var index = 0; index < categories.Length; index++)
-            {
-                var page = new TabPage(categories[index]) { BackColor = Theme.Surface, Padding = new Padding(12) };
-                var panel = new CategoryRulesPanel(_host, index);
-                _categoryPanels.Add(panel);
-                page.Controls.Add(panel);
-                tabs.TabPages.Add(page);
-            }
+            var categoryPage = new TabPage("其他大类") { BackColor = Theme.Surface, Padding = new Padding(12) };
+            var categories = new CategoryRulesPanel(_host);
+            _categoryPanels.Add(categories);
+            categoryPage.Controls.Add(categories);
+            tabs.TabPages.Add(categoryPage);
             tabs.SelectedIndex = Math.Max(0, Math.Min(tabs.TabPages.Count - 1, _initialTab));
             return tabs;
         }
@@ -1725,6 +1718,8 @@ namespace MechKit.UI
 
         private void Save()
         {
+            try { foreach (var panel in _categoryPanels) panel.SaveToSettings(); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "大类规则"); return; }
             if (!ValidateSegmentLayout())
             {
                 return;
@@ -1769,7 +1764,7 @@ namespace MechKit.UI
             s.PartNumberCutRule = _cutRule.SelectedIndex;
             s.PartNumberPattern = _pattern.Text.Trim();
             s.UseNameSegments = true;
-            foreach (var panel in _categoryPanels) panel.SaveToSettings();
+
             s.Save();
 
             // 立刻按最新设置重建 MechKit 选项卡上的快捷按钮：新增字段、勾选或取消

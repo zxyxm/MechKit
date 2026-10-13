@@ -659,43 +659,16 @@ namespace MechKit.Features
 
         public static string BuildSummary(IList<PartListRow> rows)
         {
-            var machinedKinds = 0;
-            var machinedTotal = 0;
-            var standardTotal = 0;
-            var referenceTotal = 0;
-            var stockTotal = 0;
-            var spareTotal = 0;
-            var externalTotal = 0;
-            var unmatchedTotal = 0;
-
-            foreach (var row in rows)
+            var totals=new Dictionary<string,int>();var kinds=0;
+            foreach(var row in rows)
             {
-                if (string.Equals(row.Classification, "加工件", StringComparison.Ordinal))
-                {
-                    machinedKinds++;
-                    machinedTotal += row.Quantity;
-                }
-                else if (string.Equals(row.Classification, "参考件", StringComparison.Ordinal))
-                {
-                    referenceTotal += row.Quantity;
-                }
-                else if (string.Equals(row.Classification, UnmatchedClassification, StringComparison.Ordinal))
-                {
-                    unmatchedTotal += row.Quantity;
-                }
-                else if (row.Classification == "库存件") stockTotal += row.Quantity;
-                else if (row.Classification == "备件") spareTotal += row.Quantity;
-                else if (row.Classification == "标准件") standardTotal += row.Quantity;
-                else if (row.Classification == "外部图纸") externalTotal += row.Quantity;
+                var key=row.Classification ?? UnmatchedClassification;
+                if(!totals.ContainsKey(key)) totals[key]=0;
+                totals[key]+=row.Quantity;if(key=="加工件") kinds++;
             }
-
-            var summary = string.Format("加工件 {0} 种 / {1} 件；标准件 {2} 件；参考件 {3} 件；库存件 {4} 件；备件 {5} 件；外部图纸 {6} 件。",
-                machinedKinds, machinedTotal, standardTotal, referenceTotal, stockTotal, spareTotal, externalTotal);
-            if (unmatchedTotal > 0)
-            {
-                summary += string.Format("未匹配命名规则 {0} 件（见整行红底标识）。", unmatchedTotal);
-            }
-
+            var parts=new List<string>();
+            foreach(var total in totals) parts.Add(total.Key=="加工件" ? string.Format("加工件 {0} 种 / {1} 件",kinds,total.Value) : total.Key+" "+total.Value+" 件");
+            var summary=string.Join("；",parts)+"。";
             return summary;
         }
 
@@ -1421,6 +1394,7 @@ namespace MechKit.Features
                 return string.Empty;
             }
 
+            if (naming.MatchCategory(row.FilePath ?? row.FullName) != null && row.Classification != "库存件") return SanitizeComponentName(row.Name);
             if (row.Classification == "外部图纸") return SanitizeComponentName(row.Name);
             if (row.Classification == "库存件" || row.Classification == "备件")
             {
@@ -1741,7 +1715,7 @@ namespace MechKit.Features
             }
 
             var ruleName = NamingOptions.GetFileNameWithoutExtension(name ?? string.Empty).Trim();
-            if (NamingOptions.IsReferenceName(ruleName))
+            if (naming.IsReference(ruleName))
             {
                 return RowDisposition.Reference;
             }
@@ -2103,13 +2077,13 @@ namespace MechKit.Features
                 return;
             }
 
-            if (row.Classification == "库存件" || row.Classification == "备件" || row.Classification == "外部图纸")
+            if (options.Naming.MatchCategory(sourceName) != null || row.Classification == "库存件" || row.Classification == "备件" || row.Classification == "外部图纸")
             {
                 var kind = row.Classification == "库存件" ? DesignNodeKind.Stock :
                     row.Classification == "备件" ? DesignNodeKind.Spare : DesignNodeKind.ExternalDrawing;
                 var stem = NamingOptions.GetFileNameWithoutExtension(sourceName).Trim();
                 var prefix = options.Naming.CategoryPrefix(stem, kind);
-                row.Name = row.Classification == "外部图纸" ? stem : stem.Substring(prefix.Length).TrimStart('-', '_', ' ');
+                row.Name = row.Classification != "库存件" && row.Classification != "备件" ? stem : stem.Substring(prefix.Length).TrimStart('-', '_', ' ');
                 if (row.Name.Length == 0) row.Name = stem;
                 row.Material = First(properties, "材料", "材质", "Material", "材质牌号");
                 row.Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process");
@@ -2338,11 +2312,13 @@ namespace MechKit.Features
             var ruleName = NamingOptions.GetFileNameWithoutExtension(
                 string.IsNullOrEmpty(name) ? path : name).Trim();
 
-            if (NamingOptions.IsReferenceName(ruleName))
+            if (context.Options.Naming.IsReference(ruleName))
             {
                 return "参考件";
             }
 
+            var category = context.Options.Naming.MatchCategory(ruleName);
+            if (category != null) return category.Name;
             var kind = context.Options.Naming.RecognizeDesignNode(ruleName);
             if (kind == DesignNodeKind.Standard) return "标准件";
             if (kind == DesignNodeKind.Machined) return "加工件";

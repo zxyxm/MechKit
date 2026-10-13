@@ -43,10 +43,14 @@ namespace MechKit.UI
                 Append(labels, actions, _addin.BuildPrefixButtonList(), "", _addin.OnPrefixCommand);
                 Append(labels, actions, _addin.BuildMiddleNameButtonList(), "", _addin.OnMiddleNameCommand);
                 AddGroup("标准件", Color.FromArgb(231,242,255), labels, actions, 10, 1, _addin.BuildPrefixButtonList().Count);
-                AddGroup("库存件", Color.FromArgb(224,245,242), new[] { "添加库存前缀" }, new Action[] { _addin.OnStockPartCommand }, 10);
-                AddGroup("备件", Color.FromArgb(240,229,250), new[] { "添加备件前缀" }, new Action[] { _addin.OnSparePartCommand }, 10);
-                AddGroup("外部图纸", Color.FromArgb(255,247,210), new[] { "图纸前缀设置" }, new Action[] { _addin.OnExternalDrawingCommand }, 10);
-                AddGroup("参考件", Color.White, new[] { "添加参考前缀" }, new Action[] { _addin.OnReferencePartCommand }, 10);
+                foreach(var category in PartCategory.Load(_addin.Settings))
+                {
+                    var prefixes=NamingOptionsFactory.ParsePrefixes(category.Prefixes,true);
+                    var categoryLabels=new List<string>();var categoryActions=new List<Action>();
+                    foreach(var prefix in prefixes) {var value=prefix;categoryLabels.Add(value);categoryActions.Add(()=>_addin.ApplyPrefix(value,false));}
+                    var color=category.ExcludeFromBom ? Color.White : category.Name=="库存件" ? Color.FromArgb(224,245,242) : Color.FromArgb(255,247,210);
+                    AddGroup(category.Name,color,categoryLabels,categoryActions,10);
+                }
             }
             finally { _groups.ResumeLayout(true); }
         }

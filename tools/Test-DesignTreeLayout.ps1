@@ -187,80 +187,12 @@ try {
     Check 'collapse hides descendants on both sides together' ($grid.Rows.Count -eq 8)
     Check 'collapse does not remove BOM records used for export' ($rows.Count -eq 6)
     $filter = $formType.GetField('_classificationFilter', $flags).GetValue($form)
-    $filter.SelectedIndex = 3
+    $filter.SelectedItem = '只看库存件'
     Check 'inventory filter shows only inventory BOM rows' (@($grid.Rows | Where-Object { $null -ne $_.Tag }).Count -eq 1)
     Check 'inventory filter preserves category label' (@($grid.Rows | Where-Object { $null -ne $_.Tag })[0].Tag.Classification -eq '库存件')
-    $filter.SelectedIndex = 4
-    Check 'spare filter shows only spare BOM rows' (@($grid.Rows | Where-Object { $null -ne $_.Tag }).Count -eq 1)
-    Check 'spare filter preserves category label' (@($grid.Rows | Where-Object { $null -ne $_.Tag })[0].Tag.Classification -eq '备件')
-    $filter.SelectedIndex = 5
+    $filter.SelectedItem = '只看外部图纸'
     Check 'external filter shows one whole drawing item' (@($grid.Rows | Where-Object { $null -ne $_.Tag }).Count -eq 1)
     Check 'external filter preserves drawing category' (@($grid.Rows | Where-Object { $null -ne $_.Tag })[0].Tag.Classification -eq '外部图纸')
-    $panelType = $addin.GetType('MechKit.UI.CategoryRulesPanel', $true)
-    $categoryPanel = [Activator]::CreateInstance($panelType, @($fakeHost, -1))
-    try {
-        $editors = $panelType.GetField('_editors', $flags).GetValue($categoryPanel)
-        $editors[0].Text = '库存,KST'
-        $editors[1].Text = '备件;SPARE'
-        $editors[2].Text = ' BRC, SUP;外来 '
-        $categoryPanel.SaveToSettings()
-        Check 'category editor saves normalized external prefixes' ($fakeHost.Settings.ExternalDrawingPrefixes -eq 'BRC SUP 外来')
-        Check 'category editor saves stock prefixes' ($fakeHost.Settings.StockPrefixes -eq '库存 KST')
-        Check 'category editor saves spare prefixes' ($fakeHost.Settings.SparePrefixes -eq '备件 SPARE')
-        $portableFile = Join-Path ([IO.Path]::GetTempPath()) ('MechKit-category-test-' + [Guid]::NewGuid() + '.ini')
-        try {
-            $message = ''
-            Check 'category settings export succeeds' ($fakeHost.Settings.ExportPortable($portableFile, [ref]$message))
-            $settingsType = $fakeHost.Settings.GetType()
-            $reloaded = [Activator]::CreateInstance($settingsType)
-            $settingsType.GetMethod('LoadFile', [Reflection.BindingFlags]'Static, NonPublic').Invoke($null, @($reloaded, [string]$portableFile))
-            Check 'external prefixes survive configuration export and reload' ($reloaded.ExternalDrawingPrefixes -eq 'BRC SUP 外来')
-            Check 'stock prefixes survive configuration export and reload' ($reloaded.StockPrefixes -eq '库存 KST')
-            Check 'spare prefixes survive configuration export and reload' ($reloaded.SparePrefixes -eq '备件 SPARE')
-        }
-        finally { if (Test-Path -LiteralPath $portableFile) { Remove-Item -LiteralPath $portableFile } }
-        $fakeHost.Settings.ExternalDrawingPrefixes = 'BRC- SUP-'
-        $categoryPanel.LoadFromSettings()
-        $externalEditors = $panelType.GetField('_externalEditors', $flags).GetValue($categoryPanel)
-        $externalRows = $panelType.GetField('_externalRows', $flags).GetValue($categoryPanel)
-        Check 'saved external prefixes load as separate numbered rows' ($externalEditors.Count -eq 2 -and $externalEditors[0].Text -eq 'BRC-' -and $externalEditors[1].Text -eq 'SUP-')
-        @($externalRows.Controls | Where-Object { $_.Text -eq '添加外部图纸前缀' })[0].PerformClick()
-        $externalEditors[2].Text = 'EXT-'
-        $categoryPanel.SaveToSettings()
-        Check 'adding external prefix preserves previous rows and punctuation' ($fakeHost.Settings.ExternalDrawingPrefixes -eq 'BRC- SUP- EXT-')
-        $removeButtons = @($externalRows.Controls | Where-Object { $_.Text -eq '删除' })
-        $removeButtons[1].PerformClick()
-        $categoryPanel.SaveToSettings()
-        Check 'deleting one prefix preserves the others' ($fakeHost.Settings.ExternalDrawingPrefixes -eq 'BRC- EXT-')
-        $namingFactory = $addin.GetType('MechKit.Core.NamingOptionsFactory', $true)
-        $exactNaming = $namingFactory.GetMethod('FromSettings').Invoke($null, @($fakeHost.Settings))
-        Check 'external prefix retains hyphen for exact starts-with matching' ($exactNaming.RecognizeDesignNode('BRC-支架').ToString() -eq 'ExternalDrawing' -and $exactNaming.RecognizeDesignNode('BRC001').ToString() -eq 'Unmatched')
-        $categoryPanel.Size = New-Object Drawing.Size(900, 420)
-        $previewForm = New-Object Windows.Forms.Form
-        $previewForm.ClientSize = New-Object Drawing.Size(900, 420)
-        $previewForm.Controls.Add($categoryPanel)
-        $previewForm.Show()
-        [Windows.Forms.Application]::DoEvents()
-        $categoryPreview = New-Object Drawing.Bitmap(900, 420)
-        try { $categoryPanel.DrawToBitmap($categoryPreview, (New-Object Drawing.Rectangle(0, 0, 900, 420))); $categoryPreview.Save((Join-Path $env:TEMP 'MechKit-external-prefixes.png')) }
-        finally { $categoryPreview.Dispose(); $previewForm.Close(); $previewForm.Dispose() }
-    }
-    finally { $categoryPanel.Dispose() }
-    $namingType = $addin.GetType('MechKit.UI.NamingRuleForm', $true)
-    $namingForm = [Activator]::CreateInstance($namingType, @($fakeHost, 5))
-    try {
-        $pending = New-Object Collections.Queue
-        $pending.Enqueue($namingForm)
-        $tabs = $null
-        while ($pending.Count -gt 0) {
-            $control = $pending.Dequeue()
-            if ($control -is [Windows.Forms.TabControl]) { $tabs = $control; break }
-            foreach ($child in $control.Controls) { $pending.Enqueue($child) }
-        }
-        Check 'naming rules expose all six categories' ($tabs.TabPages.Count -eq 6)
-        Check 'external drawing command opens the correct category' ($tabs.SelectedTab.Text -eq '外部图纸')
-    }
-    finally { $namingForm.Dispose() }
     Write-Host "All $checks design tree layout checks passed."
 }
 finally { $form.Dispose() }

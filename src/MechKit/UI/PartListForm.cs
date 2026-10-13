@@ -346,7 +346,7 @@ namespace MechKit.UI
                 BackColor = Theme.Surface
             };
             var labels = new[] { "应出图未出图", "命名不规范", "显示全部" };
-            var filters = new[] { 6, 7, 0 };
+            var filters = new[] { 3, 4, 0 };
             for (var i = 0; i < labels.Length; i++)
             {
                 var filter = filters[i];
@@ -385,10 +385,11 @@ namespace MechKit.UI
             _classificationFilter.Margin = new Padding(0, 2, 18, 0);
             _classificationFilter.Items.AddRange(new object[]
             {
-                "全部类型", "只看加工件", "只看标准件", "只看库存件", "只看备件", "只看外部图纸",
+                "全部类型", "只看加工件", "只看标准件",
                 "应出图未出图", "命名不规范"
             });
 
+            foreach(var category in PartCategory.Load(_host.Settings)) if(!category.ExcludeFromBom) _classificationFilter.Items.Add("只看" + category.Name);
             _onlyMachined.Text = "只列加工件（排除标准件 / 外购件）";
             _excludeToolbox.Visible = false;
             _excludeSuppressed.Text = "忽略压缩的组件";
@@ -1129,7 +1130,7 @@ namespace MechKit.UI
                         row.Classification == "库存件" ? DesignNodeKind.Stock :
                         row.Classification == "备件" ? DesignNodeKind.Spare :
                         row.Classification == "外部图纸" ? DesignNodeKind.ExternalDrawing :
-                        row.Classification == "标准件" ? DesignNodeKind.Standard : DesignNodeKind.Machined
+                        row.Classification == "标准件" ? DesignNodeKind.Standard : row.Classification == "加工件" ? DesignNodeKind.Machined : DesignNodeKind.ExternalDrawing
                 };
                 item.Rows.Add(row);
                 _treeItems.Add(item);
@@ -1637,20 +1638,13 @@ namespace MechKit.UI
         {
             var result = new List<PartListRow>();
             var classification = string.Empty;
-            switch (_classificationFilter.SelectedIndex)
-            {
-                case 1: classification = "加工件"; break;
-                case 2: classification = "标准件"; break;
-                case 3: classification = "库存件"; break;
-                case 4: classification = "备件"; break;
-                case 5: classification = "外部图纸"; break;
-            }
-
+            var selected = Convert.ToString(_classificationFilter.SelectedItem);
+            if(selected.StartsWith("只看",StringComparison.Ordinal)) classification=selected.Substring(2);
             foreach (var row in _rows)
             {
-                if (_classificationFilter.SelectedIndex == 6 && !PartListService.IsMissingRequiredDrawing(row))
+                if (_classificationFilter.SelectedIndex == 3 && !PartListService.IsMissingRequiredDrawing(row))
                     continue;
-                if (_classificationFilter.SelectedIndex == 7 && !row.IsUnmatched &&
+                if (_classificationFilter.SelectedIndex == 4 && !row.IsUnmatched &&
                     row.Classification != PartListService.UnmatchedClassification)
                     continue;
                 if (classification.Length == 0 ||
@@ -1689,7 +1683,7 @@ namespace MechKit.UI
             _grid.SuspendLayout();
             try
             {
-                var quickFilter = _classificationFilter.SelectedIndex >= 6;
+                var quickFilter = _classificationFilter.SelectedIndex == 3 || _classificationFilter.SelectedIndex == 4;
                 _designOrder = !quickFilter;
                 foreach (DataGridViewColumn column in _grid.Columns)
                     column.HeaderCell.SortGlyphDirection = SortOrder.None;

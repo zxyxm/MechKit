@@ -31,6 +31,7 @@ namespace MechKit.Core
             naming.MachinedMaterialProcessPresets = ParseMaterialProcessPresets(
                 settings.MachinedMaterialProcessRules);
             naming.BomPrefixes = ParsePrefixes(settings.BomPrefixes);
+            naming.Categories = PartCategory.Load(settings);
             naming.StockPrefixes = ParsePrefixes(settings.StockPrefixes);
             naming.SparePrefixes = ParsePrefixes(settings.SparePrefixes);
             naming.ExternalDrawingPrefixes = ParsePrefixes(settings.ExternalDrawingPrefixes, true);
