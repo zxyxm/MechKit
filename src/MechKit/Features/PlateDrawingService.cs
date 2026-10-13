@@ -73,8 +73,21 @@ namespace MechKit.Features
             finally
             {
                 int error=0;
-                try { app.ActivateDoc3(originalTitle,false,(int)swRebuildOnActivation_e.swDontRebuildActiveDoc,ref error); }
-                catch(Exception ex) { Log.Warn("恢复源文档窗口失败："+ex.Message); }
+                try
+                {
+                    var last = Results.LastOrDefault(r => !string.IsNullOrEmpty(r.Output));
+                    if (last != null)
+                    {
+                        int warnings = 0;
+                        var drawing = SwUtils.FindOpenDocument(app, last.Output) ?? app.OpenDoc6(last.Output,
+                            SwUtils.DocDrawing, (int)swOpenDocOptions_e.swOpenDocOptions_Silent, "", ref error, ref warnings);
+                        if (drawing == null) throw new InvalidOperationException("无法打开最后生成的图纸（" + error + "）：" + last.Output);
+                        if (app.ActivateDoc3(drawing.GetTitle(), false, (int)swRebuildOnActivation_e.swDontRebuildActiveDoc, ref error) == null)
+                            throw new InvalidOperationException("无法激活最后生成的图纸（" + error + "）。");
+                    }
+                    else app.ActivateDoc3(originalTitle,false,(int)swRebuildOnActivation_e.swDontRebuildActiveDoc,ref error);
+                }
+                catch(Exception ex) { Log.Warn("显示出图结果失败："+ex.Message); }
                 WriteReport(source.GetPathName());
             }
         }

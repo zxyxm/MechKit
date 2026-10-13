@@ -62,7 +62,7 @@ namespace MechKit.UI
                     var item=new ListViewItem(new[]{r.Status,System.IO.Path.GetFileName(r.Source)+" ["+r.Configuration+"]",r.Message}){Tag=r};
                     rows.Items.Add(item); item.EnsureVisible();
                 });
-                status.Text=string.Format("{0}：生成 {1}，其中待复核 {2}；跳过 {3}，失败 {4}。双击已生成条目打开工程图。",
+                status.Text=string.Format("{0}：生成 {1}，其中待复核 {2}；跳过 {3}，失败 {4}。完成后停留在最后生成的图纸；双击条目可切换图纸。",
                     service.Cancelled?"已停止":"处理完成",service.Results.Count(r=>r.Output!=""),
                     service.Results.Count(r=>r.Status=="已生成·待复核"),service.Results.Count(r=>r.Status=="跳过"),service.Results.Count(r=>r.Status=="失败"));
             }

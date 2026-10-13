@@ -1,7 +1,7 @@
 {
-    "version":  "0.33.8.0",
+    "version":  "0.33.9.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T01:49:07.8956560+08:00",
+    "generatedAt":  "2026-10-14T01:50:40.7906285+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "E6025B1A3329807CD8F668FFC9A8C0984BBEAA0B8229E99928D02D037EA6F247",
+                      "hash":  "A3D9D24EF477D994B9BF0096B7D36E2502DE1DA5B92DCCAF10F86352EF5835A3",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -226,9 +226,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
-                      "hash":  "810BF6D6F8F6DDE0A039873920346B1A602A34D504B6721D76970C6BD7B99D56",
-                      "bytes":  33180,
-                      "lines":  537
+                      "hash":  "347149236F8EDB706E3B546B277CC35426152B57318728E1CDB3256E2045778C",
+                      "bytes":  34111,
+                      "lines":  550
                   },
                   {
                       "path":  "src/MechKit/Features/PlateGeometry.cs",
@@ -394,8 +394,8 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PlateDrawingForm.cs",
-                      "hash":  "20681B56B8D98D93B8BC310AA4DED8142D832BFA72529FDE9B1B1C7E454B0312",
-                      "bytes":  4432,
+                      "hash":  "22CFE33FE8809DA7139E41238E1F3622D82C7DE67C0EB6B1E0819E38B8FED064",
+                      "bytes":  4465,
                       "lines":  78
                   },
                   {
