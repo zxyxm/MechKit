@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using SolidWorks.Interop.sldworks;
 using SolidWorks.Interop.swconst;
@@ -699,6 +700,51 @@ namespace MechKit.Features
         }
 
         /// <summary>导出 CSV（带 BOM，Excel 直接打开不乱码）。</summary>
+        /// <summary>按文件路径及配置汇总当前导出范围，不改变预览行或编辑状态。</summary>
+        public static List<PartListRow> MergeForExport(IList<PartListRow> rows)
+        {
+            var groups=new List<List<PartListRow>>();
+            var index=new Dictionary<string,List<PartListRow>>(StringComparer.OrdinalIgnoreCase);
+            foreach(var row in rows)
+            {
+                List<PartListRow> group;
+                // 无路径的虚拟/未保存零件不能仅凭名称判定为同一文件。
+                var key=string.IsNullOrWhiteSpace(row.FilePath) ? null :
+                    row.FilePath.Replace('/', '\\')+"\0"+(row.Configuration ?? string.Empty);
+                if(key==null || !index.TryGetValue(key,out group))
+                {
+                    group=new List<PartListRow>(); groups.Add(group);
+                    if(key!=null) index.Add(key,group);
+                }
+                group.Add(row);
+            }
+            var result=new List<PartListRow>();
+            foreach(var group in groups)
+            {
+                var first=group[0];
+                result.Add(new PartListRow
+                {
+                    FilePath=first.FilePath, Configuration=first.Configuration,
+                    DrawingPath=group.Select(r=>r.DrawingPath).FirstOrDefault(p=>!string.IsNullOrEmpty(p)),
+                    Quantity=group.Sum(r=>r.Quantity), IsUnmatched=group.Any(r=>r.IsUnmatched),
+                    Location=MergeExportText(group.Select(r=>r.Location)),
+                    AssemblyNote=MergeExportText(group.Select(r=>r.AssemblyNote)),
+                    FullName=MergeExportText(group.Select(r=>r.FullName)),
+                    PartNumber=MergeExportText(group.Select(r=>r.PartNumber)),
+                    Name=MergeExportText(group.Select(r=>r.Name)),
+                    Material=MergeExportText(group.Select(r=>r.Material)),
+                    Process=MergeExportText(group.Select(r=>r.Process)),
+                    SurfaceTreatment=MergeExportText(group.Select(r=>r.SurfaceTreatment)),
+                    Classification=MergeExportText(group.Select(r=>r.Classification)),
+                    Remark=MergeExportText(group.Select(r=>r.Remark))
+                });
+            }
+            return result;
+        }
+
+        private static string MergeExportText(IEnumerable<string> values)
+        { return string.Join("；",values.Where(v=>!string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.Ordinal)); }
+
         public static string ExportCsv(IList<PartListRow> rows, string folder, string title,
             PartListOptions options)
         {

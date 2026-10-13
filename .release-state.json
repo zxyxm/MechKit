@@ -1,13 +1,19 @@
 {
-    "version":  "0.32.4.0",
+    "version":  "0.32.5.0",
     "level":  "none",
-    "generatedAt":  "2026-10-13T20:40:46.3648660+08:00",
+    "generatedAt":  "2026-10-13T22:38:41.8924012+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "tools/Test-BomMerge.ps1",
+                      "hash":  "38AD610BBD1C6AADAB580EF0AE4E8A0BA1DB3B35177CBD5AA6F579F043E8FD3F",
+                      "bytes":  3834,
+                      "lines":  56
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -22,9 +28,9 @@
                   },
                   {
                       "path":  "README.md",
-                      "hash":  "84D60237D4D847A41F08A8D05B9727BE99D73B22C9D51C49A9EF86898B9752F1",
-                      "bytes":  30869,
-                      "lines":  377
+                      "hash":  "047A86A5324F10BA97DFDF793F92067500923518740F35BE71081323AE3690FC",
+                      "bytes":  31293,
+                      "lines":  379
                   },
                   {
                       "path":  "VERSIONING.md",
@@ -58,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "99E4A0710151D544B05161AD0AE20AF4C37036EB859A9E55E3CD44C016BC1590",
+                      "hash":  "E6423EE2088EDCFBADBF044F8F2DCE408BEEC6A4760A4D8CE1D614182812C188",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -202,9 +208,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PartListService.cs",
-                      "hash":  "477D990E45D5AEA4EE4FB100EEBCD87A30598EA230E6B140621607E2F156A1FC",
-                      "bytes":  103773,
-                      "lines":  2440
+                      "hash":  "EBF7190FD604BCCAA9BC7A94E65226F4BC1299AFFBB9899C3D237EF4905470E7",
+                      "bytes":  106354,
+                      "lines":  2486
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
@@ -358,9 +364,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "3A7BBF8EE176F9B74697AA3FEEC1536F7D378DA97FD495F3BC3A101B64DDD1B5",
-                      "bytes":  93813,
-                      "lines":  2159
+                      "hash":  "29289EDF1F754013A48F6C6A76DC7134EC823134A12FD49273AF2309D765C3FD",
+                      "bytes":  95058,
+                      "lines":  2172
                   },
                   {
                       "path":  "src/MechKit/UI/PlateDrawingForm.cs",
@@ -490,9 +496,9 @@
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",
-                      "hash":  "56052802F3F38CDA8F4AEFFEB7FD130FC626C9A7161ECA723B3E1823B49DD96D",
-                      "bytes":  18006,
-                      "lines":  254
+                      "hash":  "18911B10ED7A54AA96822637ED7450F1F49A28AD85E7A4DC46FBC995C981BFC4",
+                      "bytes":  18781,
+                      "lines":  266
                   },
                   {
                       "path":  "tools/Test-DrawingToleranceLive.ps1",

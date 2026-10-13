@@ -31,6 +31,18 @@ try {
     $form.Show()
     [Windows.Forms.Application]::DoEvents()
     $formType.GetMethod('RunSummary', $flags).Invoke($form, @())
+    $export = $formType.GetField('_exportButton', $flags).GetValue($form)
+    $mergeExport = $formType.GetField('_mergeExportButton', $flags).GetValue($form)
+    Check 'merged export button sits beside ordinary export' ($mergeExport.Visible -and $mergeExport.Left -ge $export.Right)
+    $export.Enabled = $false
+    Check 'merged export disabled alongside ordinary export' (-not $mergeExport.Enabled)
+    $export.Enabled = $true
+    Check 'merged export enabled alongside ordinary export' ($mergeExport.Enabled)
+    $savedSize = $form.Size
+    $form.Size = $form.MinimumSize
+    $form.PerformLayout()
+    Check 'merged export fits minimum window width' ($mergeExport.Right -le $mergeExport.Parent.ClientSize.Width -and $mergeExport.Width -ge 100)
+    $form.Size = $savedSize
     $rows = $formType.GetField('_rows', $flags).GetValue($form)
     $items = $formType.GetField('_treeItems', $flags).GetValue($form)
     $rows[0].Process = '钣金'

@@ -45,6 +45,7 @@ namespace MechKit.UI
         private readonly Label _status;
         private readonly Button _runButton;
         private readonly Button _exportButton;
+        private readonly Button _mergeExportButton;
         private readonly Button _exportFilesButton;
         private readonly CheckBox _selectAll;
         private readonly Button _writeBackButton;
@@ -97,6 +98,7 @@ namespace MechKit.UI
             _status = Theme.CreateValueLabel("就绪");
             _runButton = Theme.CreatePrimaryButton("刷新预览");
             _exportButton = Theme.CreateSecondaryButton("导出 BOM");
+            _mergeExportButton = Theme.CreateSecondaryButton("合并导出 BOM");
             _exportFilesButton = Theme.CreateSecondaryButton("导出选中件…");
             _selectAll = new CheckBox
             {
@@ -590,7 +592,7 @@ namespace MechKit.UI
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 8,
+                ColumnCount = 9,
                 RowCount = 1,
                 BackColor = Theme.Canvas
             };
@@ -598,6 +600,7 @@ namespace MechKit.UI
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96f));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124f));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140f));
@@ -609,7 +612,7 @@ namespace MechKit.UI
 
             foreach (var button in new[]
             {
-                _runButton, _exportButton, _exportFilesButton, _writeBackButton,
+                _runButton, _exportButton, _mergeExportButton, _exportFilesButton, _writeBackButton,
                 _renameComponentsButton, _closeButton
             })
             {
@@ -624,10 +627,11 @@ namespace MechKit.UI
             layout.Controls.Add(_selectAll, 1, 0);
             layout.Controls.Add(_runButton, 2, 0);
             layout.Controls.Add(_exportButton, 3, 0);
-            layout.Controls.Add(_exportFilesButton, 4, 0);
-            layout.Controls.Add(_writeBackButton, 5, 0);
-            layout.Controls.Add(_renameComponentsButton, 6, 0);
-            layout.Controls.Add(_closeButton, 7, 0);
+            layout.Controls.Add(_mergeExportButton, 4, 0);
+            layout.Controls.Add(_exportFilesButton, 5, 0);
+            layout.Controls.Add(_writeBackButton, 6, 0);
+            layout.Controls.Add(_renameComponentsButton, 7, 0);
+            layout.Controls.Add(_closeButton, 8, 0);
 
             panel.Controls.Add(layout);
             return panel;
@@ -645,6 +649,12 @@ namespace MechKit.UI
             exportMenu.Items.Add("导出 Excel（含缩略图）", null, delegate { ExportBom(true); });
             _exportButton.Click += delegate { exportMenu.Show(_exportButton, new Point(0, _exportButton.Height)); };
             _exportButton.Disposed += delegate { exportMenu.Dispose(); };
+            var mergeMenu = new ContextMenuStrip();
+            mergeMenu.Items.Add("合并导出 CSV", null, delegate { ExportBom(false, true); });
+            mergeMenu.Items.Add("合并导出 Excel（含缩略图）", null, delegate { ExportBom(true, true); });
+            _mergeExportButton.Click += delegate { mergeMenu.Show(_mergeExportButton, new Point(0, _mergeExportButton.Height)); };
+            _mergeExportButton.Disposed += delegate { mergeMenu.Dispose(); };
+            _exportButton.EnabledChanged += delegate { _mergeExportButton.Enabled = _exportButton.Enabled; };
             _exportFilesButton.Click += delegate { ExportSelectedFiles(); };
             _selectAll.CheckedChanged += delegate { SetAllRowsSelected(_selectAll.Checked); };
             _writeBackButton.Click += delegate { ApplyBomChanges(); };
@@ -1999,9 +2009,9 @@ namespace MechKit.UI
             }
         }
 
-        private void ExportBom(bool excel)
+        private void ExportBom(bool excel, bool merge = false)
         {
-            if (FilteredRows().Count == 0)
+            if (_running || FilteredRows().Count == 0)
             {
                 return;
             }
@@ -2029,9 +2039,12 @@ namespace MechKit.UI
                         ? "明细汇总"
                         : "部件BOM-" + SafeFileName(_selectedComponentName);
                     var options = BuildOptions();
+                    var exportRows = merge ? PartListService.MergeForExport(activeRows) : activeRows;
+                    if (merge) title += "-合并数量";
                     var path = excel
-                        ? BomExcelExporter.Export(_host.SwApp, activeRows, dialog.SelectedPath, title, options)
-                        : PartListService.ExportCsv(activeRows, dialog.SelectedPath, title, options);
+                        ? BomExcelExporter.Export(_host.SwApp, exportRows, dialog.SelectedPath, title, options)
+                        : PartListService.ExportCsv(exportRows, dialog.SelectedPath, title, options);
+                    if (merge) AppendLog(string.Format("合并数量：{0} 行 → {1} 行，按相同文件及配置汇总。",activeRows.Count,exportRows.Count));
                     AppendLog("已导出：" + path);
                     _host.Settings.OutputFolder = dialog.SelectedPath;
                     SaveSettings();
