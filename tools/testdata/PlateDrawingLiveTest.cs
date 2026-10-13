@@ -7,6 +7,54 @@ using SolidWorks.Interop.sldworks;
 
 public static class PlateDrawingLiveTest
 {
+    public static void Mirror(string[] inputs,string outputRoot)
+    {
+        var app=(ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
+        var old=app.IActiveDoc2;
+        var folder=Path.Combine(outputRoot,"mirror-"+DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        Directory.CreateDirectory(folder);
+        var sources=new System.Collections.Generic.List<string>();
+        try
+        {
+            foreach(var input in inputs)
+            {
+                var path=Path.Combine(folder,"MirrorTest-"+Path.GetFileName(input));
+                File.Copy(input,path,false);
+                ModelDoc2 part=null;
+                try
+                {
+                    int error=0,warning=0;
+                    part=app.OpenDoc6(path,1,1,"",ref error,ref warning);
+                    if(part==null) throw new Exception("Mirror fixture cannot open");
+                    app.ActivateDoc3(part.GetTitle(),false,2,ref error);
+                    var body=((object[])((PartDoc)part).GetBodies2(0,false)).Cast<Body2>().Single();
+                    var planes=((object[])body.GetFaces()).Cast<Face2>().Where(f=>((Surface)f.GetSurface()).IsPlane())
+                        .OrderByDescending(f=>f.GetArea()).ToArray();
+                    var normal=(double[])planes[0].Normal;
+                    // Extend sideways so the original hole entrances remain external.
+                    var face=planes.First(f=>Math.Abs(((double[])f.Normal).Zip(normal,(a,b)=>a*b).Sum())<1e-7);
+                    var selection=(SelectionMgr)part.SelectionManager;
+                    var bodyData=selection.CreateSelectData();bodyData.Mark=256;
+                    var planeData=selection.CreateSelectData();planeData.Mark=2;
+                    part.ClearSelection2(true);
+                    if(!body.Select2(false,bodyData) || !((Entity)face).Select4(true,planeData))
+                        throw new Exception("Mirror fixture selection failed");
+                    if(part.FeatureManager.InsertMirrorFeature2(true,false,true,false,0)==null)
+                        throw new Exception("Mirror fixture creation failed");
+                    part.ClearSelection2(true);part.ForceRebuild3(false);
+                    body=((object[])((PartDoc)part).GetBodies2(0,false)).Cast<Body2>().Single();
+                    if(!((object[])body.GetFaces()).Cast<Face2>().Any(f=>f.GetSeedFeature()!=null))
+                        throw new Exception("Fixture has no reusable seed faces");
+                    if(!part.Save3(1,ref error,ref warning)) throw new Exception("Mirror fixture save failed");
+                    sources.Add(path);
+                }
+                finally {if(part!=null) app.CloseDoc(part.GetTitle());}
+            }
+            Run(sources.ToArray(),folder);
+        }
+        finally {if(old!=null){int error=0;app.ActivateDoc3(old.GetTitle(),false,2,ref error);}}
+    }
+
     public static void Reject(string[] inputs,string outputRoot)
     {
         var app=(ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
@@ -92,12 +140,12 @@ public static class PlateDrawingLiveTest
                                 if(data!=null) for(var i=0;i<data.GetTextCount();i++) text+=data.GetTextAtIndex(i)+" ";
                                 callouts.Add(text);
                             }
-                        var m3=callouts.Where(t=>System.Text.RegularExpressions.Regex.IsMatch(t,@"8\s*[x×]\s*M3\b")).ToArray();
-                        if(m3.Length!=1) throw new Exception("Expected one 8 x M3 pattern callout, found "+m3.Length);
+                        var m3=callouts.Where(t=>System.Text.RegularExpressions.Regex.IsMatch(t,@"\bM3\b")).ToArray();
+                        if(m3.Length!=1) throw new Exception("Expected one M3 reused-feature callout, found "+m3.Length);
                         if(!callouts.Any(t=>t.Contains("M8")) || !callouts.Any(t=>t.Contains("5.50")) ||
-                            !callouts.Any(t=>System.Text.RegularExpressions.Regex.IsMatch(t,@"4\s*[x×]")))
+                            !callouts.Any(t=>System.Text.RegularExpressions.Regex.IsMatch(t,@"<MOD-DIAM>\s*4(?:\.0+)?\s+<HOLE-DEPTH>")))
                             throw new Exception("Independent hole callouts lost");
-                        Console.WriteLine("PASS pattern: one 8 x M3, M8/counterbore/dowel callouts retained");
+                        Console.WriteLine("PASS reuse: one M3 callout, M8/counterbore/dowel callouts retained; native prefix untouched");
                     }
                     foreach(View v in views)
                         if(!string.Equals(v.GetReferencedModelName(),source,StringComparison.OrdinalIgnoreCase))

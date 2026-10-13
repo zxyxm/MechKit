@@ -1,7 +1,7 @@
 {
-    "version":  "0.32.3.0",
+    "version":  "0.32.4.0",
     "level":  "none",
-    "generatedAt":  "2026-10-13T20:33:37.6610895+08:00",
+    "generatedAt":  "2026-10-13T20:40:46.3648660+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -22,8 +22,8 @@
                   },
                   {
                       "path":  "README.md",
-                      "hash":  "5CA20AD0DACFAF39BF0704C8F6AD49799AF1E2BDEB8D6EABB148B508B566F604",
-                      "bytes":  30853,
+                      "hash":  "84D60237D4D847A41F08A8D05B9727BE99D73B22C9D51C49A9EF86898B9752F1",
+                      "bytes":  30869,
                       "lines":  377
                   },
                   {
@@ -58,7 +58,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "96C317931857E541F9F4F46531D3FCDC716897215036DE38E830C8A46169BBDD",
+                      "hash":  "99E4A0710151D544B05161AD0AE20AF4C37036EB859A9E55E3CD44C016BC1590",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -208,9 +208,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
-                      "hash":  "56065050FA55D4010A6515E9BAF92AD281DD94AC8088F4B2508EF4367C69A60F",
-                      "bytes":  34355,
-                      "lines":  554
+                      "hash":  "810BF6D6F8F6DDE0A039873920346B1A602A34D504B6721D76970C6BD7B99D56",
+                      "bytes":  33180,
+                      "lines":  537
                   },
                   {
                       "path":  "src/MechKit/Features/PlateGeometry.cs",
@@ -514,9 +514,9 @@
                   },
                   {
                       "path":  "tools/Test-PlateDrawing.ps1",
-                      "hash":  "326C58393D520D45C192C79F3E0B7108D3A54EA1BA5326884B4C0590D65F6117",
-                      "bytes":  3438,
-                      "lines":  47
+                      "hash":  "D2F52998E86A2E3E804B7B24158E8A768BFFD77AFD34DBE66CE5BC59FE8B0773",
+                      "bytes":  2750,
+                      "lines":  39
                   },
                   {
                       "path":  "tools/Test-QuickAnnotation.ps1",
@@ -544,9 +544,9 @@
                   },
                   {
                       "path":  "tools/testdata/PlateDrawingLiveTest.cs",
-                      "hash":  "4A901E51F7B616DA8F55534BAEF7B76D479DE848DD14ACDC09C57BA9ABCE1B4A",
-                      "bytes":  11280,
-                      "lines":  184
+                      "hash":  "65E028DFCA516BBD7706A4174B7CE0F50450308E144006D146A030286CD0BF0C",
+                      "bytes":  14220,
+                      "lines":  232
                   },
                   {
                       "path":  "tools/testdata/bom-integration.json",

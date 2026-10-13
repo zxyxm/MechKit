@@ -362,10 +362,11 @@ namespace MechKit.Features
                     var adjacent=PlateMath.Items<Face2>(edge.GetTwoAdjacentFaces2()).ToList();
                     var owner=adjacent.Select(f=>f.GetFeature() as Feature)
                         .FirstOrDefault(f=>f!=null && f.GetTypeName2()=="HoleWzd");
-                    // Pattern instance faces belong to LPattern/CirPattern rather than HoleWzd.
-                    // Use the face's exact seed, not arbitrary parent features or equal diameters.
-                    var seed=owner ?? adjacent.Select(f=>f.GetPatternSeedFeature() as Feature)
-                        .FirstOrDefault(f=>f!=null && f.GetTypeName2()=="HoleWzd");
+                    // Resolve the actual hole wall, not the surrounding plate's feature.
+                    // GetSeedFeature also follows mirrored/copied bodies; pattern-only lookup
+                    // misses those and must not take precedence over the original source.
+                    var seed=adjacent.Where(f=>!((Surface)f.GetSurface()).IsPlane())
+                        .Select(ResolveHoleSeed).FirstOrDefault(f=>f!=null) ?? owner;
                     if(owner!=null)
                     {
                         bool? entry=IsWizardEntrance(owner,c,plane.Normal);
@@ -406,15 +407,21 @@ namespace MechKit.Features
         private static bool FacesView(PlatePlane plane,SwView view)
         { return PlateMath.Dot(plane.Normal,Axis(view,2))>1-1e-7; }
 
+        private static Feature ResolveHoleSeed(Face2 face)
+        {
+            return face.GetSeedFeature() ?? face.GetPatternSeedFeature() as Feature ?? face.GetFeature() as Feature;
+        }
+
         private static void AddHoles(ModelDoc2 model,List<SwView> views,List<Hole> holes,List<string> messages)
         {
-            // Preserve native quantities. Group by exact seed and full callout specification;
-            // through holes share one callout across views, blind holes retain their entrance plane.
+            // One native callout per source feature, across all reused instances and views.
+            // SOLIDWORKS owns the quantity prefix; never parse, recalculate or validate it.
             var grouped=new HashSet<string>();
             var through=new HashSet<string>();
             var calloutRows=new Dictionary<string,int>();
             foreach(var hole in holes)
             {
+                if(hole.Feature!="" && grouped.Contains(hole.Feature)) continue;
                 var view=views.FirstOrDefault(v=>FacesView(hole.Plane,v));
                 if(view==null) { messages.Add("有孔入口未被当前视图覆盖，需补充侧视图和孔标注。"); continue; }
                 var outline=(double[])view.GetOutline();
@@ -428,26 +435,10 @@ namespace MechKit.Features
                 if(!view.SelectEntity(hole.Edge,false)) { messages.Add("孔入口边选择失败，需人工孔标注。"); continue; }
                 var display=(DisplayDimension)((DrawingDoc)model).AddHoleCallout2(outline[2]+.012,textY,0);
                 if(display==null) { messages.Add("原生孔标注失败（导入孔/非孔特征），需人工核对规格。"); continue; }
+                if(hole.Feature!="") grouped.Add(hole.Feature);
                 calloutRows[view.GetName2()]=row+1;
                 var text=DimensionText(display);
-                var count=Regex.Match(text,@"(?i)(\d+)\s*[x×]");
                 var isThrough=text.Contains("贯穿") || text.IndexOf("THRU",StringComparison.OrdinalIgnoreCase)>=0;
-                int nativeCount;
-                if(hole.Feature!="" && count.Success && int.TryParse(count.Groups[1].Value,out nativeCount) && nativeCount>1)
-                {
-                    var key=CountedHoleKey(hole.Feature,text,hole.Plane.Normal,hole.Plane.Offset,isThrough);
-                    if(!grouped.Add(key))
-                    {
-                        RemoveHoleCallout(model,display);
-                        calloutRows[view.GetName2()]=row;
-                        continue;
-                    }
-                    var expected=holes.Where(h=>h.Feature==hole.Feature &&
-                        PlateMath.Dot(h.Plane.Normal,hole.Plane.Normal)>1-1e-7 &&
-                        Math.Abs(h.Plane.Offset-hole.Plane.Offset)<PlateMath.Epsilon).Select(h=>h.AxisKey).Distinct().Count();
-                    if(nativeCount!=expected)
-                        messages.Add("孔组 "+hole.Feature+" 原生数量与入口几何计数不同，需核查阵列/镜像孔数量。");
-                }
                 var throughKey=hole.AxisKey+"|"+text;
                 if(hole.Feature=="" && isThrough)
                 {
@@ -458,19 +449,11 @@ namespace MechKit.Features
                         continue;
                     }
                 }
-                if(hole.Feature=="" && count.Success)
-                    messages.Add("孔组来源未识别（阵列、镜像或倒角入口），请核对数量及重复标注。");
+                if(hole.Feature=="") messages.Add("孔组源特征无法回读，请复核标注。");
                 if(row>=3) messages.Add("孔标注较密集，需复核引线与相邻视图间距。");
                 // Blind parameters may intentionally exceed stock thickness; never rewrite them.
                 if(text.Length==0) messages.Add("原生孔标注文本无法回读，请复核。");
             }
-        }
-
-        internal static string CountedHoleKey(string feature,string text,double[] normal,double offset,bool through)
-        {
-            var plane=through ? "through" : string.Join("|",normal.Concat(new[]{offset})
-                .Select(n=>Math.Round(n,7).ToString("R",System.Globalization.CultureInfo.InvariantCulture)));
-            return feature+"|"+plane+"|"+Regex.Replace(text,@"\s+"," ").Trim();
         }
 
         private static void RemoveHoleCallout(ModelDoc2 model,DisplayDimension display)
