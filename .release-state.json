@@ -1,7 +1,7 @@
 {
-    "version":  "0.32.10.0",
+    "version":  "0.32.11.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T00:47:06.3622469+08:00",
+    "generatedAt":  "2026-10-14T00:48:53.6168378+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -58,7 +58,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "6654245111A95A815E5D6F37FDFF5C0F5BFF5B5E04DE4784A632CA4A8361F742",
+                      "hash":  "5D15C5FE4994F9F7368C38B662E60A7914553FBD4A8C69F4E9988E7BE181F487",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -358,8 +358,8 @@
                   },
                   {
                       "path":  "src/MechKit/UI/NamingRuleForm.cs",
-                      "hash":  "750801DCD70900B94D701B7C397D974A52C4761527F14B0F637E3C77FD63E44A",
-                      "bytes":  82802,
+                      "hash":  "FCFB592D96DF4304DDCB5BEFF99651FA0BBC83CADF6B5E120236B62F31696B9C",
+                      "bytes":  82880,
                       "lines":  1888
                   },
                   {

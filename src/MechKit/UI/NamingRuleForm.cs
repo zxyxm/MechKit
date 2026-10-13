@@ -105,14 +105,14 @@ namespace MechKit.UI
             BackColor = Theme.Canvas;
             WindowLayout.Attach(this, _host.Settings, new Size(1080, 860), new Size(900, 700));
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Accent };
+            var header = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 2, Padding = new Padding(14, 8, 14, 8), BackColor = Theme.Accent };
             var title = Theme.CreateLabel("命名规则设置", Theme.Title, Color.White);
-            title.Location = new Point(14, 9);
+            title.Margin = new Padding(0, 0, 0, 4);
             var subtitle = Theme.CreateLabel("新名称统一用 - 分段；识别时兼容旧下划线 _",
                 Theme.Small, Color.FromArgb(214, 232, 248));
-            subtitle.Location = new Point(15, 32);
-            header.Controls.Add(title);
-            header.Controls.Add(subtitle);
+            subtitle.Margin = Padding.Empty;
+            header.Controls.Add(title, 0, 0);
+            header.Controls.Add(subtitle, 0, 1);
 
             var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 10, 14, 6), BackColor = Theme.Canvas };
 
@@ -175,7 +175,7 @@ namespace MechKit.UI
             var partPage = new TabPage("加工件（日期开头）") { BackColor = Theme.Surface, Padding = new Padding(12, 14, 12, 12) };
             partPage.Controls.Add(BuildMachinedPanel());
 
-            var standardPage = new TabPage("标准件（前缀开头）") { BackColor = Theme.Surface, Padding = new Padding(12, 14, 12, 12) };
+            var standardPage = new TabPage("标准件（特定前缀开头）") { BackColor = Theme.Surface, Padding = new Padding(12, 14, 12, 12) };
             standardPage.Controls.Add(BuildStandardPanel());
 
             tabs.TabPages.Add(partPage);
@@ -1057,7 +1057,7 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 60f));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            var title = Theme.CreateLabel("标准件一级字段管理（渠道/前缀）", Theme.BodyBold, Theme.Text);
+            var title = Theme.CreateLabel("一级字段 · 特定前缀 / 采购渠道", Theme.BodyBold, Theme.Text);
             title.Dock = DockStyle.Fill;
             title.TextAlign = ContentAlignment.MiddleLeft;
             title.Margin = new Padding(0, 0, 0, 4);
@@ -1101,7 +1101,7 @@ namespace MechKit.UI
             layout.Controls.Add(addRow, 0, 1);
 
             var currentCaption = Theme.CreateLabel(
-                "当前一级字段与说明（勾选“选项卡”后才显示快捷按钮）", Theme.Body, Theme.Text);
+                "勾选“选项卡”可显示快捷按钮；每张卡片下方可填写说明。", Theme.Body, Theme.Text);
             currentCaption.Dock = DockStyle.Fill;
             currentCaption.TextAlign = ContentAlignment.BottomLeft;
             currentCaption.Margin = new Padding(0, 4, 0, 3);
@@ -1119,7 +1119,7 @@ namespace MechKit.UI
             layout.Controls.Add(_usedPrefixPanel, 0, 3);
 
             var middleTitle = Theme.CreateLabel(
-                "标准件二级字段管理（名称，例如：接近开关、磁吸开关）",
+                "二级字段 · 零件名称",
                 Theme.BodyBold, Theme.Text);
             middleTitle.Dock = DockStyle.Fill;
             middleTitle.TextAlign = ContentAlignment.BottomLeft;
@@ -1157,7 +1157,7 @@ namespace MechKit.UI
                 }
             };
             var middleHint = Theme.CreateValueLabel(
-                "立即显示在快捷区下排；格式：一级-二级-三级型号");
+                "命名格式：特定前缀-零件名称-型号");
             middleHint.Dock = DockStyle.Fill;
             middleHint.Font = Theme.Small;
             middleHint.ForeColor = Theme.Muted;
@@ -1332,7 +1332,7 @@ namespace MechKit.UI
                     _usedPrefixPanel.Controls.Add(row, 0, index);
                 }
 
-                ArrangeFieldCards(_usedPrefixPanel, Color.FromArgb(255, 246, 210), prefixes.Length);
+                ArrangeFieldCards(_usedPrefixPanel, Color.FromArgb(231, 242, 255), prefixes.Length);
             }
             finally
             {
@@ -1466,7 +1466,7 @@ namespace MechKit.UI
                     _usedMiddleNamePanel.Controls.Add(row, 0, index);
                 }
 
-                ArrangeFieldCards(_usedMiddleNamePanel, Color.FromArgb(224, 240, 255), names.Length);
+                ArrangeFieldCards(_usedMiddleNamePanel, Color.FromArgb(231, 242, 255), names.Length);
             }
             finally
             {
@@ -1477,20 +1477,20 @@ namespace MechKit.UI
 
         private static void ArrangeFieldCards(TableLayoutPanel panel, Color color, int count)
         {
-            panel.ColumnCount = 4;
+            panel.ColumnCount = 3;
             panel.ColumnStyles.Clear();
-            for (var column = 0; column < 4; column++)
-                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+            for (var column = 0; column < 3; column++)
+                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3f));
             panel.BackColor = color;
             panel.Padding = new Padding(6);
             panel.RowStyles.Clear();
-            panel.RowCount = Math.Max(1, (count + 3) / 4);
+            panel.RowCount = Math.Max(1, (count + 2) / 3);
             for (var rowIndex = 0; rowIndex < panel.RowCount; rowIndex++)
                 panel.RowStyles.Add(new RowStyle(SizeType.Absolute, count == 0 ? 42f : 112f));
             var index = 0;
             foreach (var control in GetControls(panel))
             {
-                if (count == 0) { panel.SetColumnSpan(control, 4); continue; }
+                if (count == 0) { panel.SetColumnSpan(control, 3); continue; }
                 var card = control as TableLayoutPanel;
                 if (card == null) continue;
                 var label = card.GetControlFromPosition(0, 0);
@@ -1524,10 +1524,10 @@ namespace MechKit.UI
                 card.Controls.Add(description, 0, 1);
                 card.SetColumnSpan(description, 3);
                 card.ResumeLayout();
-                panel.SetCellPosition(card, new TableLayoutPanelCellPosition(index % 4, index / 4));
+                panel.SetCellPosition(card, new TableLayoutPanelCellPosition(index % 3, index / 3));
                 index++;
             }
-            panel.RowCount = Math.Max(1, (count + 3) / 4);
+            panel.RowCount = Math.Max(1, (count + 2) / 3);
         }
 
         private void AddTypedMiddleName()
