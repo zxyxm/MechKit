@@ -1,7 +1,7 @@
 {
-    "version":  "0.32.15.0",
+    "version":  "0.33.0.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T01:04:11.8463685+08:00",
+    "generatedAt":  "2026-10-14T01:14:31.0010159+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -9,10 +9,28 @@
                       },
     "files":  [
                   {
-                      "path":  "tools/Test-SettingsLayout.ps1",
-                      "hash":  "4DA0DB09054860A50154674CA1C2595D515AA2699FCC9AE5ACD8EF09B73EDF8F",
-                      "bytes":  1351,
-                      "lines":  19
+                      "path":  "docs/quick-parts-library.md",
+                      "hash":  "391E51D6853583B3384BD0C50585559CC5854471784438CA1051D56E8C9A4F3A",
+                      "bytes":  1374,
+                      "lines":  14
+                  },
+                  {
+                      "path":  "src/MechKit/Core/QuickPartsLibrary.cs",
+                      "hash":  "70150AABB8292F4C5A6F6BF0CDC5540B2F0398F32EC9B2A74F4C43766EED722B",
+                      "bytes":  4590,
+                      "lines":  90
+                  },
+                  {
+                      "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
+                      "hash":  "8D4F0330BC531E409E1D7322AF925CA0174E3348C0BBC20859E07EDF120A3BD8",
+                      "bytes":  15277,
+                      "lines":  275
+                  },
+                  {
+                      "path":  "tools/Test-PartsLibrary.ps1",
+                      "hash":  "6936CA4310DFEB395D5412CDFAAB347B22A6D7247C5110D30D3CB3EF8DD2C042",
+                      "bytes":  3509,
+                      "lines":  59
                   },
                   {
                       "path":  ".gitignore",
@@ -64,8 +82,8 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "48BFF5F61F302B0F8383DCDA65B71808B6FC0EE53DF9087B7954DDB2FEAF6AF1",
-                      "bytes":  1063,
+                      "hash":  "2259AB5497D5410E23C5147CC9D448930DF7FCB240B381585D5DD6291B9A196F",
+                      "bytes":  1062,
                       "lines":  25
                   },
                   {
@@ -406,9 +424,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/TaskPaneControl.cs",
-                      "hash":  "B24E12F8CA65F7CB4FA45B89C861E24A95D41695FC16699C4F382A48AE1CD7AC",
-                      "bytes":  30027,
-                      "lines":  780
+                      "hash":  "567DB08F664B86E0034F58558DFC7841F6462D3B8C85141EFF6F41922BA723F5",
+                      "bytes":  30192,
+                      "lines":  783
                   },
                   {
                       "path":  "src/MechKit/UI/Theme.cs",
@@ -565,6 +583,12 @@
                       "hash":  "2EA099F8671A6C6BEEB1381D0AE8E305A350A4354AE6A0206EFA75A347A23DE6",
                       "bytes":  7715,
                       "lines":  118
+                  },
+                  {
+                      "path":  "tools/Test-SettingsLayout.ps1",
+                      "hash":  "4DA0DB09054860A50154674CA1C2595D515AA2699FCC9AE5ACD8EF09B73EDF8F",
+                      "bytes":  1351,
+                      "lines":  19
                   },
                   {
                       "path":  "tools/Test-WindowShortcuts.ps1",

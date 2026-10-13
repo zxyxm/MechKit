@@ -230,6 +230,9 @@ namespace MechKit.UI
             commands.Controls.Add(_commandPanel);
             properties.Controls.Add(root);
             tabs.TabPages.Add(commands);
+            var library = new TabPage("快捷零件库");
+            library.Controls.Add(new PartsLibraryPanel(_host));
+            tabs.TabPages.Add(library);
             tabs.TabPages.Add(properties);
             Controls.Add(tabs);
         }
