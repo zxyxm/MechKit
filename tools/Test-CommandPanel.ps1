@@ -16,8 +16,8 @@ $form.Opacity=0
 try {
  $form.Show()
  [Windows.Forms.Application]::DoEvents()
- $groups=$panel.Controls[0]
- if($groups.Controls.Count -ne (5 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Category count' }
+ $groups=$panel.Controls[0].GetControlFromPosition(0,0)
+ if($groups.Controls.Count -ne (6 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Category count' }
  foreach($section in $groups.Controls) {
   $grid=$section.GetControlFromPosition(0,1)
   if($grid.RowCount -gt 6) { throw 'Too many rows' }
@@ -27,9 +27,9 @@ try {
    if($button.Height -lt 28 -or $button.Width -lt $button.PreferredSize.Width) { throw 'Clipped button' }
   }
  }
- if($groups.Controls[3].GetControlFromPosition(0,1).GetControlFromPosition(0,1).Text -match '材料') { throw 'Material label prefix remains' }
+ if($groups.Controls[4].GetControlFromPosition(0,1).GetControlFromPosition(0,1).Text -match '材料') { throw 'Material label prefix remains' }
  $t.GetMethod('Rebuild',[Reflection.BindingFlags]'Instance,NonPublic').Invoke($panel,@())
- if($groups.Controls.Count -ne (5 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Rebuild duplicated categories' }
+ if($groups.Controls.Count -ne (6 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Rebuild duplicated categories' }
  [Windows.Forms.Application]::DoEvents()
  if($PreviewPath) {
   $bmp=New-Object Drawing.Bitmap $form.Width,$form.Height
@@ -39,7 +39,9 @@ try {
  }
  $form.ClientSize=New-Object Drawing.Size 260,700
  [Windows.Forms.Application]::DoEvents()
- $footer=$panel.Controls[1]
+ $footer=$panel.Controls[0].GetControlFromPosition(0,1)
  if($footer.Bottom -gt $panel.ClientSize.Height -or $footer.Controls.Count -ne 3) { throw 'Footer clipped' }
+ if($groups.Bottom -gt $footer.Top) { throw 'Commands overlap footer' }
+ if($footer.Height -lt 30 -or -not $footer.Visible) { throw 'Footer not visible' }
  Write-Host 'Command panel checks passed: four-row positions, category backgrounds, text width, rebuild.'
 } finally { $form.Dispose() }

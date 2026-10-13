@@ -19,11 +19,16 @@ namespace MechKit.UI
             AutoScaleDimensions = new SizeF(96, 96);
             _groups = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(8), BackColor = Theme.Canvas };
-            Controls.Add(_groups);
-            var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true,
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = Padding.Empty };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _groups.Margin = Padding.Empty;
+            layout.Controls.Add(_groups, 0, 0);
+            var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Margin = Padding.Empty,
                 Padding = new Padding(8), BackColor = Theme.Canvas, WrapContents = true };
-            var footerLabels = new[] { "导出配置", "设置", "关于" };
-            var footerActions = new Action[] { _addin.OnExportConfiguration, _addin.OnSettings, _addin.OnAbout };
+            var footerLabels = new[] { "设置", "导出配置", "关于" };
+            var footerActions = new Action[] { _addin.OnSettings, _addin.OnExportConfiguration, _addin.OnAbout };
             for (var i = 0; i < footerLabels.Length; i++)
             {
                 var run = footerActions[i];
@@ -32,7 +37,8 @@ namespace MechKit.UI
                 button.Click += delegate { run(); };
                 footer.Controls.Add(button);
             }
-            Controls.Add(footer);
+            layout.Controls.Add(footer, 0, 1);
+            Controls.Add(layout);
             Rebuild();
         }
         internal void Rebuild()
@@ -43,16 +49,18 @@ namespace MechKit.UI
                 while (_groups.Controls.Count > 0) _groups.Controls[0].Dispose();
                 foreach (var image in _images) image.Dispose();
                 _images.Clear();
-                AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM" },
-                    new Action[] { _addin.OnPartList }, 0);
+                AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM", "属性批量写入", "大类管理" },
+                    new Action[] { _addin.OnPartList, _addin.OnPropertyTool, _addin.OnExternalDrawingCommand }, 10);
                 AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "标注助手" },
                     new Action[] { _addin.OnPlateDrawing, _addin.OnQuickAnnotation }, 7, 2);
-                AddGroup("", Theme.Canvas, new[] { "下划线转短横线" }, new Action[] { _addin.OnConvertUnderscoresCommand }, 10);
-                var labels = new List<string> { "命名规则", "写入当天日期" };
-                var actions = new List<Action> { _addin.OnPartNamingRule, _addin.OnMachinedDateCommand };
+                AddGroup("命名工具", Theme.Canvas, new[] { "下划线转短横线", "装配命名", "撤回命名" },
+                    new Action[] { _addin.OnConvertUnderscoresCommand, _addin.OnAssemblyNameCommand, _addin.OnMachinedUndoCommand }, 10);
+                AddGroup("日期", Color.White, new[] { "写入当天日期" }, new Action[] { _addin.OnMachinedDateCommand }, 2);
+                var labels = new List<string> { "命名规则" };
+                var actions = new List<Action> { _addin.OnPartNamingRule };
                 Append(labels, actions, _addin.BuildMachinedLevel2ButtonList(), "", _addin.OnMachinedLevel2Command);
                 Append(labels, actions, _addin.BuildMachinedLevel3ButtonList(), "名称：", _addin.OnMachinedLevel3Command);
-                AddGroup("加工件", Color.FromArgb(232,246,233), labels, actions, 10, 2, separatorRows: new[] { 0, 1 });
+                AddGroup("加工件", Color.FromArgb(232,246,233), labels, actions, 10, 1, separatorRows: new[] { 0, 1 });
                 labels = new List<string> { "前缀设置" };
                 actions = new List<Action> { _addin.OnStandardPrefix };
                 Append(labels, actions, _addin.BuildPrefixButtonList(), "", _addin.OnPrefixCommand);
