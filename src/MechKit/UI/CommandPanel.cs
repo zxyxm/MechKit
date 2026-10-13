@@ -52,12 +52,12 @@ namespace MechKit.UI
                 var actions = new List<Action> { _addin.OnPartNamingRule, _addin.OnMachinedDateCommand };
                 Append(labels, actions, _addin.BuildMachinedLevel2ButtonList(), "", _addin.OnMachinedLevel2Command);
                 Append(labels, actions, _addin.BuildMachinedLevel3ButtonList(), "名称：", _addin.OnMachinedLevel3Command);
-                AddGroup("加工件", Color.FromArgb(232,246,233), labels, actions, 10, 2);
+                AddGroup("加工件", Color.FromArgb(232,246,233), labels, actions, 10, 2, separatorRows: new[] { 0, 1 });
                 labels = new List<string> { "前缀设置" };
                 actions = new List<Action> { _addin.OnStandardPrefix };
                 Append(labels, actions, _addin.BuildPrefixButtonList(), "", _addin.OnPrefixCommand);
                 Append(labels, actions, _addin.BuildMiddleNameButtonList(), "", _addin.OnMiddleNameCommand);
-                AddGroup("标准件", Color.FromArgb(231,242,255), labels, actions, 10, 1, _addin.BuildPrefixButtonList().Count);
+                AddGroup("标准件", Color.FromArgb(231,242,255), labels, actions, 10, 1, _addin.BuildPrefixButtonList().Count, new[] { 1, 2 });
                 foreach(var category in PartCategory.Load(_addin.Settings))
                 {
                     var prefixes=NamingOptionsFactory.ParsePrefixes(category.Prefixes,true);
@@ -78,7 +78,7 @@ namespace MechKit.UI
                 actions.Add(() => execute(index));
             }
         }
-        private void AddGroup(string title, Color color, IList<string> labels, IList<Action> actions, int icon, int headerCount = 0, int prefixCount = 0)
+        private void AddGroup(string title, Color color, IList<string> labels, IList<Action> actions, int icon, int headerCount = 0, int prefixCount = 0, int[] separatorRows = null)
         {
             var section = new TableLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Size = Size.Empty, ColumnCount = 1, RowCount = 2, BackColor = color, Padding = new Padding(5), Margin = new Padding(0,0,0,5) };
@@ -90,6 +90,24 @@ namespace MechKit.UI
                 RowCount = common ? (labels.Count + 2) / 3 : (headerCount > 0 ? 1 : 0) + (prefixCount > 0 ? 1 : 0) + Math.Min(4, bodyCount), Margin = Padding.Empty };
             for (var c = 0; c < grid.ColumnCount; c++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             for (var r = 0; r < grid.RowCount; r++) grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            if (separatorRows != null)
+            {
+                grid.Paint += (sender, e) =>
+                {
+                    var heights = grid.GetRowHeights();
+                    using (var pen = new Pen(Color.FromArgb(210, 214, 218)))
+                    {
+                        foreach (var boundary in separatorRows)
+                        {
+                            if (boundary > heights.Length) continue;
+                            var y = 0;
+                            for (var row = 0; row < boundary; row++) y += heights[row];
+                            e.Graphics.DrawLine(pen, 0, Math.Max(0, y - 1), grid.ClientSize.Width - 1, Math.Max(0, y - 1));
+                        }
+                    }
+                };
+                grid.SizeChanged += (sender, e) => grid.Invalidate();
+            }
             for (var i = 0; i < labels.Count; i++)
             {
                 var run = actions[i];
