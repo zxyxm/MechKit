@@ -13,6 +13,13 @@ if (Invoke-Math 'PlateDimensions' @(0.1, 0.06, 0.0)) { throw 'Zero thickness acc
 $scale = Invoke-Math 'ChooseScale' @(0.450, 0.046, 0.01)
 if (0.450*$scale -gt 0.205 -or (2*0.046+0.01)*$scale -gt 0.145) { throw 'Scale does not fit' }
 $service = $assembly.GetType('MechKit.Features.PlateDrawingService', $true)
+$supports = $service.GetMethod('SupportsDocumentType')
+foreach ($kind in @(1, 2)) {
+    if (-not $supports.Invoke($null, @($kind))) { throw 'Part or assembly command disabled' }
+}
+foreach ($kind in @(0, 3)) {
+    if ($supports.Invoke($null, @($kind))) { throw 'Unsupported document command enabled' }
+}
 $template = $service.GetMethod('ExtractTemplate').Invoke($null, @())
 if (-not (Test-Path -LiteralPath $template)) { throw 'Embedded template missing' }
 $addin = $assembly.GetType('MechKit.MechKitAddin', $true)

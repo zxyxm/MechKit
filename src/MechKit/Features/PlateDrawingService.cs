@@ -36,16 +36,19 @@ namespace MechKit.Features
         }
 
         // Runs on SOLIDWORKS' UI/STA thread. Progress may pump messages BETWEEN parts only.
-        public void Run(ModelDoc2 assembly, Func<int,int,string,bool> progress, Action<PlateDrawingResult> completed)
+        public static bool SupportsDocumentType(int documentType)
+        { return documentType == SwUtils.DocPart || documentType == SwUtils.DocAssembly; }
+
+        public void Run(ModelDoc2 source, Func<int,int,string,bool> progress, Action<PlateDrawingResult> completed)
         {
-            if (assembly == null || assembly.GetType()!=SwUtils.DocAssembly)
-                throw new InvalidOperationException("请先激活需要出图的装配体。");
-            var originalTitle=assembly.GetTitle();
+            if (source == null || !SupportsDocumentType(source.GetType()))
+                throw new InvalidOperationException("请先激活需要出图的零件或装配体。");
+            var originalTitle=source.GetTitle();
             try
             {
-                var root=assembly.ConfigurationManager.ActiveConfiguration.GetRootComponent3(true);
                 var candidates=new Dictionary<string,Candidate>(StringComparer.OrdinalIgnoreCase);
-                Collect(root,candidates,completed);
+                if(source.GetType()==SwUtils.DocPart) CollectPart(source,candidates,completed);
+                else Collect(source.ConfigurationManager.ActiveConfiguration.GetRootComponent3(true),candidates,completed);
                 var template=ExtractTemplate();
                 var index=0;
                 foreach(var candidate in candidates.Values.OrderBy(c=>c.Path,StringComparer.OrdinalIgnoreCase))
@@ -71,8 +74,32 @@ namespace MechKit.Features
             {
                 int error=0;
                 try { app.ActivateDoc3(originalTitle,false,(int)swRebuildOnActivation_e.swDontRebuildActiveDoc,ref error); }
-                catch(Exception ex) { Log.Warn("恢复装配体窗口失败："+ex.Message); }
-                WriteReport(assembly.GetPathName());
+                catch(Exception ex) { Log.Warn("恢复源文档窗口失败："+ex.Message); }
+                WriteReport(source.GetPathName());
+            }
+        }
+
+        private void CollectPart(ModelDoc2 part, Dictionary<string,Candidate> targets, Action<PlateDrawingResult> completed)
+        {
+            var path=part.GetPathName();
+            var config=part.ConfigurationManager.ActiveConfiguration.Name;
+            try
+            {
+                if(string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                    throw new InvalidOperationException("零件尚未保存，请先另存为独立文件。");
+                var kind=naming.RecognizeDesignNode(path);
+                if(kind==DesignNodeKind.Reference || kind==DesignNodeKind.Standard || kind==DesignNodeKind.Stock ||
+                   kind==DesignNodeKind.Spare || kind==DesignNodeKind.ExternalDrawing)
+                    throw new InvalidOperationException("按 MechKit 命名规则排除："+kind);
+                var candidate=new Candidate{Path=path};
+                candidate.Configurations.Add(config);
+                targets.Add(path,candidate);
+            }
+            catch(Exception ex)
+            {
+                var result=new PlateDrawingResult{Source=string.IsNullOrEmpty(path)?part.GetTitle():path,
+                    Configuration=config,Status="跳过",Message=ex.Message,Output=""};
+                Results.Add(result); completed(result);
             }
         }
 
@@ -491,11 +518,11 @@ namespace MechKit.Features
             if(dimensions<3) throw new InvalidOperationException("长宽厚标注不完整。");
         }
 
-        private void WriteReport(string assembly)
+        private void WriteReport(string source)
         {
             var folder=AppPaths.Ensure(Path.Combine(AppPaths.Root,"plate-drawing-reports"));
             ReportPath=Path.Combine(folder,"板件出图-"+DateTime.Now.ToString("yyyyMMdd-HHmmss-fff")+".txt");
-            File.WriteAllText(ReportPath,"装配体："+assembly+"\r\n"+(Cancelled?"用户已停止；已生成文件保留。":"处理结束。")+
+            File.WriteAllText(ReportPath,"源文档："+source+"\r\n"+(Cancelled?"用户已停止；已生成文件保留。":"处理结束。")+
                 "\r\n范围：关联视图、包络、可识别原生孔规格。槽、公差和密集标注请按待复核项检查。\r\n"+
                 string.Join("\r\n",Results.Select(r=>r.ToString())),new UTF8Encoding(true));
         }

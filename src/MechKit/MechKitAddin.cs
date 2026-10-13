@@ -1378,7 +1378,7 @@ namespace MechKit
         public int OnPlateDrawingEnable()
         {
             try { return _swApp != null && _swApp.IActiveDoc2 != null &&
-                _swApp.IActiveDoc2.GetType() == SwUtils.DocAssembly && !PlateDrawingForm.Running ? 1 : 0; }
+                PlateDrawingService.SupportsDocumentType(_swApp.IActiveDoc2.GetType()) && !PlateDrawingForm.Running ? 1 : 0; }
             catch { return 0; }
         }
 
@@ -1783,7 +1783,7 @@ namespace MechKit
                 AddinConstants.CmdBatchExport, tabItem));
 
             indices.Add(group.AddCommandItem2("板件一键出图", -1,
-                "识别当前装配中的非钣金板件，生成同名 SLDDRW；跳过已有图并汇总待复核项",
+                "为当前零件或装配中的非钣金板件生成同名 SLDDRW；跳过已有图并汇总待复核项",
                 "板件一键出图（离线）", 4, "OnPlateDrawing", "OnPlateDrawingEnable",
                 AddinConstants.CmdPlateDrawing, tabItem));
 

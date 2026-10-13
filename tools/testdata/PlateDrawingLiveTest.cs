@@ -67,9 +67,15 @@ public static class PlateDrawingLiveTest
                     if(part==null) throw new Exception("Fixture open failed: "+error);
                     string config=part.ConfigurationManager.ActiveConfiguration.Name;
                     var target=Path.ChangeExtension(source,".SLDDRW");
-                    var result=Activator.CreateInstance(resultType);
-                    serviceType.GetMethod("Draw",BindingFlags.NonPublic|BindingFlags.Instance)
-                        .Invoke(service,new object[]{source,config,target,template,result});
+                    Func<int,int,string,bool> progress=(index,total,name)=>true;
+                    Action<object> completed=r=>{};
+                    serviceType.GetMethod("Run").Invoke(service,new object[]{part,progress,completed});
+                    var results=((System.Collections.IEnumerable)serviceType.GetField("Results").GetValue(service)).Cast<object>().ToArray();
+                    if(results.Length!=1) throw new Exception("Single part must produce exactly one result");
+                    var result=results[0];
+                    if((string)resultType.GetField("Configuration").GetValue(result)!=config)
+                        throw new Exception("Single part did not use active configuration");
+                    if(app.IActiveDoc2.GetPathName()!=source) throw new Exception("Source part was not restored");
                     Console.WriteLine("PASS "+input+" -> "+resultType.GetField("Status").GetValue(result)+" "+resultType.GetField("Message").GetValue(result));
                     if(!File.Exists(target) || part.GetSaveFlag()) throw new Exception("Missing output or changed source");
                     drawing=app.OpenDoc6(target,3,1,"",ref error,ref warning);
