@@ -1,25 +1,13 @@
 {
-    "version":  "0.33.7.0",
+    "version":  "0.33.8.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T01:47:15.2959103+08:00",
+    "generatedAt":  "2026-10-14T01:49:07.8956560+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "tools/Test-BomRename.ps1",
-                      "hash":  "6D41C2244DDB181494FC0D2592DFA22E5BDEA5A628579739C0F4F4F7A1B966EA",
-                      "bytes":  476,
-                      "lines":  6
-                  },
-                  {
-                      "path":  "tools/testdata/BomRenameChecks.cs",
-                      "hash":  "E859A88BFDE7C4864B3F52B2741F08FA49F23F67880561ECB75C3B8F494CCF7C",
-                      "bytes":  3914,
-                      "lines":  68
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -76,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "E7F272B95DC12B36E42E1F1C963445480281095026071B01048C285C84F1F96A",
+                      "hash":  "E6025B1A3329807CD8F668FFC9A8C0984BBEAA0B8229E99928D02D037EA6F247",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -274,8 +262,8 @@
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "CE3AF3FC1C69D3BCE7EB6C3BF23A33694D3CBEF2C48E5074EAFB0BE736B3ABFC",
-                      "bytes":  101812,
+                      "hash":  "B5AFB9382BAA3766499D9D3B553F9B566A8E5F9DD40EF315F12C56A6AB99D5FC",
+                      "bytes":  101777,
                       "lines":  2605
                   },
                   {
@@ -394,9 +382,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "3FF0590AA0A8FEFB2395D4371418D40DEBE885DB706A8A5845948CE3D52B1EAA",
-                      "bytes":  101370,
-                      "lines":  2281
+                      "hash":  "B9E69AC1E6CAB9C17D421341AAF5D90577B6021B56309F78EF352F42CBEA8323",
+                      "bytes":  101655,
+                      "lines":  2286
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -442,9 +430,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "39AF23E944480A7E6C7C73FBE0D5FCFFB2CC5B31EEC5FEE7E73D540DB0FB8731",
-                      "bytes":  22095,
-                      "lines":  530
+                      "hash":  "FC987FF0E2C7A583FAE4C34D514A1D1AED5E90993E363442C5AA82819EC636ED",
+                      "bytes":  22859,
+                      "lines":  546
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
@@ -543,6 +531,12 @@
                       "lines":  31
                   },
                   {
+                      "path":  "tools/Test-BomRename.ps1",
+                      "hash":  "6D41C2244DDB181494FC0D2592DFA22E5BDEA5A628579739C0F4F4F7A1B966EA",
+                      "bytes":  476,
+                      "lines":  6
+                  },
+                  {
                       "path":  "tools/Test-Categories.ps1",
                       "hash":  "EE0640B4F961165DACE681F0CBF4758A15888DF031FBE21DA9FD24117D352E74",
                       "bytes":  3590,
@@ -619,6 +613,12 @@
                       "hash":  "090757FDA8D501EF8E13BE2A7DF025C2575D8E515480775E9183BB93D18E4AB0",
                       "bytes":  7555,
                       "lines":  168
+                  },
+                  {
+                      "path":  "tools/testdata/BomRenameChecks.cs",
+                      "hash":  "E859A88BFDE7C4864B3F52B2741F08FA49F23F67880561ECB75C3B8F494CCF7C",
+                      "bytes":  3914,
+                      "lines":  68
                   },
                   {
                       "path":  "tools/testdata/PlateDrawingLiveTest.cs",

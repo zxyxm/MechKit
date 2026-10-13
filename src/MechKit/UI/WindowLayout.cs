@@ -75,6 +75,22 @@ namespace MechKit.UI
         private static extern IntPtr GetForegroundWindow();
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr window);
+
+        /// <summary>打开模型后让出绘图区，保留可由 Tab 唤回的窗口及编辑状态。</summary>
+        public static void LowerAfterDocumentOpened(Form form, IntPtr solidWorksWindow)
+        {
+            if (form == null || form.IsDisposed || !form.IsHandleCreated || solidWorksWindow == IntPtr.Zero) return;
+            form.BeginInvoke(new Action(delegate
+            {
+                if (form.IsDisposed || !form.Visible) return;
+                form.TopMost = false;
+                form.SendToBack();
+                SetForegroundWindow(solidWorksWindow);
+            }));
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr WindowFromPoint(POINT point);
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]

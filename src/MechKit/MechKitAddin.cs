@@ -1528,9 +1528,9 @@ namespace MechKit
             };
 
             var handle = MainWindowHandle;
-            if (handle != IntPtr.Zero && (key == "quick-annotation" || key == "part-list"))
+            if (handle != IntPtr.Zero && key == "quick-annotation")
             {
-                // 公差助手与 BOM 预览在操作 SW 菜单/图形区时保持可见，并随主窗口隐藏。
+                // 标注助手保持在 SW 主窗口之上；BOM 允许下沉以查看打开的模型。
                 form.Show(new SwWindow(handle));
                 form.BringToFront();
                 return;

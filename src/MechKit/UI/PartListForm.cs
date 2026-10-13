@@ -1361,7 +1361,11 @@ namespace MechKit.UI
                 if (!bounds.Contains(point) || point.X < textLeft || point.X > textRight) return;
                 var model = PartListService.OpenRowModelDocument(_host.SwApp,
                     new PartListRow { FilePath = item.FilePath, Configuration = item.Configuration }, AppendLog);
-                if (!string.IsNullOrEmpty(model)) _status.Text = "已打开：" + Path.GetFileName(model);
+                if (!string.IsNullOrEmpty(model))
+                {
+                    _status.Text = "已打开：" + Path.GetFileName(model) + " · 按 Tab 返回 BOM";
+                    WindowLayout.LowerAfterDocumentOpened(this, _host.MainWindowHandle);
+                }
                 return;
             }
             if (columnName == "treeLink") return;
@@ -1401,7 +1405,8 @@ namespace MechKit.UI
                 return;
             }
 
-            _status.Text = "已打开：" + Path.GetFileName(opened);
+            _status.Text = "已打开：" + Path.GetFileName(opened) + " · 按 Tab 返回 BOM";
+            WindowLayout.LowerAfterDocumentOpened(this, _host.MainWindowHandle);
         }
 
         /// <summary>双击是否落在单元格的文字上（而不是文字后面的空白）。</summary>
