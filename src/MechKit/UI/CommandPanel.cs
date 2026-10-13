@@ -20,6 +20,19 @@ namespace MechKit.UI
             _groups = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(8), BackColor = Theme.Canvas };
             Controls.Add(_groups);
+            var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true,
+                Padding = new Padding(8), BackColor = Theme.Canvas, WrapContents = true };
+            var footerLabels = new[] { "导出配置", "设置", "关于" };
+            var footerActions = new Action[] { _addin.OnExportConfiguration, _addin.OnSettings, _addin.OnAbout };
+            for (var i = 0; i < footerLabels.Length; i++)
+            {
+                var run = footerActions[i];
+                var button = Theme.CreateSecondaryButton(footerLabels[i]);
+                button.AutoSize = true;
+                button.Click += delegate { run(); };
+                footer.Controls.Add(button);
+            }
+            Controls.Add(footer);
             Rebuild();
         }
         internal void Rebuild()
@@ -30,8 +43,8 @@ namespace MechKit.UI
                 while (_groups.Controls.Count > 0) _groups.Controls[0].Dispose();
                 foreach (var image in _images) image.Dispose();
                 _images.Clear();
-                AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM", "导出配置", "设置", "关于" },
-                    new Action[] { _addin.OnPartList, _addin.OnExportConfiguration, _addin.OnSettings, _addin.OnAbout }, 0);
+                AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM" },
+                    new Action[] { _addin.OnPartList }, 0);
                 AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "标注助手" },
                     new Action[] { _addin.OnPlateDrawing, _addin.OnQuickAnnotation }, 7, 2);
                 AddGroup("", Theme.Canvas, new[] { "下划线转短横线" }, new Action[] { _addin.OnConvertUnderscoresCommand }, 10);

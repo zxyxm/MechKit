@@ -32,13 +32,14 @@ try {
  if($groups.Controls.Count -ne (5 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Rebuild duplicated categories' }
  [Windows.Forms.Application]::DoEvents()
  if($PreviewPath) {
-  $bmp=New-Object Drawing.Bitmap 660,900
-  $form.DrawToBitmap($bmp,(New-Object Drawing.Rectangle 0,0,660,900))
+  $bmp=New-Object Drawing.Bitmap $form.Width,$form.Height
+  $form.DrawToBitmap($bmp,(New-Object Drawing.Rectangle 0,0,$form.Width,$form.Height))
   $bmp.Save($PreviewPath)
   $bmp.Dispose()
  }
- $form.ClientSize=New-Object Drawing.Size 320,700
+ $form.ClientSize=New-Object Drawing.Size 260,700
  [Windows.Forms.Application]::DoEvents()
- if(-not $groups.HorizontalScroll.Visible) { throw 'Narrow pane must expose horizontal scrolling' }
+ $footer=$panel.Controls[1]
+ if($footer.Bottom -gt $panel.ClientSize.Height -or $footer.Controls.Count -ne 3) { throw 'Footer clipped' }
  Write-Host 'Command panel checks passed: four-row positions, category backgrounds, text width, rebuild.'
 } finally { $form.Dispose() }

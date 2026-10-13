@@ -1,7 +1,7 @@
 {
-    "version":  "0.32.13.0",
+    "version":  "0.32.14.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T00:59:13.9977240+08:00",
+    "generatedAt":  "2026-10-14T01:01:22.5913686+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -58,7 +58,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "BBB841C3DE136873E38812D0B8C63E78A6D56AE16FE4A772993283A32DD05905",
+                      "hash":  "ECBE937A6D94CF5729BA212083744076C942183EB338FE2696E5A5972BBD0FCD",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -250,9 +250,9 @@
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "EA8B1237DD7B2261C83A2A2516336A1324DEE3ACA3EB8ACC318A8D34AE106B9D",
-                      "bytes":  106192,
-                      "lines":  2668
+                      "hash":  "1E625999C321CB4B056EB39615CB7670E93694BF9C11003435B5B36BAF79A524",
+                      "bytes":  101439,
+                      "lines":  2596
                   },
                   {
                       "path":  "src/MechKit/Resources/drawings/plate-a3-third-angle.drwdot",
@@ -358,9 +358,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/CommandPanel.cs",
-                      "hash":  "7110D02B33E2DAE16B453385EA91A3BFFD80A8543EA3297A16F703D2FC0242C8",
-                      "bytes":  7459,
-                      "lines":  120
+                      "hash":  "CACC62175E1085B139D77197080BC7E16E18C2415E10F8FD25D877BEA6747B2C",
+                      "bytes":  8106,
+                      "lines":  133
                   },
                   {
                       "path":  "src/MechKit/UI/NamingRuleForm.cs",
@@ -520,9 +520,9 @@
                   },
                   {
                       "path":  "tools/Test-CommandPanel.ps1",
-                      "hash":  "E3337373BFF8781D8C11C9F24740858E54784C122D313B434C16C44E03B26196",
-                      "bytes":  2513,
-                      "lines":  44
+                      "hash":  "AF4F324C6F225548DEA3C4FB2EB800B6BCD045A1D2FE201849B3A9EFCE4C692C",
+                      "bytes":  2585,
+                      "lines":  45
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",

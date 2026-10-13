@@ -1583,7 +1583,7 @@ namespace MechKit
             }
 
             ApplyLayout(layout);
-            CreateCommandTabs(layout, !layout.ReusedStoredLayout);
+            CreateCommandTabs(layout, true);
             Log.Info(string.Format("CommandManager 命令组已创建（UserID {0}）。", layout.GroupId));
         }
 
@@ -1598,6 +1598,7 @@ namespace MechKit
             public bool ReusedStoredLayout;
             public int ToleranceIndex;
             public int DrawingIndex;
+            public int PaneIndex;
             public readonly List<int> Fixed = new List<int>();
             public readonly List<int> MachinedQuick = new List<int>();
             public readonly List<int> MachinedLevel2 = new List<int>();
@@ -1764,10 +1765,11 @@ namespace MechKit
                 AddinConstants.CmdPlateDrawing, tabItem);
             indices.Add(layout.DrawingIndex);
 
-            indices.Add(group.AddCommandItem2("工具箱面板", -1,
+            layout.PaneIndex = group.AddCommandItem2("MechKit 工作面板", -1,
                 "显示 / 隐藏 MechKit任务面板",
-                "工具箱面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",
-                AddinConstants.CmdTaskPane, tabItem));
+                "打开右侧工作面板", 6, "OnToggleTaskPane", "OnAlwaysEnable",
+                AddinConstants.CmdTaskPane, tabItem);
+            indices.Add(layout.PaneIndex);
 
             layout.ToleranceIndex = group.AddCommandItem2("标注助手", -1,
                 "给工程图尺寸或孔标注参数应用公差，右键自定义常用预设",
@@ -1938,84 +1940,9 @@ namespace MechKit
                         continue;
                     }
 
-                    // 左侧常用功能。
-                    AddCommandTabBox(tab, new List<int> { fixedIndices[0] },
+                    // 高频功能在右侧面板，顶部只保留两个入口。
+                    AddCommandTabBox(tab, new List<int> { layout.PaneIndex, fixedIndices[0] },
                         (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-
-                    // 加工件固定分组：设置 + 时间 + _→- + 装配。
-                    var machinedIds = new List<int>();
-                    var machinedStyles = new List<int>();
-                    AppendCommandTabItem(machinedIds, machinedStyles, fixedIndices[1],
-                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-                    AppendCommandTabItems(machinedIds, machinedStyles, machinedQuickIndices,
-                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
-                    AddMixedCommandTabBox(tab, machinedIds, machinedStyles);
-
-                    // 勾选的二级字段排上行、三级字段排下行。
-                    var machinedFieldIds = new List<int>();
-                    var machinedFieldStyles = new List<int>();
-                    var machinedColumns = Math.Max(
-                        machinedLevel2Indices == null ? 0 : machinedLevel2Indices.Count,
-                        machinedLevel3Indices == null ? 0 : machinedLevel3Indices.Count);
-                    for (var column = 0; column < machinedColumns; column++)
-                    {
-                        if (machinedLevel2Indices != null && column < machinedLevel2Indices.Count)
-                        {
-                            AppendCommandTabItem(machinedFieldIds, machinedFieldStyles,
-                                machinedLevel2Indices[column],
-                                (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
-                        }
-                        if (machinedLevel3Indices != null && column < machinedLevel3Indices.Count)
-                        {
-                            AppendCommandTabItem(machinedFieldIds, machinedFieldStyles,
-                                machinedLevel3Indices[column],
-                                (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextHorizontal);
-                        }
-                    }
-                    AddMixedCommandTabBox(tab, machinedFieldIds, machinedFieldStyles);
-
-                    // 标准件整体做成一个框（和加工件、材料并列的三个框）：
-                    // 设置按钮 + 一级字段（前缀）+ 二级字段（中间名），一级排在前、
-                    // 二级排在后，SOLIDWORKS 按行铺开时就是“上排一级、下排二级”。
-                    var standardIds = new List<int>();
-                    var standardStyles = new List<int>();
-                    AppendCommandTabItem(standardIds, standardStyles, fixedIndices[2],
-                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-                    AddMixedCommandTabBox(tab, standardIds, standardStyles);
-                    AddFourColumnCommandBoxes(tab, prefixIndices);
-                    AddFourColumnCommandBoxes(tab, middleNameIndices);
-
-                    // 工程图标注工具共用一个框，原生命令保留 SW 自带图标与行为。
-                    if (docType == (int)swDocumentTypes_e.swDocDRAWING)
-                    {
-                        var annotationIds = new List<int> { AddinConstants.NativeSmartDimension };
-                        var below = (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow;
-                        var annotationStyles = new List<int> { below };
-                        AppendCommandTabItem(annotationIds, annotationStyles, layout.ToleranceIndex, below);
-                        annotationIds.Add(AddinConstants.NativeHoleCallout);
-                        annotationIds.Add(AddinConstants.NativeDowelPinSymbol);
-                        annotationStyles.Add(below);
-                        annotationStyles.Add(below);
-                        AddMixedCommandTabBox(tab, annotationIds, annotationStyles);
-                    }
-
-                    if (docType != (int)swDocumentTypes_e.swDocDRAWING)
-                        AddCommandTabBox(tab, new List<int> { layout.DrawingIndex, layout.ToleranceIndex },
-                            (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-                    else
-                        AddCommandTabBox(tab, new List<int> { layout.DrawingIndex },
-                            (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-                    // 其余工具功能。
-                    var trailing = new List<int>();
-                    for (var i = 3; i < fixedIndices.Count; i++)
-                    {
-                        if (fixedIndices[i] == layout.ToleranceIndex || fixedIndices[i] == layout.DrawingIndex)
-                            continue;
-                        trailing.Add(fixedIndices[i]);
-                    }
-                    AddCommandTabBox(tab, trailing,
-                        (int)swCommandTabButtonTextDisplay_e.swCommandTabButton_TextBelow);
-
                     tab.Visible = true;
                 }
                 catch (Exception ex)
@@ -2586,6 +2513,7 @@ namespace MechKit
 
                 // 直接嵌入 WinForms 窗口句柄，无需注册 ActiveX 控件
                 _taskPaneView.DisplayWindowFromHandlex64(_taskPane.Handle.ToInt64());
+                _taskPaneView.ShowView();
             }
             catch (Exception ex)
             {
