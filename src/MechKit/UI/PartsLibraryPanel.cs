@@ -22,6 +22,7 @@ namespace MechKit.UI
         private string _source;
         private IModelDoc2 _assembly;
         private bool _dragging;
+        private bool _reloading;
         private readonly Timer _dragTimer = new Timer { Interval = 40 };
 
         public PartsLibraryPanel(IAddinHost host) : this(host, new QuickPartsLibrary()) { }
@@ -44,7 +45,7 @@ namespace MechKit.UI
             root.Controls.Add(actions, 0, 1);
             _category.Items.Add("全部分类");
             _category.Items.Add(QuickPartsLibrary.Uncategorized);
-            _category.Items.AddRange(QuickPartsLibrary.Categories);
+            _category.Items.AddRange(_library.GetCategories());
             _category.SelectedIndex = 0;
             root.Controls.Add(_category, 0, 2);
             var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2 };
@@ -90,8 +91,16 @@ namespace MechKit.UI
 
         private void Reload()
         {
+            if (_reloading) return;
+            _reloading = true;
             try
             {
+                var selected = Convert.ToString(_category.SelectedItem);
+                _category.Items.Clear();
+                _category.Items.Add("全部分类");
+                _category.Items.Add(QuickPartsLibrary.Uncategorized);
+                _category.Items.AddRange(_library.GetCategories());
+                _category.SelectedIndex = Math.Max(0, _category.Items.IndexOf(selected));
                 _list.BeginUpdate();
                 _list.Items.Clear();
                 foreach (var file in _library.Search(Convert.ToString(_category.SelectedItem), _search.Text))
@@ -104,7 +113,7 @@ namespace MechKit.UI
                 _status.Text = _list.Items.Count == 0 ? "暂无匹配零件。点击“添加零件进库”导入 SW 2024 零件。" : "找到 " + _list.Items.Count + " 个零件 · 放置后可继续移动及配合";
             }
             catch (Exception ex) { Report(ex); }
-            finally { _list.EndUpdate(); }
+            finally { _list.EndUpdate(); _reloading = false; }
         }
 
         private void Import()
@@ -116,8 +125,8 @@ namespace MechKit.UI
                 {
                     var categories = new ComboBox { Left = 16, Top = 12, Width = 260, DropDownStyle = ComboBoxStyle.DropDownList };
                     categories.Items.Add(QuickPartsLibrary.Uncategorized);
-                    categories.Items.AddRange(QuickPartsLibrary.Categories);
-                    categories.SelectedIndex = Math.Max(0, _category.SelectedIndex - 1);
+                    categories.Items.AddRange(_library.GetCategories());
+                    categories.SelectedIndex = Math.Max(0, categories.Items.IndexOf(Convert.ToString(_category.SelectedItem)));
                     var ok = new Button { Text = "添加进库", Left = 174, Top = 48, Width = 100, DialogResult = DialogResult.OK };
                     picker.Controls.Add(categories); picker.Controls.Add(ok); picker.AcceptButton = ok;
                     if (picker.ShowDialog(this) != DialogResult.OK) return;

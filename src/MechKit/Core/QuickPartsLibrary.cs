@@ -10,17 +10,24 @@ namespace MechKit.Core
     internal sealed class QuickPartsLibrary
     {
         public const string Uncategorized = "未分类";
-        public static readonly string[] Categories = { "电控件", "气动件", "紧固件", "其他" };
+        private static readonly string[] DefaultCategories = { "电控件", "气动件", "紧固件", "其他" };
         public string Root { get; private set; }
         public QuickPartsLibrary(string root = null)
         {
             Root = root ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MechKit", "零件库");
-            foreach (var category in Categories) Directory.CreateDirectory(Path.Combine(Root, category));
+            if (!Directory.Exists(Root))
+                foreach (var category in DefaultCategories) Directory.CreateDirectory(Path.Combine(Root, category));
+        }
+
+        public string[] GetCategories()
+        {
+            return Directory.GetDirectories(Root).Select(Path.GetFileName)
+                .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray();
         }
 
         public string[] Search(string category, string query)
         {
-            var folder = Categories.Contains(category) ? Path.Combine(Root, category) : Root;
+            var folder = GetCategories().Contains(category) ? Path.Combine(Root, category) : Root;
             var words = (query ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             return Directory.EnumerateFiles(folder, "*.sldprt", category == Uncategorized ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories)
                 .Where(p => !Path.GetFileName(p).StartsWith("~$") && words.All(w =>
@@ -32,7 +39,7 @@ namespace MechKit.Core
         {
             var directory = Path.GetDirectoryName(Path.GetFullPath(path));
             return string.Equals(directory.TrimEnd(Path.DirectorySeparatorChar), Path.GetFullPath(Root).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)
-                ? Uncategorized : Path.GetFileName(directory);
+                ? Uncategorized : directory.Substring(Path.GetFullPath(Root).TrimEnd(Path.DirectorySeparatorChar).Length + 1).Split(Path.DirectorySeparatorChar)[0];
         }
 
         public static bool Is2024(object history)
@@ -67,7 +74,7 @@ namespace MechKit.Core
 
         public string Import(ISldWorks sw, string source, string category)
         {
-            if (category != Uncategorized && !Categories.Contains(category)) throw new ArgumentException("请选择入库分类。");
+            if (category != Uncategorized && !GetCategories().Contains(category)) throw new ArgumentException("请选择入库分类。");
             Validate(sw, source);
             return CopyUnique(source, category == Uncategorized ? Root : Path.Combine(Root, category));
         }
