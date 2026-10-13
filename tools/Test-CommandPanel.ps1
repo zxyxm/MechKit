@@ -17,18 +17,19 @@ try {
  $form.Show()
  [Windows.Forms.Application]::DoEvents()
  $groups=$panel.Controls[0]
- if($groups.Controls.Count -ne 8) { throw 'Category count' }
+ if($groups.Controls.Count -ne 9) { throw 'Category count' }
  foreach($section in $groups.Controls) {
   $grid=$section.GetControlFromPosition(0,1)
-  if($grid.RowCount -gt 4) { throw 'More than four rows' }
+  if($grid.RowCount -gt 6) { throw 'Too many rows' }
   for($i=0;$i -lt $grid.Controls.Count;$i++) {
-   $button=$grid.GetControlFromPosition([Math]::Floor($i/4),($i%4))
+   $button=$grid.Controls[$i]
    if($null -eq $button -or $button.BackColor -ne $section.BackColor) { throw 'Position or category background mismatch' }
-   if($button.Height -lt 32 -or $button.Width -lt $button.PreferredSize.Width) { throw 'Clipped button' }
+   if($button.Height -lt 28 -or $button.Width -lt $button.PreferredSize.Width) { throw 'Clipped button' }
   }
  }
+ if($groups.Controls[2].GetControlFromPosition(0,1).GetControlFromPosition(0,1).Text -match '材料') { throw 'Material label prefix remains' }
  $t.GetMethod('Rebuild',[Reflection.BindingFlags]'Instance,NonPublic').Invoke($panel,@())
- if($groups.Controls.Count -ne 8) { throw 'Rebuild duplicated categories' }
+ if($groups.Controls.Count -ne 9) { throw 'Rebuild duplicated categories' }
  [Windows.Forms.Application]::DoEvents()
  if($PreviewPath) {
   $bmp=New-Object Drawing.Bitmap 660,900

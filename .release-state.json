@@ -1,25 +1,13 @@
 {
-    "version":  "0.32.8.0",
+    "version":  "0.32.9.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T00:21:19.1316395+08:00",
+    "generatedAt":  "2026-10-14T00:36:42.2339720+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "src/MechKit/UI/CommandPanel.cs",
-                      "hash":  "F0E2FB85472901BE4B93A8E52A167E23E2C50D7DC861C2633CD57954B6498C97",
-                      "bytes":  6538,
-                      "lines":  104
-                  },
-                  {
-                      "path":  "tools/Test-CommandPanel.ps1",
-                      "hash":  "C53E4B3F5DBB89892382294DD1C0C4A2D10A4E18814CBABC63D0091A0EB28451",
-                      "bytes":  2222,
-                      "lines":  43
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -70,7 +58,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "0DA7A91C594DBB414ABFB58939C85CF952B3351EE6B495EF8CAE5D6683A3CC92",
+                      "hash":  "500A9007D55CAA870EC120FE9FFFFBDFDA0B1BA6818A21D130DD99CE63B83382",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -363,6 +351,12 @@
                       "lines":  187
                   },
                   {
+                      "path":  "src/MechKit/UI/CommandPanel.cs",
+                      "hash":  "F0D0E063F38F628F8FB5A3AEC67AE144BE8FC3B83F520585E57C93FCB7244A11",
+                      "bytes":  7457,
+                      "lines":  115
+                  },
+                  {
                       "path":  "src/MechKit/UI/NamingRuleForm.cs",
                       "hash":  "750801DCD70900B94D701B7C397D974A52C4761527F14B0F637E3C77FD63E44A",
                       "bytes":  82802,
@@ -511,6 +505,12 @@
                       "hash":  "A455B9FD38932A1795999A3C71E6418913F799F7890FAC6C777A1084A5A9A9A5",
                       "bytes":  1877,
                       "lines":  31
+                  },
+                  {
+                      "path":  "tools/Test-CommandPanel.ps1",
+                      "hash":  "4DCAC2F18A06452C0F6519573AEEC0F7CE37A59B9DB2B8F6E5D2E177C1479621",
+                      "bytes":  2323,
+                      "lines":  44
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",
