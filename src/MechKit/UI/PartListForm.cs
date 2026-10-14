@@ -69,7 +69,7 @@ namespace MechKit.UI
         private int _markLastRow;
         private readonly Timer _markScroll = new Timer { Interval = 80 };
         private readonly Timer _previewDelay = new Timer { Interval = 400 };
-        private readonly ToolTip _modelPreview = new ToolTip { OwnerDraw=true, ShowAlways=true };
+        private readonly ModelPreviewPopup _modelPreview = new ModelPreviewPopup();
         private PartListRow _previewRow;
         private Image _previewImage;
 
@@ -497,6 +497,7 @@ namespace MechKit.UI
             _grid.CellMouseEnter += (sender,e)=>
             {
                 HideModelPreview();
+                _grid.ShowCellToolTips = e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "location";
                 if(e.RowIndex<0 || e.ColumnIndex<0 || _grid.Columns[e.ColumnIndex].Name!="location" || _running) return;
                 _previewRow=_grid.Rows[e.RowIndex].Tag as PartListRow;
                 if(_previewRow!=null) _previewDelay.Start();
@@ -507,24 +508,6 @@ namespace MechKit.UI
             _grid.Scroll += (sender,e)=>HideModelPreview();
             Deactivate += (sender,e)=>HideModelPreview();
             _previewDelay.Tick += (sender,e)=>ShowModelPreview();
-            _modelPreview.Popup += (sender,e)=>e.ToolTipSize=new Size(480,380);
-            _modelPreview.Draw += (sender,e)=>
-            {
-                e.Graphics.Clear(Color.White);
-                using(var pen=new Pen(Theme.Border)) e.Graphics.DrawRectangle(pen,0,0,e.Bounds.Width-1,e.Bounds.Height-1);
-                TextRenderer.DrawText(e.Graphics,_previewRow==null?"":_previewRow.FullName,Theme.BodyBold,
-                    new Rectangle(12,10,e.Bounds.Width-24,30),Theme.Text,TextFormatFlags.EndEllipsis|TextFormatFlags.SingleLine);
-                var area=new Rectangle(12,48,e.Bounds.Width-24,e.Bounds.Height-60);
-                if(_previewImage==null) TextRenderer.DrawText(e.Graphics,"暂无已保存的缩略图",Theme.Body,area,Theme.Muted,
-                    TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
-                else
-                {
-                    var scale=Math.Min((float)area.Width/_previewImage.Width,(float)area.Height/_previewImage.Height);
-                    var w=_previewImage.Width*scale;var h=_previewImage.Height*scale;
-                    e.Graphics.InterpolationMode=System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                    e.Graphics.DrawImage(_previewImage,area.Left+(area.Width-w)/2,area.Top+(area.Height-h)/2,w,h);
-                }
-            };
             Disposed += (sender,e)=> { _previewDelay.Dispose();_modelPreview.Dispose();if(_previewImage!=null)_previewImage.Dispose(); };
             _grid.MouseDown += BeginMarkRows;
             _grid.MouseUp += delegate { EndMarkRows(); };
@@ -1722,7 +1705,7 @@ namespace MechKit.UI
 
         private void HideModelPreview()
         {
-            _previewDelay.Stop();_modelPreview.Hide(_grid);_previewRow=null;
+            _previewDelay.Stop();_modelPreview.ClearPreview();_previewRow=null;
             if(_previewImage!=null) {_previewImage.Dispose();_previewImage=null;}
         }
 
@@ -1738,11 +1721,12 @@ namespace MechKit.UI
                     using(var stream=new MemoryStream(bytes))
                     using(var source=Image.FromStream(stream)) _previewImage=new Bitmap(source);
                 var screen=Cursor.Position;var area=Screen.FromPoint(screen).WorkingArea;
+                _modelPreview.SetPreview(row.FullName,row.Location,_previewImage);
                 var x=screen.X+24;var y=screen.Y+24;
-                if(x+480>area.Right) x=screen.X-504;
-                if(y+380>area.Bottom) y=screen.Y-404;
-                var point=_grid.PointToClient(new Point(Math.Max(area.Left,x),Math.Max(area.Top,y)));
-                _modelPreview.Show("模型预览",_grid,point,15000);
+                if(x+_modelPreview.Width>area.Right) x=screen.X-_modelPreview.Width-24;
+                if(y+_modelPreview.Height>area.Bottom) y=screen.Y-_modelPreview.Height-24;
+                _modelPreview.Location=new Point(Math.Max(area.Left,x),Math.Max(area.Top,y));
+                _modelPreview.Show(this);
             }
             catch(Exception ex) { Log.Warn("显示模型预览失败："+ex.Message);HideModelPreview(); }
         }
