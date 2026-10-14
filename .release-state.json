@@ -1,13 +1,25 @@
 {
-    "version":  "0.35.1.0",
+    "version":  "0.35.2.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T14:28:39.3595508+08:00",
+    "generatedAt":  "2026-10-14T16:14:01.1398473+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "docs/feature-audit-2026-10-14.md",
+                      "hash":  "95F912812838BFA2C55EDC5B2AB0FBBA5C3B52732A73EBE6255625F93F6DA85B",
+                      "bytes":  6290,
+                      "lines":  64
+                  },
+                  {
+                      "path":  "tools/Test-HoleAnnotationLive.ps1",
+                      "hash":  "3AB534A54F8A84B5D219CF31A5B7258489053640E0062BC18BE1DA7FFB0CA5AD",
+                      "bytes":  4691,
+                      "lines":  59
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -64,7 +76,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "074A48C3CD588A818499AF8BB6A58C338A8C5847BD6D927D0A7CF09F57853D60",
+                      "hash":  "78CB765262A43F9D78A411C189DC18401AA16BB6BC0A457BE0F538371F6D6077",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -256,9 +268,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/QuickAnnotationService.cs",
-                      "hash":  "D825106D37B527223E0D2198A6EC60FC9BD25416856639CC87C524FBF5B577EB",
-                      "bytes":  13134,
-                      "lines":  227
+                      "hash":  "AAF857136ECBF2329466A0116EAE4CE8F5CBCD7161FC6F3F568EA159F0E7934D",
+                      "bytes":  20477,
+                      "lines":  338
                   },
                   {
                       "path":  "src/MechKit/IAddinHost.cs",
@@ -400,9 +412,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
-                      "hash":  "6E5ECE3A607FB3A1AA3F67418CCD152835E97C49DFDC534B6FB8B75637D59D84",
-                      "bytes":  16830,
-                      "lines":  300
+                      "hash":  "AF528D87C7763F141C85FB2622C084058AC1179C26AD802AB9F3545A1E8498C9",
+                      "bytes":  16905,
+                      "lines":  301
                   },
                   {
                       "path":  "src/MechKit/UI/PlateDrawingForm.cs",
@@ -418,9 +430,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/QuickAnnotationForm.cs",
-                      "hash":  "2B2C013228CC252BEC6DDD37DB024680A5762E02EF37D7B20A369F25E40C643A",
-                      "bytes":  16611,
-                      "lines":  271
+                      "hash":  "C641AE02AB27976A133BEE4101A2E8736C779026F3B0ADD95D016A5FEEE71BD4",
+                      "bytes":  16913,
+                      "lines":  276
                   },
                   {
                       "path":  "src/MechKit/UI/SettingsForm.cs",
@@ -430,9 +442,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/TaskPaneControl.cs",
-                      "hash":  "567DB08F664B86E0034F58558DFC7841F6462D3B8C85141EFF6F41922BA723F5",
-                      "bytes":  30192,
-                      "lines":  783
+                      "hash":  "72D73C0AEBA3895F2752303353A833AF83CA9AF18A087BF8E4D0E7878425D275",
+                      "bytes":  31055,
+                      "lines":  803
                   },
                   {
                       "path":  "src/MechKit/UI/Theme.cs",
@@ -616,9 +628,9 @@
                   },
                   {
                       "path":  "tools/Test-QuickAnnotation.ps1",
-                      "hash":  "2EA099F8671A6C6BEEB1381D0AE8E305A350A4354AE6A0206EFA75A347A23DE6",
-                      "bytes":  7715,
-                      "lines":  118
+                      "hash":  "1E75BCE9BFB8563AF9CFCAA966D6A75C5F283F96802F6BD341179D568ACEB779",
+                      "bytes":  7955,
+                      "lines":  121
                   },
                   {
                       "path":  "tools/Test-SettingsLayout.ps1",

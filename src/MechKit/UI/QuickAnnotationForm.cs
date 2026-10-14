@@ -9,7 +9,7 @@ namespace MechKit.UI
     {
         private readonly IAddinHost _host;
         private readonly Label _status;
-        private readonly Button[] _annotationTools = new Button[4];
+        private readonly Button[] _annotationTools = new Button[5];
         private readonly TabControl _tabs = new TabControl();
         private readonly ComboBox _holeParameters = new ComboBox();
         private readonly string[][] _cells = new string[3][];
@@ -29,12 +29,12 @@ namespace MechKit.UI
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
-            var tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
-            var toolNames = new[] { "智能尺寸", "标注助手", "孔标注", "销钉符号" };
-            var toolCommands = new[] { AddinConstants.NativeSmartDimension, 0, AddinConstants.NativeHoleCallout, AddinConstants.NativeDowelPinSymbol };
+            var tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1 };
+            var toolNames = new[] { "智能尺寸", "标注助手", "孔标注", "销钉符号", "设置销钉孔" };
+            var toolCommands = new[] { AddinConstants.NativeSmartDimension, 0, AddinConstants.NativeHoleCallout, AddinConstants.NativeDowelPinSymbol, -1 };
             for (var i = 0; i < toolNames.Length; i++)
             {
-                tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+                tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
                 var button = i == 1 ? Theme.CreatePrimaryButton(toolNames[i]) : Theme.CreateSecondaryButton(toolNames[i]);
                 button.Dock = DockStyle.Fill;
                 button.Name = "annotationTool" + i;
@@ -42,7 +42,12 @@ namespace MechKit.UI
                 var title = toolNames[i];
                 button.Click += delegate
                 {
-                    if (command == 0)
+                    if (command == -1)
+                    {
+                        try { _status.Text = QuickAnnotationService.SetDowelHoles(_host.SwApp); }
+                        catch (Exception ex) { _status.Text = ex.Message; }
+                    }
+                    else if (command == 0)
                     {
                         _tabs.SelectedIndex = 0;
                         _status.Text = "选择尺寸，再点击预设写入公差；孔标注自动读取参数。";
@@ -53,7 +58,7 @@ namespace MechKit.UI
                 tools.Controls.Add(button, i, 0);
             }
             layout.Controls.Add(tools, 0, 0);
-            var hint = Theme.CreateValueLabel("选择工程图尺寸后左键写入，右键编辑预设；可多选。\r\n公差单位 mm；备注仅作预设标签。窗口可保持打开。");
+            var hint = Theme.CreateValueLabel("选择尺寸后点击预设；右键编辑。销钉孔：选圆边或孔标注。\r\n销钉孔公差 +0.03/0 mm；备注仅作预设标签。");
             hint.Dock = DockStyle.Fill;
             layout.Controls.Add(hint, 0, 1);
             var holeBar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
@@ -185,7 +190,7 @@ namespace MechKit.UI
                 _holeParameters.SelectedIndex = -1;
                 foreach (var parameter in parameters)
                     if (parameter.Name == selected) _holeParameters.SelectedItem = parameter;
-                _status.Text = parameters.Count == 0 ? "请在工程图中选中孔标注后读取参数。" : "请选择要给公差的孔标注参数，再点击预设。";
+                _status.Text = parameters.Count == 0 ? "无可编辑孔参数；普通圆孔标注可直接点击公差预设。" : "请选择要给公差的孔标注参数，再点击预设。";
                 _holeParameters.DroppedDown = parameters.Count > 0;
             }
             catch (Exception ex) { _status.Text = ex.Message; }

@@ -29,6 +29,9 @@ namespace MechKit.UI
         private readonly Button _removeButton;
         private TableLayoutPanel _actionLayout;
         private CommandPanel _commandPanel;
+        private TabControl _tabs;
+        private TabPage _propertiesPage;
+        private bool _documentRefreshPending;
         private readonly Dictionary<string, CustomProperty> _original =
             new Dictionary<string, CustomProperty>(StringComparer.OrdinalIgnoreCase);
 
@@ -58,7 +61,7 @@ namespace MechKit.UI
             WindowLayout.AttachTextSafety(this);
             WireEvents();
             Log.Message += OnLogMessage;
-            RefreshDocument(true);
+            RefreshDocument(false);
         }
 
         /// <summary>重新读取当前文档信息；deep=true 时额外统计装配体加工件数量。</summary>
@@ -73,6 +76,16 @@ namespace MechKit.UI
             {
                 return;
             }
+
+            // The command/library pages do not display document properties.
+            // Defer SW reads until the user opens the properties page; startup
+            // must not enumerate every component of a large assembly.
+            if (_tabs != null && _tabs.SelectedTab != _propertiesPage)
+            {
+                _documentRefreshPending = true;
+                return;
+            }
+            _documentRefreshPending = false;
 
             var swApp = _host.SwApp;
             var doc = SwUtils.ActiveDoc(swApp);
@@ -226,6 +239,8 @@ namespace MechKit.UI
             var tabs = new TabControl { Dock = DockStyle.Fill };
             var commands = new TabPage("命令面板");
             var properties = new TabPage("文档属性");
+            _tabs = tabs;
+            _propertiesPage = properties;
             _commandPanel = new CommandPanel(addin);
             commands.Controls.Add(_commandPanel);
             properties.Controls.Add(root);
@@ -234,6 +249,11 @@ namespace MechKit.UI
             library.Controls.Add(new PartsLibraryPanel(_host));
             tabs.TabPages.Add(library);
             tabs.TabPages.Add(properties);
+            tabs.SelectedIndexChanged += (sender, e) =>
+            {
+                if (tabs.SelectedTab == properties && _documentRefreshPending)
+                    RefreshDocument(false);
+            };
             Controls.Add(tabs);
         }
 

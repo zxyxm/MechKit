@@ -21,6 +21,7 @@ namespace MechKit.UI
         private Point _start;
         private string _source;
         private IModelDoc2 _assembly;
+        private IntPtr _viewHandle;
         private bool _dragging;
         private bool _reloading;
         private readonly Timer _dragTimer = new Timer { Interval = 40 };
@@ -174,6 +175,8 @@ namespace MechKit.UI
                     if (Math.Abs(e.X - _start.X) < SystemInformation.DragSize.Width && Math.Abs(e.Y - _start.Y) < SystemInformation.DragSize.Height) return;
                     _assembly = _host.SwApp.IActiveDoc2;
                     RequireAssembly(_assembly);
+                    var view = _assembly.IActiveView;
+                    _viewHandle = view == null ? IntPtr.Zero : new IntPtr(view.GetViewHWndx64());
                     _dragging = true;
                     _dragTimer.Start();
                     _status.Text = "保持 Ctrl，拖入绘图区后松开鼠标 · Esc 取消";
@@ -198,12 +201,8 @@ namespace MechKit.UI
 
         private bool IsOverView(Point point)
         {
-            if (_assembly == null || !Equals(_host.SwApp.IActiveDoc2, _assembly)) return false;
-            var view = _assembly.IActiveView;
-            if (view == null) return false;
-            var hwnd = new IntPtr(view.GetViewHWndx64());
             var under = WindowFromPoint(point);
-            return hwnd != IntPtr.Zero && (under == hwnd || IsChild(hwnd, under));
+            return _viewHandle != IntPtr.Zero && (under == _viewHandle || IsChild(_viewHandle, under));
         }
 
         private void FinishDrag(object sender, MouseEventArgs e)
@@ -213,7 +212,8 @@ namespace MechKit.UI
             var source = _source;
             var point = Cursor.Position;
             bool valid = false;
-            try { valid = _dragging && (GetAsyncKeyState(17)&0x8000)!=0 && IsOverView(point); }
+            try { valid = _dragging && (GetAsyncKeyState(17)&0x8000)!=0 && IsOverView(point)
+                    && Equals(_host.SwApp.IActiveDoc2, assembly); }
             catch (Exception ex) { Report(ex); }
             finally { CancelDrag(); }
             if (!valid) return;
@@ -280,6 +280,7 @@ namespace MechKit.UI
         {
             var wasDragging = _dragging;
             _dragging = false; _source = null; _assembly = null;
+            _viewHandle = IntPtr.Zero;
             _dragTimer.Stop();
             _list.Capture = false;
             _list.Cursor = Cursors.Default;

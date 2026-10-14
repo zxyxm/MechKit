@@ -90,7 +90,10 @@ try {
     $tabs = $formType.GetField('_tabs', $flags).GetValue($form)
     $grids = $formType.GetField('_grids', $flags).GetValue($form)
     $tools = $formType.GetField('_annotationTools', $flags).GetValue($form)
-    Check 'all four drawing tools are in the assistant window' (($tools | ForEach-Object Text) -join ',' -eq '智能尺寸,公差助手,孔标注,销钉符号')
+    Check 'all five drawing tools are in the assistant window' (($tools | ForEach-Object Text) -join ',' -eq '智能尺寸,标注助手,孔标注,销钉符号,设置销钉孔')
+    $tools[4].PerformClick()
+    $status = $formType.GetField('_status', $flags).GetValue($form)
+    Check 'dowel setting requires a drawing' ($status.Text -eq '请先打开工程图，再选择孔的圆边或孔标注。')
     $tabs.SelectedIndex = 2
     $tools[1].PerformClick()
     Check 'tolerance button returns to tolerance page' ($tabs.SelectedIndex -eq 0)

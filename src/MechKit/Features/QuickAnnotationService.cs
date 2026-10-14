@@ -94,6 +94,13 @@ namespace MechKit.Features
 
     internal static class QuickAnnotationService
     {
+        private static DisplayDimension SelectedDimension(object value)
+        {
+            var display = value as DisplayDimension;
+            var annotation = value as Annotation;
+            return display ?? (annotation == null ? null : annotation.GetSpecificAnnotation() as DisplayDimension);
+        }
+
         public const int CellCount = 35;
         public static string[] DefaultCells(int mode)
         {
@@ -130,7 +137,7 @@ namespace MechKit.Features
             if (selection == null) return result;
             for (var i = 1; i <= selection.GetSelectedObjectCount2(-1); i++)
             {
-                var display = selection.GetSelectedObject6(i, -1) as DisplayDimension;
+                var display = SelectedDimension(selection.GetSelectedObject6(i, -1));
                 if (display == null || !display.IsHoleCallout()) continue;
                 var variables = display.GetHoleCalloutVariables() as object[];
                 if (variables == null) continue;
@@ -165,24 +172,38 @@ namespace MechKit.Features
             {
                 try
                 {
-                    var display = selection.GetSelectedObject6(i, -1) as DisplayDimension;
+                    var display = SelectedDimension(selection.GetSelectedObject6(i, -1));
                     if (display == null) { skipped++; continue; }
                     if (display.IsHoleCallout())
                     {
                         if (mode != 0) { skipped++; continue; } // SetText does not support hole callouts.
-                        if (string.IsNullOrEmpty(holeParameter)) { skipped++; holeNeedsParameter = true; continue; }
                         var variables = display.GetHoleCalloutVariables() as object[];
-                        var item = variables == null ? null : variables.FirstOrDefault(v => (v as CalloutVariable)?.VariableName == holeParameter);
-                        var variable = item as CalloutVariable;
-                        var length = item as CalloutLengthVariable;
-                        if (variable == null || length == null) { skipped++; continue; }
-                        variable.ToleranceType = preset.Type;
-                        if (preset.Type == (int)swTolType_e.swTolFIT)
-                        { variable.FitType = (int)swFitType_e.swFitUSER; variable.HoleFit = preset.HoleFit; variable.ShaftFit = preset.ShaftFit; }
-                        else if (preset.Type != (int)swTolType_e.swTolNONE)
-                        { variable.ToleranceMin = preset.LowerMeters; variable.ToleranceMax = preset.UpperMeters; length.TolerancePrecision = preset.Precision; }
-                        applied++;
-                        continue;
+                        var lengths = variables == null ? new object[0] : variables.Where(v => v is CalloutLengthVariable).ToArray();
+                        var parameter = holeParameter;
+                        if (lengths.Length == 1) parameter = ((CalloutVariable)lengths[0]).VariableName;
+                        if (lengths.Length > 0)
+                        {
+                            if (string.IsNullOrEmpty(parameter)) { skipped++; holeNeedsParameter = true; continue; }
+                            var item = lengths.FirstOrDefault(v => ((CalloutVariable)v).VariableName == parameter);
+                            var variable = item as CalloutVariable;
+                            var length = item as CalloutLengthVariable;
+                            if (variable == null || length == null) { skipped++; continue; }
+                            variable.ToleranceType = preset.Type;
+                            if (preset.Type == (int)swTolType_e.swTolFIT)
+                            { variable.FitType = (int)swFitType_e.swFitUSER; variable.HoleFit = preset.HoleFit; variable.ShaftFit = preset.ShaftFit; }
+                            else if (preset.Type != (int)swTolType_e.swTolNONE)
+                            { variable.ToleranceMin = preset.LowerMeters; variable.ToleranceMax = preset.UpperMeters; length.TolerancePrecision = preset.Precision; }
+                            var verified = variable.ToleranceType == preset.Type;
+                            if (preset.Type == (int)swTolType_e.swTolFIT)
+                                verified = verified && variable.HoleFit == preset.HoleFit && variable.ShaftFit == preset.ShaftFit;
+                            else if (preset.Type != (int)swTolType_e.swTolNONE)
+                                verified = verified && Math.Abs(variable.ToleranceMin-preset.LowerMeters)<1e-12 &&
+                                    Math.Abs(variable.ToleranceMax-preset.UpperMeters)<1e-12;
+                            if (verified) applied++; else failed++;
+                            continue;
+                        }
+                        // Circular-cut callouts in SW 2024 may expose no variables.
+                        // Their driven diameter dimension still supports native tolerance.
                     }
                     if (mode != 0)
                     { display.SetText((int)(mode == 1 ? swDimensionTextParts_e.swDimensionTextPrefix : swDimensionTextParts_e.swDimensionTextSuffix), text ?? ""); applied++; continue; }
@@ -222,6 +243,96 @@ namespace MechKit.Features
             if (applied > 0 || failed > 0) doc.SetSaveFlag();
             return string.Format("已写入 {0} 个；跳过 {1} 个；失败 {2} 个。", applied, skipped, failed) +
                 (holeNeedsParameter ? "孔标注请先读取并选择参数。" : "");
+        }
+
+        public static string SetDowelHoles(ISldWorks app)
+        {
+            var doc = app == null ? null : app.IActiveDoc2;
+            if (doc == null || doc.GetType() != SwUtils.DocDrawing)
+                return "请先打开工程图，再选择孔的圆边或孔标注。";
+            var selection = (SelectionMgr)doc.SelectionManager;
+            var targets = new List<Tuple<object, SolidWorks.Interop.sldworks.View>>();
+            for (int i=1; i<=selection.GetSelectedObjectCount2(-1); i++)
+                targets.Add(Tuple.Create(selection.GetSelectedObject6(i,-1), selection.GetSelectedObjectsDrawingView2(i,-1)));
+            if (targets.Count==0) return "请选择孔的圆边或已有孔标注，再点击设置销钉孔。";
+            int applied=0, skipped=0, failed=0;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var math = (MathUtility)app.GetMathUtility();
+            foreach (var target in targets)
+            {
+                DisplayDimension display = SelectedDimension(target.Item1);
+                bool created=false;
+                try
+                {
+                    if (display==null)
+                    {
+                        var edge=target.Item1 as Edge;
+                        var view=target.Item2;
+                        var curve=edge==null ? null : edge.GetCurve() as Curve;
+                        if (view==null || curve==null || !curve.IsCircle()) {skipped++;continue;}
+                        var faces=edge.GetTwoAdjacentFaces2() as object[];
+                        Feature seed=null;
+                        if(faces!=null) foreach(var faceObject in faces)
+                        {
+                            var face=faceObject as Face2;
+                            if(face!=null && ((Surface)face.GetSurface()).IsCylinder())
+                                seed=face.GetSeedFeature() ?? face.GetPatternSeedFeature() as Feature ?? face.GetFeature() as Feature;
+                        }
+                        if(seed!=null && !seen.Add(view.GetName2()+"/"+seed.Name)) {skipped++;continue;}
+                        // Reuse an existing native callout attached to the same edge.
+                        var dimensions=view.GetDisplayDimensions() as object[];
+                        if(dimensions!=null) foreach(var value in dimensions)
+                        {
+                            var candidate=value as DisplayDimension;
+                            if(candidate==null || !candidate.IsHoleCallout())continue;
+                            var attached=((Annotation)candidate.GetAnnotation()).GetAttachedEntities3() as object[];
+                            if(attached!=null && attached.Any(entity=>Equals(entity,edge))) {display=candidate;break;}
+                        }
+                        if(display==null)
+                        {
+                            var circle=(double[])curve.CircleParams;
+                            var point=(MathPoint)math.CreatePoint(new[]{circle[0],circle[1],circle[2]});
+                            var position=(double[])((MathPoint)point.MultiplyTransform(view.ModelToViewTransform)).ArrayData;
+                            var outline=(double[])view.GetOutline();
+                            bool left=position[0]-outline[0]<outline[2]-position[0];
+                            doc.ClearSelection2(true);
+                            ((DrawingDoc)doc).ActivateView(view.GetName2());
+                            if(!view.SelectEntity(edge,false))throw new InvalidOperationException("孔圆边选择失败。");
+                            display=((DrawingDoc)doc).AddHoleCallout2(left?outline[0]-.018:outline[2]+.012,position[1],0) as DisplayDimension;
+                            if(display==null)throw new InvalidOperationException("无法为所选圆边生成原生孔标注。");
+                            created=true;
+                        }
+                    }
+                    if(!display.IsHoleCallout() && display.Type2!=(int)swDimensionType_e.swDiameterDimension)
+                    {skipped++;continue;}
+                    var key=display.GetDimension2(0).FullName;
+                    if(!seen.Add("dimension/"+key)) {skipped++;continue;}
+                    doc.ClearSelection2(true);
+                    ((Annotation)display.GetAnnotation()).Select3(false,null);
+                    var parameters=GetHoleParameters(app);
+                    var diameter=parameters.Where(p=>string.Equals(p.Name,"HOLE-DIAMETER",StringComparison.OrdinalIgnoreCase)).ToList();
+                    var parameter=diameter.Count==1?diameter[0].Name:ResolveHoleParameter(parameters,null);
+                    if(parameters.Count>1 && parameter==null)
+                        throw new InvalidOperationException("孔含多个直径参数，请用公差预设选择目标孔径。");
+                    var result=Apply(app,"0.03/0",0,parameter);
+                    if(!result.StartsWith("已写入 1 个",StringComparison.Ordinal))throw new InvalidOperationException(result);
+                    applied++;
+                }
+                catch(Exception ex)
+                {
+                    failed++;Log.Error("设置销钉孔失败："+ex.Message,ex);
+                    // Roll back only the new annotation; never delete a user's callout.
+                    if(created && display!=null)
+                    {
+                        doc.ClearSelection2(true);
+                        ((Annotation)display.GetAnnotation()).Select3(false,null);
+                        doc.EditDelete();
+                    }
+                }
+            }
+            doc.ClearSelection2(true);
+            doc.GraphicsRedraw2();
+            return string.Format("销钉孔 +0.03/0 mm：已设置 {0} 个；跳过 {1} 个；失败 {2} 个。",applied,skipped,failed);
         }
     }
 }
