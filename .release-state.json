@@ -1,7 +1,7 @@
 {
-    "version":  "0.35.9.0",
+    "version":  "0.35.10.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T18:23:14.0876835+08:00",
+    "generatedAt":  "2026-10-14T18:28:37.9852617+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -9,10 +9,10 @@
                       },
     "files":  [
                   {
-                      "path":  "tools/Test-WindowLowering.ps1",
-                      "hash":  "01F2B1FDBBE6D52CB71A75964FE6E9C8179B59D69CF049E91BB986E1F73D4C1A",
-                      "bytes":  2059,
-                      "lines":  34
+                      "path":  "tools/Test-BomSearch.ps1",
+                      "hash":  "B4D1C4B434CA12C746C8ADC6215B099D65D458EAACD00FF56FDAFE27D4A1BC58",
+                      "bytes":  2822,
+                      "lines":  46
                   },
                   {
                       "path":  ".gitignore",
@@ -28,9 +28,9 @@
                   },
                   {
                       "path":  "README.md",
-                      "hash":  "BED45914CDDAB84A88776F073DEC13767E7BD52B893DA86245925882A0576A5F",
-                      "bytes":  32442,
-                      "lines":  383
+                      "hash":  "30938355DE3C3DC6D4976B6E996A3B3E27D3D6C4A2BB64CA0BC785A1F92D3116",
+                      "bytes":  32832,
+                      "lines":  385
                   },
                   {
                       "path":  "VERSIONING.md",
@@ -76,8 +76,8 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "A6B4A2C189453806CBABC94B08B1C21CBCF52FBA79139057061674D46CC4B377",
-                      "bytes":  1062,
+                      "hash":  "2CB02AA66DA7FAB786E055EE96EFE90954B9D99F3C129A6E7E72019720BD2BC3",
+                      "bytes":  1063,
                       "lines":  25
                   },
                   {
@@ -418,9 +418,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "9659BD059F7E429848A064ABD05F11E866E085449E39DC204FD3653E8DC7D440",
-                      "bytes":  115807,
-                      "lines":  2531
+                      "hash":  "E7073E2CB64C55BC7FBE2348586AE5A263FA21F66053F9856934E9AC12CEEFA1",
+                      "bytes":  118658,
+                      "lines":  2579
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -673,6 +673,12 @@
                       "hash":  "4DA0DB09054860A50154674CA1C2595D515AA2699FCC9AE5ACD8EF09B73EDF8F",
                       "bytes":  1351,
                       "lines":  19
+                  },
+                  {
+                      "path":  "tools/Test-WindowLowering.ps1",
+                      "hash":  "01F2B1FDBBE6D52CB71A75964FE6E9C8179B59D69CF049E91BB986E1F73D4C1A",
+                      "bytes":  2059,
+                      "lines":  34
                   },
                   {
                       "path":  "tools/Test-WindowShortcuts.ps1",

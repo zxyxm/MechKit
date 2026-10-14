@@ -28,6 +28,10 @@ namespace MechKit.UI
         private readonly TextBox _patternBox;
         private readonly ComboBox _materialSource;
         private readonly ComboBox _classificationFilter;
+        private readonly TextBox _keywordSearch = new TextBox { Width = 230 };
+        private readonly Timer _searchDelay = new Timer { Interval = 250 };
+        private readonly HashSet<PartListRow> _markedExportRows = new HashSet<PartListRow>();
+        private bool _renderingRows;
         private readonly CheckBox _onlyMachined;
         private readonly CheckBox _excludeToolbox;
         private readonly CheckBox _excludeSuppressed;
@@ -162,7 +166,7 @@ namespace MechKit.UI
 
         private Control BuildSetupPanel()
         {
-            var panel = new Panel { Dock = DockStyle.Top, Height = 224, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
+            var panel = new Panel { Dock = DockStyle.Top, Height = 254, BackColor = Theme.Surface, Padding = new Padding(12, 8, 12, 6) };
 
             var layout = new TableLayoutPanel
             {
@@ -379,6 +383,7 @@ namespace MechKit.UI
                 {
                     if (_running) return;
                     PullGridEdits();
+                    if (filter == 0) { _keywordSearch.Clear(); _searchDelay.Stop(); }
                     if (_classificationFilter.SelectedIndex == filter) ShowFilteredRows(false);
                     else _classificationFilter.SelectedIndex = filter;
                 };
@@ -442,6 +447,13 @@ namespace MechKit.UI
 
             row.Controls.Add(filterLabel);
             row.Controls.Add(_classificationFilter);
+            var searchLabel = Theme.CreateFieldLabel("关键词");
+            searchLabel.AutoSize=true; searchLabel.Margin=new Padding(0,6,6,0);
+            _keywordSearch.Margin=new Padding(0,2,6,0);
+            var clearSearch=Theme.CreateSecondaryButton("清空搜索");
+            clearSearch.AutoSize=true; clearSearch.Margin=new Padding(0,0,14,0);
+            clearSearch.Click += delegate { _keywordSearch.Clear(); };
+            row.Controls.Add(searchLabel);row.Controls.Add(_keywordSearch);row.Controls.Add(clearSearch);
             row.Controls.Add(_onlyMachined);
             row.Controls.Add(_excludeToolbox);
             row.Controls.Add(_excludeSuppressed);
@@ -467,6 +479,14 @@ namespace MechKit.UI
             // 双击任意一行打开该零件的图：优先同名的工程图，没有工程图时打开模型。
             _grid.CellDoubleClick += OnGridCellDoubleClick;
             _grid.CellEndEdit += OnGridCellEndEdit;
+            _grid.CellValueChanged += (sender,e)=>
+            {
+                if(_renderingRows || e.RowIndex<0 || e.ColumnIndex<0 || _grid.Columns[e.ColumnIndex].Name!="select") return;
+                var item=_grid.Rows[e.RowIndex].Tag as PartListRow;
+                if(item==null)return;
+                if(IsRowMarkedForExport(_grid.Rows[e.RowIndex])) _markedExportRows.Add(item);
+                else _markedExportRows.Remove(item);
+            };
             _grid.CellBeginEdit += (sender, e) =>
             {
                 var name = _grid.Columns[e.ColumnIndex].Name;
@@ -706,6 +726,16 @@ namespace MechKit.UI
         }
         private void WireEvents()
         {
+            _keywordSearch.TextChanged += delegate { _searchDelay.Stop();_searchDelay.Start(); };
+            _searchDelay.Tick += delegate
+            {
+                _searchDelay.Stop();
+                if(_running || IsDisposed) return;
+                HideModelPreview();
+                PullGridEdits();
+                ShowFilteredRows(false);
+            };
+            Disposed += delegate { _searchDelay.Dispose(); };
             _runButton.Click += delegate { RunSummary(); };
             _selectComponentButton.Click += delegate { SelectComponentScope(); };
             _clearComponentButton.Click += delegate { ClearComponentScope(true); };
@@ -2000,6 +2030,7 @@ namespace MechKit.UI
             if(selected.StartsWith("只看",StringComparison.Ordinal)) classification=selected.Substring(2);
             foreach (var row in _rows)
             {
+                if (!MatchesKeywords(row, _keywordSearch.Text)) continue;
                 if (_classificationFilter.SelectedIndex == 3 && !PartListService.IsMissingRequiredDrawing(row))
                     continue;
                 if (_classificationFilter.SelectedIndex == 4 && !row.IsUnmatched &&
@@ -2014,10 +2045,24 @@ namespace MechKit.UI
             return result;
         }
 
+        internal static bool MatchesKeywords(PartListRow row, string query)
+        {
+            if(row==null) return false;
+            var words=(query ?? "").Split((char[])null,StringSplitOptions.RemoveEmptyEntries);
+            if(words.Length==0) return true;
+            var text=string.Join("\n",new[]{row.FullName,row.Name,row.Location,row.PartNumber,row.Material,
+                row.Process,row.SurfaceTreatment,row.Classification,row.AssemblyNote,row.Remark,
+                row.PurchaseLink,row.FilePath,row.DrawingPath,row.Quantity.ToString()});
+            foreach(var word in words)
+                if(text.IndexOf(word,StringComparison.OrdinalIgnoreCase)<0) return false;
+            return true;
+        }
+
         private void ShowFilteredRows(bool markClean)
         {
             if (markClean)
             {
+                _markedExportRows.Clear();
                 foreach (var row in _rows)
                 {
                     row.MarkBomClean();
@@ -2038,10 +2083,12 @@ namespace MechKit.UI
 
         private void ShowRows(IList<PartListRow> rows, bool markClean)
         {
+            _renderingRows=true;
             _grid.SuspendLayout();
             try
             {
-                var quickFilter = _classificationFilter.SelectedIndex == 3 || _classificationFilter.SelectedIndex == 4;
+                var quickFilter = _classificationFilter.SelectedIndex == 3 || _classificationFilter.SelectedIndex == 4 ||
+                    !string.IsNullOrWhiteSpace(_keywordSearch.Text);
                 _designOrder = !quickFilter;
                 foreach (DataGridViewColumn column in _grid.Columns)
                     column.HeaderCell.SortGlyphDirection = SortOrder.None;
@@ -2091,7 +2138,7 @@ namespace MechKit.UI
                     gridRow.Cells["designTree"].Tag = node;
                     gridRow.Cells["designTree"].Value = node.Text;
                     ApplyDesignRowStyle(gridRow, node);
-                    gridRow.Cells["select"].Value = false;
+                    gridRow.Cells["select"].Value = _markedExportRows.Contains(row);
                     gridRow.Cells["sequence"].Value = ++sequence;
                     gridRow.Cells["location"].Value = row.Location;
                     gridRow.Cells["fullname"].Value = row.FullName;
@@ -2115,6 +2162,7 @@ namespace MechKit.UI
             }
             finally
             {
+                _renderingRows=false;
                 _grid.ResumeLayout();
             }
         }
