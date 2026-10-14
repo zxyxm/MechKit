@@ -87,7 +87,7 @@ namespace MechKit.UI
             {
                 if (target.WindowState == FormWindowState.Minimized)
                     target.WindowState = FormWindowState.Normal;
-                target.TopMost = true;
+                target.TopMost = false;
                 LoweredForms.Remove(target);
                 target.BringToFront();
                 target.Activate();
@@ -105,6 +105,16 @@ namespace MechKit.UI
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr window);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
+        private static void RaiseWithinHost(Form form, IntPtr host)
+        {
+            form.TopMost = false;
+            if (host != IntPtr.Zero && GetForegroundWindow() == host && !LoweredForms.Contains(form))
+                // HWND_TOP stays in the normal z-order band. Never use HWND_TOPMOST.
+                SetWindowPos(form.Handle, IntPtr.Zero, 0, 0, 0, 0, 0x13);
+        }
 
         /// <summary>打开模型后让出绘图区，保留可由 Tab 唤回的窗口及编辑状态。</summary>
         public static void LowerAfterDocumentOpened(Form form, IntPtr solidWorksWindow)
@@ -218,14 +228,14 @@ namespace MechKit.UI
             form.Activated+=(s,e)=>LoweredForms.Remove(form);
             form.Deactivate+=(s,e)=>
             {
-                if(GetForegroundWindow()==host && !LoweredForms.Contains(form)) form.TopMost=true;
+                RaiseWithinHost(form,host);
             };
             timer.Tick+=(s,e)=>
             {
                 if(form.IsDisposed || !form.Visible) return;
                 var foreground=GetForegroundWindow();
                 if(foreground==form.Handle) LoweredForms.Remove(form);
-                form.TopMost=!LoweredForms.Contains(form) && (foreground==host || foreground==form.Handle);
+                RaiseWithinHost(form,host);
             };
             form.Disposed+=(s,e)=>{
                 timer.Stop();timer.Dispose();LoweredForms.Remove(form);

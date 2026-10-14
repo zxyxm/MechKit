@@ -113,6 +113,7 @@ try {
     $bounds = $grid.GetCellDisplayRectangle(-1, $first, $false)
     $down = New-Object Windows.Forms.MouseEventArgs ([Windows.Forms.MouseButtons]::Left),1,10,($bounds.Top+3),0
     $formType.GetMethod('BeginMarkRows',$flags).Invoke($form,@($null,[Windows.Forms.MouseEventArgs]$down))
+    Check 'row header selects every cell across the row' ($grid.Rows[$first].Selected -and @($grid.Rows[$first].Cells | Where-Object {-not $_.Selected}).Count -eq 0)
     $formType.GetMethod('MarkThroughRow',$flags).Invoke($form,@([int]$last))
     $formType.GetMethod('EndMarkRows',$flags).Invoke($form,@())
     Check 'drag from row header checks all crossed data rows' (@($dataRows | Where-Object {-not $_.Cells['select'].Value}).Count -eq 0)

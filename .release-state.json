@@ -1,25 +1,13 @@
 {
-    "version":  "0.35.7.0",
+    "version":  "0.35.8.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T17:53:04.7609368+08:00",
+    "generatedAt":  "2026-10-14T18:18:07.2907685+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "src/MechKit/UI/ModelPreviewPopup.cs",
-                      "hash":  "7E2B9890ECA5893AC7A26C9658F65C6230F54132EEA3AD0AB9D9C1D4088E0C19",
-                      "bytes":  2789,
-                      "lines":  56
-                  },
-                  {
-                      "path":  "tools/Test-ModelPreviewPopup.ps1",
-                      "hash":  "42C71947F6DE947B2462F5E8EB9C1A1C4995B30BF8875D42B5B00863059016FD",
-                      "bytes":  2230,
-                      "lines":  43
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -82,7 +70,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "9DA2544FEA2316582D7789F758DB707B32F44C0F6C8AC5293BE00530DDAE667C",
+                      "hash":  "05C0F7CA13117348B7AF67D5DB328A7A90F38BF88576377F750693448EED31EB",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -411,6 +399,12 @@
                       "lines":  161
                   },
                   {
+                      "path":  "src/MechKit/UI/ModelPreviewPopup.cs",
+                      "hash":  "7E2B9890ECA5893AC7A26C9658F65C6230F54132EEA3AD0AB9D9C1D4088E0C19",
+                      "bytes":  2789,
+                      "lines":  56
+                  },
+                  {
                       "path":  "src/MechKit/UI/NamingRuleForm.cs",
                       "hash":  "F792E74B267F7BC92E7AC7ACF104FC8A1A4AF0887CB74065FC89BF5F2711467E",
                       "bytes":  82494,
@@ -418,9 +412,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "5A669D331E94D2322F920E49F06A85B91414F8EDACB607A7496B88E2D10ABF5D",
-                      "bytes":  115499,
-                      "lines":  2526
+                      "hash":  "9659BD059F7E429848A064ABD05F11E866E085449E39DC204FD3653E8DC7D440",
+                      "bytes":  115807,
+                      "lines":  2531
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -466,9 +460,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "53584220922E511849C4A6F864B6E614A2AAD84F0AA65B6EB292834CF384C8E0",
-                      "bytes":  29493,
-                      "lines":  665
+                      "hash":  "204EA58BB9292D80A0B1E7071721540BCFAD749B05CF2CB01DF93123233A9ECC",
+                      "bytes":  29968,
+                      "lines":  675
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
@@ -592,9 +586,9 @@
                   },
                   {
                       "path":  "tools/Test-DesignTreeLayout.ps1",
-                      "hash":  "CCAF75E5350AD0BCD10A57F9D260D2FDEB8D30725442B80D136CC44E52C801C3",
-                      "bytes":  15757,
-                      "lines":  220
+                      "hash":  "5A655160D958F615BDF4280E90868F60E1A5A2F33FD540809372C2DEBEC24203",
+                      "bytes":  15923,
+                      "lines":  221
                   },
                   {
                       "path":  "tools/Test-DrawingToleranceLive.ps1",
@@ -631,6 +625,12 @@
                       "hash":  "A4DE1044A2ED405D78CDE39DEBF7FC9BA6AE0A3144E51560E356EF987FAFE039",
                       "bytes":  1544,
                       "lines":  26
+                  },
+                  {
+                      "path":  "tools/Test-ModelPreviewPopup.ps1",
+                      "hash":  "42C71947F6DE947B2462F5E8EB9C1A1C4995B30BF8875D42B5B00863059016FD",
+                      "bytes":  2230,
+                      "lines":  43
                   },
                   {
                       "path":  "tools/Test-Naming.ps1",
@@ -670,8 +670,8 @@
                   },
                   {
                       "path":  "tools/Test-WindowShortcuts.ps1",
-                      "hash":  "D69CB4DB3882AB49003589B4343858BA15121B3882B7EA7576562441E32D04AC",
-                      "bytes":  2698,
+                      "hash":  "0D47F799E47E05FBAA9949F8755BF5D2EC948B2966BBA3C0D31EC5B6863BC746",
+                      "bytes":  2713,
                       "lines":  53
                   },
                   {

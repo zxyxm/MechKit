@@ -13,7 +13,7 @@ try {
     $form.Show()
     $form.Activate()
     [System.Windows.Forms.Application]::DoEvents()
-    if (-not $handle.Invoke($null, @([System.Windows.Forms.Keys]::Tab)) -or -not $form.TopMost) {
+    if (-not $handle.Invoke($null, @([System.Windows.Forms.Keys]::Tab)) -or $form.TopMost) {
         throw 'Tab did not bring the window to the top.'
     }
     if ($handle.Invoke($null, @([System.Windows.Forms.Keys]::Enter))) { throw 'Unrelated key was consumed.' }
@@ -48,6 +48,6 @@ try {
         throw 'Escape did not close the window.'
     }
     if ($handle.Invoke($null, @([System.Windows.Forms.Keys]::Tab))) { throw 'Closed form remained registered.' }
-    Write-Output 'PASS: Tab brings window to top, Escape closes, unrelated keys pass, handlers are removed.'
+    Write-Output 'PASS: Tab brings window forward without system topmost, Escape closes, unrelated keys pass, handlers removed.'
 }
 finally { $form.Dispose() }

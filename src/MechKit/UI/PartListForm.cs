@@ -462,7 +462,7 @@ namespace MechKit.UI
             _grid.AllowUserToAddRows = false;
             _grid.AllowUserToDeleteRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            _grid.SelectionMode = DataGridViewSelectionMode.CellSelect;
+            _grid.SelectionMode = DataGridViewSelectionMode.RowHeaderSelect;
             _grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
             // 双击任意一行打开该零件的图：优先同名的工程图，没有工程图时打开模型。
             _grid.CellDoubleClick += OnGridCellDoubleClick;
@@ -1296,8 +1296,9 @@ namespace MechKit.UI
             var row = _grid.Rows[e.RowIndex].Tag as PartListRow;
             var bounds = e.CellBounds;
             var centerY = bounds.Top + bounds.Height / 2;
-            using (var background = new SolidBrush(node.BackColor != Color.Empty
-                ? node.BackColor : Color.White)) e.Graphics.FillRectangle(background, bounds);
+            using (var background = new SolidBrush(_grid.Rows[e.RowIndex].Selected
+                ? e.CellStyle.SelectionBackColor : node.BackColor != Color.Empty ? node.BackColor : Color.White))
+                e.Graphics.FillRectangle(background, bounds);
             using (var pen = new Pen(Color.FromArgb(150, 165, 182)) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
             {
                 if (key == "treeLink")
@@ -1736,8 +1737,12 @@ namespace MechKit.UI
             if (e.Button != MouseButtons.Left || _running) return;
             var hit = _grid.HitTest(e.X, e.Y);
             if (hit.Type != DataGridViewHitTestType.RowHeader || hit.RowIndex < 0) return;
-            if (!(_grid.Rows[hit.RowIndex].Tag is PartListRow)) return;
             _grid.EndEdit();
+            _grid.CurrentCell = _grid.Rows[hit.RowIndex].Cells["designTree"];
+            _grid.ClearSelection();
+            _grid.Rows[hit.RowIndex].Selected = true;
+            _grid.InvalidateRow(hit.RowIndex);
+            if (!(_grid.Rows[hit.RowIndex].Tag is PartListRow)) return;
             _markStartRow = hit.RowIndex;
             _markLastRow = -1;
             _markDragging = true;
