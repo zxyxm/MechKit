@@ -1385,6 +1385,21 @@ namespace MechKit
             ShowPartListDialog();
         }
 
+        public void OnLaserDxf()
+        {
+            try
+            {
+                var path=LaserDxfService.Export(_swApp==null?null:_swApp.IActiveDoc2);
+                MessageBox.Show("已导出最大平面的轮廓（非钣金展开）：\r\n"+path,
+                    AddinConstants.Title,MessageBoxButtons.OK,MessageBoxIcon.Information);
+            }
+            catch(Exception ex)
+            {
+                Log.Error("激光切割 DXF 导出失败",ex);
+                MessageBox.Show(ex.Message,AddinConstants.Title,MessageBoxButtons.OK,MessageBoxIcon.Warning);
+            }
+        }
+
         public void OnOpenDocumentFolder()
         {
             try

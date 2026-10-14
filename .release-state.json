@@ -1,13 +1,25 @@
 {
-    "version":  "0.34.13.0",
+    "version":  "0.35.0.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T13:22:47.6401148+08:00",
+    "generatedAt":  "2026-10-14T13:34:50.8341402+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "src/MechKit/Features/LaserDxfService.cs",
+                      "hash":  "6AC70BBE0AF1A68EA8F9A6502021CEC957817BC54F4C615BA5D988A8A81976FF",
+                      "bytes":  2397,
+                      "lines":  48
+                  },
+                  {
+                      "path":  "tools/Test-LaserDxf.ps1",
+                      "hash":  "377BAD9F038BB454057BC7D48DFE4131D9FEC7C70558D1DEBF5D181538B703F4",
+                      "bytes":  1866,
+                      "lines":  21
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -64,8 +76,8 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "EDC5CD9F78D8502CF2650751B138AD655FD63C33927C5963626278E5B68517CF",
-                      "bytes":  1063,
+                      "hash":  "19778237E443927DE1CB54F312C54E2445F03444E42DE44D09B672BC53CE2AE7",
+                      "bytes":  1062,
                       "lines":  25
                   },
                   {
@@ -268,9 +280,9 @@
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "F4C17D52EC40E80DC27CB0DC2782E119B90E90898B0277CC0052BD03AE70D2AF",
-                      "bytes":  104798,
-                      "lines":  2669
+                      "hash":  "301631FFE344E3D4D2BFBF57CEEA263F392331B7EEB181603FE1CCA99492F70C",
+                      "bytes":  105406,
+                      "lines":  2684
                   },
                   {
                       "path":  "src/MechKit/Resources/drawings/plate-a3-third-angle.drwdot",
@@ -376,8 +388,8 @@
                   },
                   {
                       "path":  "src/MechKit/UI/CommandPanel.cs",
-                      "hash":  "1AD89F5AEE29D7FD5A61DCA38F5D086038C9BA3D10E808C81C31D2568CFAE6CB",
-                      "bytes":  9998,
+                      "hash":  "12DDBF288EFB24521661DDAE75AA42BDCF9026458E141FFEDF286BFCBBB3A7BE",
+                      "bytes":  10037,
                       "lines":  161
                   },
                   {
