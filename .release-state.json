@@ -1,7 +1,7 @@
 {
-    "version":  "0.35.13.0",
+    "version":  "0.35.14.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T18:48:05.9993487+08:00",
+    "generatedAt":  "2026-10-14T19:03:06.2937026+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -9,16 +9,10 @@
                       },
     "files":  [
                   {
-                      "path":  "src/MechKit/UI/BomColumnFilterForm.cs",
-                      "hash":  "7CC777AD744CA2BDE593BDB3FA152C2BFF0FBDAE19089456DB8014FFF3059519",
-                      "bytes":  2847,
-                      "lines":  50
-                  },
-                  {
-                      "path":  "tools/Test-BomColumnFilters.ps1",
-                      "hash":  "B91E0C314057FBCF79FC570B5B903C205972E278B25378E5E99D08CDA8A9986F",
-                      "bytes":  3321,
-                      "lines":  53
+                      "path":  "tools/Test-BomInlineEditing.ps1",
+                      "hash":  "0815C5B136B1FECC2ACF84A12E8F577B3DB813F75344AC8554E11DCB959AC80F",
+                      "bytes":  2979,
+                      "lines":  46
                   },
                   {
                       "path":  ".gitignore",
@@ -34,8 +28,8 @@
                   },
                   {
                       "path":  "README.md",
-                      "hash":  "B91B142F9B0AC97ABBB2A007956F08517306920F80792A39186BA8CB155138E0",
-                      "bytes":  33240,
+                      "hash":  "B4DFC021AA3171BC9D5A96CC2AA68A98253719F1541BE6A54B897DA4EDA1CDF9",
+                      "bytes":  33418,
                       "lines":  387
                   },
                   {
@@ -82,7 +76,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "B50B68B786BB18E3FAAA0141D1DF08D8F302D4AA3A5B077ECF3355EB1BA7C238",
+                      "hash":  "FE79DBF0A7E6B6FB0A7CE833082B02D3D6E7D5E859BD08AA43EA6567300899A8",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -250,9 +244,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PartListService.cs",
-                      "hash":  "FE2732EDB1AEF1DB2F6BD0A0BDE30A4BB7DC53A6A9A4606171FD34A2DE70572C",
-                      "bytes":  114407,
-                      "lines":  2589
+                      "hash":  "0763D87F8368F03B5794E3A9B76950587E32E58E6AD04C468D656EC0EDBA37DB",
+                      "bytes":  114669,
+                      "lines":  2591
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
@@ -274,9 +268,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PurchaseLinkService.cs",
-                      "hash":  "08A08E3F20ED924DA4C244E2163A57EA8AF9BF7E5396B769B8E5B2F356CEBC84",
-                      "bytes":  3458,
-                      "lines":  68
+                      "hash":  "463B4CD8FCDAEAA8C36642E441B3F5718667910CD938CFE8345BDB36727B2ED3",
+                      "bytes":  3921,
+                      "lines":  75
                   },
                   {
                       "path":  "src/MechKit/Features/QuickAnnotationService.cs",
@@ -399,6 +393,12 @@
                       "lines":  943
                   },
                   {
+                      "path":  "src/MechKit/UI/BomColumnFilterForm.cs",
+                      "hash":  "7CC777AD744CA2BDE593BDB3FA152C2BFF0FBDAE19089456DB8014FFF3059519",
+                      "bytes":  2847,
+                      "lines":  50
+                  },
+                  {
                       "path":  "src/MechKit/UI/CategoryRulesPanel.cs",
                       "hash":  "9900E815E26A30EB4C0C3CDDE33EFEC69EF7E95ED7F60D271CD60807B55BF8D6",
                       "bytes":  8897,
@@ -430,9 +430,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "8E5B8246D51C57FE7EB4F690BB6FEA2C416F90D3D55AF5FBD74D653ED5B45F86",
-                      "bytes":  123383,
-                      "lines":  2657
+                      "hash":  "16DF69D03DE30A17E843FA11027C05F09E1D554DC7B038F463C35D5BF5770031",
+                      "bytes":  123804,
+                      "lines":  2675
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -478,9 +478,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "5267ABEA8CC48613D60ECFE11585B295C3E632031773038F18A6C54F1CA42906",
-                      "bytes":  32105,
-                      "lines":  711
+                      "hash":  "E7506C08B81008D9037C20E7629DD1B5E301E9EEEC12833CA57B3D7A20651ED2",
+                      "bytes":  32976,
+                      "lines":  731
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
@@ -559,6 +559,12 @@
                       "hash":  "22A737C0405B8925378392424CC9600F9D66BFA0C8B0A3F8463C668373673522",
                       "bytes":  5926,
                       "lines":  97
+                  },
+                  {
+                      "path":  "tools/Test-BomColumnFilters.ps1",
+                      "hash":  "B91E0C314057FBCF79FC570B5B903C205972E278B25378E5E99D08CDA8A9986F",
+                      "bytes":  3321,
+                      "lines":  53
                   },
                   {
                       "path":  "tools/Test-BomExcel.ps1",
@@ -688,9 +694,9 @@
                   },
                   {
                       "path":  "tools/Test-PurchaseLinkLive.ps1",
-                      "hash":  "A8DA640D98C671C854407B6EF2921C60270D8A2C0DBB0E1365BB72E4117ABEC0",
-                      "bytes":  3096,
-                      "lines":  44
+                      "hash":  "6DBEDFFD07313A64B5F22403D47B2BBA3FF7D4A3AD157EEB7074E6B95AE75293",
+                      "bytes":  3970,
+                      "lines":  55
                   },
                   {
                       "path":  "tools/Test-QuickAnnotation.ps1",
@@ -706,9 +712,9 @@
                   },
                   {
                       "path":  "tools/Test-WindowLowering.ps1",
-                      "hash":  "616FCAAE172B659C456293627C2C63093BDAF048626DC24F12E2946266476A9B",
-                      "bytes":  3010,
-                      "lines":  46
+                      "hash":  "A13527836A66D30E2663E27148552035B7D1CCBE617481328E0FD9714D209AEB",
+                      "bytes":  3225,
+                      "lines":  49
                   },
                   {
                       "path":  "tools/Test-WindowShortcuts.ps1",

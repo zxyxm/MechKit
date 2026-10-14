@@ -83,7 +83,13 @@ namespace MechKit.UI
             // Do not steal keys from a modal file picker or another dialog.
             if (Form.ActiveForm != null && !ShortcutForms.Contains(Form.ActiveForm)) return false;
             if (target == null) return false;
-            if (key == Keys.Escape) target.Close();
+            if (key == Keys.Tab && FindEditingGrid(target)!=null) return false;
+            if (key == Keys.Escape)
+            {
+                var editor=FindEditingGrid(target);
+                if(editor!=null){if(editor.CancelEdit())editor.EndEdit();return true;}
+                target.Close();
+            }
             else
             {
                 if (target.WindowState == FormWindowState.Minimized)
@@ -100,6 +106,14 @@ namespace MechKit.UI
             for (var owner = form.Owner; owner != null; owner = owner.Owner)
                 if (ShortcutForms.Contains(owner)) return true;
             return false;
+        }
+        private static DataGridView FindEditingGrid(Control parent)
+        {
+            var grid=parent as DataGridView;
+            if(grid!=null && grid.IsCurrentCellInEditMode)return grid;
+            foreach(Control child in parent.Controls)
+            {var found=FindEditingGrid(child);if(found!=null)return found;}
+            return null;
         }
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
@@ -127,11 +141,17 @@ namespace MechKit.UI
             form.BeginInvoke(new Action(delegate
             {
                 if (form.IsDisposed || !form.Visible) return;
-                form.TopMost = false;
-                form.SendToBack();
-                // A click in SW has already moved focus there. Repeating this call
-                // can re-enter SW activation/loading handlers while it is busy.
-                if (solidWorksWindow != IntPtr.Zero && GetForegroundWindow() == form.Handle) SetForegroundWindow(solidWorksWindow);
+                var yieldingBefore=_yieldingContent;
+                _yieldingContent=true;
+                try
+                {
+                    form.TopMost = false;
+                    form.SendToBack();
+                    // A click in SW has already moved focus there. Repeating this call
+                    // can re-enter SW activation/loading handlers while it is busy.
+                    if (solidWorksWindow != IntPtr.Zero && GetForegroundWindow() == form.Handle) SetForegroundWindow(solidWorksWindow);
+                }
+                finally { _yieldingContent=yieldingBefore; }
             }));
         }
 

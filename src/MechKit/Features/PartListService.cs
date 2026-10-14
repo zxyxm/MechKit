@@ -191,6 +191,7 @@ namespace MechKit.Features
             MarkNamingClean();
             OriginalRemark = Remark ?? string.Empty;
         }
+        public void MarkRemarkClean() { OriginalRemark = Remark ?? string.Empty; }
 
         public void MarkNamingClean()
         {
@@ -2225,7 +2226,8 @@ namespace MechKit.Features
                 : ResolveRuleField(options.MachinedAssemblyNoteField, options.Naming);
             row.AssemblyNote = ResolveConfiguredFieldWithNaming(
                 assemblyNoteField,
-                string.Empty, sourceName, properties, standard, options.Naming);
+                First(properties,"安装说明","装配说明","AssemblyNote"), sourceName, properties, standard, options.Naming);
+            if(properties!=null && properties.ContainsKey("安装说明")) row.AssemblyNote=Lookup(properties,"安装说明");
             var nameField = standard
                 ? options.StandardNameField
                 : ResolveRuleField(options.MachinedNameField, options.Naming);

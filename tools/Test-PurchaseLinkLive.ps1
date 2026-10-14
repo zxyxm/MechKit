@@ -32,6 +32,17 @@ public static class PurchaseLinkLiveTest {
  var row=a.GetType("MechKit.Features.PartListService",true).GetMethod("FromPart").Invoke(null,new object[]{app,doc,options});
  if(row==null || (string)row.GetType().GetProperty("PurchaseLink").GetValue(row,null)!=url)throw new Exception("BOM did not read saved property");
  Console.WriteLine("PASS: saved text property survives reopen and reads into BOM");
+ var saveProperty=service.GetMethod("SaveProperty");
+ string installation="\u5b89\u88c5\u8bf4\u660e",remark="\u5907\u6ce8";
+ foreach(var name in new[]{installation,remark}){
+ saveProperty.Invoke(null,new object[]{app,path,name,"Inline property text"});
+ manager.Get6(name,false,out raw,out resolved,out wasResolved,out linked);
+ if(raw!="Inline property text")throw new Exception("Inline text property readback failed");
+ }
+ row=a.GetType("MechKit.Features.PartListService",true).GetMethod("FromPart").Invoke(null,new object[]{app,doc,options});
+ if((string)row.GetType().GetProperty("AssemblyNote").GetValue(row,null)!="Inline property text" ||
+ (string)row.GetType().GetProperty("Remark").GetValue(row,null)!="Inline property text")throw new Exception("BOM text properties not read back");
+ Console.WriteLine("PASS: installation note and remark saved and read into BOM");
  save.Invoke(null,new object[]{app,path,""});manager.Get6(property,false,out raw,out resolved,out wasResolved,out linked);
  if(raw!="")throw new Exception("Clear did not persist");
  Console.WriteLine("PASS: URL validation and clear operation");

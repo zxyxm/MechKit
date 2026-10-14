@@ -32,6 +32,7 @@ namespace MechKit.UI
         private readonly Timer _searchDelay = new Timer { Interval = 250 };
         private readonly HashSet<PartListRow> _markedExportRows = new HashSet<PartListRow>();
         private bool _renderingRows;
+        private readonly Font _purchaseLinkFont = new Font(Theme.Body,FontStyle.Underline);
         private readonly Dictionary<string,HashSet<string>> _columnFilters = new Dictionary<string,HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         private readonly CheckBox _onlyMachined;
         private readonly CheckBox _excludeToolbox;
@@ -492,13 +493,20 @@ namespace MechKit.UI
             };
             _grid.CellBeginEdit += (sender, e) =>
             {
+                if(_running) {e.Cancel=true;return;}
                 var name = _grid.Columns[e.ColumnIndex].Name;
+                if(IsInlinePropertyColumn(name)) HighlightRow(e.RowIndex);
                 if (name == "fullname" || name == "name") _renameEditPending = true;
+            };
+            _grid.CellFormatting += (sender,e)=>
+            {
+                if(e.ColumnIndex>=0 && _grid.Columns[e.ColumnIndex].Name=="purchaselink" && !string.IsNullOrEmpty(Convert.ToString(e.Value)))
+                {e.CellStyle.ForeColor=Theme.Accent;e.CellStyle.Font=_purchaseLinkFont;}
             };
             // 勾选框点一下就要立即生效，不要等离开单元格才提交。
             _grid.CurrentCellDirtyStateChanged += delegate
             {
-                if (_grid.IsCurrentCellDirty)
+                if (_grid.IsCurrentCellDirty && _grid.CurrentCell is DataGridViewCheckBoxCell)
                 {
                     _grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
                 }
@@ -531,7 +539,7 @@ namespace MechKit.UI
             _grid.Scroll += (sender,e)=>HideModelPreview();
             Deactivate += (sender,e)=>HideModelPreview();
             _previewDelay.Tick += (sender,e)=>ShowModelPreview();
-            Disposed += (sender,e)=> { _previewDelay.Dispose();_modelPreview.Dispose();_previewCache.Clear();if(_previewImage!=null)_previewImage.Dispose(); };
+            Disposed += (sender,e)=> { _previewDelay.Dispose();_modelPreview.Dispose();_previewCache.Clear();_purchaseLinkFont.Dispose();if(_previewImage!=null)_previewImage.Dispose(); };
             _grid.MouseDown += BeginMarkRows;
             _grid.MouseUp += delegate { EndMarkRows(); };
             _grid.Paint += PaintMarkSelection;
@@ -565,10 +573,10 @@ namespace MechKit.UI
             var processColumn = new DataGridViewTextBoxColumn { Name = "process", Width = 130 };
             var surfaceColumn = new DataGridViewTextBoxColumn { Name = "surface", Width = 110, ReadOnly = true };
             var quantityColumn = new DataGridViewTextBoxColumn { Name = "quantity", Width = 60, ReadOnly = true };
-            var assemblyNoteColumn = new DataGridViewTextBoxColumn { Name = "assemblynote", Width = 120, ReadOnly = true };
+            var assemblyNoteColumn = new DataGridViewTextBoxColumn { Name = "assemblynote", Width = 120 };
             var remarkColumn = new DataGridViewTextBoxColumn { Name = "remark", Width = 150 };
-            var purchaseColumn = new DataGridViewLinkColumn { Name = "purchaselink", Width = 210,
-                ReadOnly = true, TrackVisitedState = false, ToolTipText = "双击粘贴或编辑网址；Ctrl＋单击打开链接" };
+            var purchaseColumn = new DataGridViewTextBoxColumn { Name = "purchaselink", Width = 210,
+                ToolTipText = "双击原位编辑，提交后保存到自定义属性；Ctrl＋单击打开链接" };
 
 
             var columns = new Dictionary<string, DataGridViewColumn>(StringComparer.OrdinalIgnoreCase)
@@ -1485,7 +1493,11 @@ namespace MechKit.UI
             }
 
             var onText = IsDoubleClickOnCellText(e);
-            if (columnName == "purchaselink") { EditPurchaseLink(row); return; }
+            if (IsInlinePropertyColumn(columnName))
+            {
+                _grid.CurrentCell=_grid.Rows[e.RowIndex].Cells[e.ColumnIndex];
+                HighlightRow(e.RowIndex);_grid.BeginEdit(true);return;
+            }
 
             // 双击名字文字 → 直接在单元格里改名字（提交后按新名字重命名文件）。
             if (onText && (string.Equals(columnName, "fullname", StringComparison.OrdinalIgnoreCase) ||
@@ -1550,53 +1562,6 @@ namespace MechKit.UI
         }
 
         /// <summary>双击名字后进入编辑；编辑提交时会问一次是否同步重命名文件。</summary>
-        private void EditPurchaseLink(PartListRow row)
-        {
-            using (var editor = new Form { Text="购买链接 — " + (string.IsNullOrWhiteSpace(row.FullName) ? Path.GetFileNameWithoutExtension(row.FilePath) : row.FullName), ClientSize=new Size(620,150),
-                Font=Theme.Body, StartPosition=FormStartPosition.CenterParent,
-                FormBorderStyle=FormBorderStyle.FixedDialog, MinimizeBox=false, MaximizeBox=false })
-            {
-                var hint = new Label { Text="粘贴完整购买网址，保存后同步写入零件自定义属性“购买链接”。留空可清除。",
-                    Location=new Point(12,12), Size=new Size(596,36) };
-                var input = new TextBox { Text=row.PurchaseLink ?? "", Location=new Point(12,52), Width=596 };
-                try
-                {
-                    if (Clipboard.ContainsText())
-                    {
-                        var clipboard=PurchaseLinkService.Validate(Clipboard.GetText());
-                        if(clipboard.Length>0) input.Text=clipboard;
-                    }
-                }
-                catch { /* Keep the current link if clipboard text is not a URL. */ }
-                var save = new Button { Text="保存并同步", Location=new Point(394,103), Width=105 };
-                var cancel = new Button { Text="取消", Location=new Point(508,103), Width=100, DialogResult=DialogResult.Cancel };
-                save.Click += delegate
-                {
-                    try
-                    {
-                        var link=PurchaseLinkService.Validate(input.Text);
-                        PurchaseLinkService.Save(_host.SwApp,row.FilePath,link);
-                        foreach(var item in _rows)
-                            if(string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase)) item.PurchaseLink=link;
-                        row.PurchaseLink=link;
-                        foreach(DataGridViewRow gridRow in _grid.Rows)
-                        {
-                            var item=gridRow.Tag as PartListRow;
-                            if(item!=null && string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
-                                gridRow.Cells["purchaselink"].Value=link;
-                        }
-                        _status.Text="购买链接已保存到零件自定义属性。";
-                        editor.DialogResult=DialogResult.OK; editor.Close();
-                    }
-                    catch(Exception ex) { MessageBox.Show(editor,ex.Message,"购买链接未保存",MessageBoxButtons.OK,MessageBoxIcon.Information); }
-                };
-                editor.Controls.AddRange(new Control[]{hint,input,save,cancel});
-                editor.AcceptButton=save; editor.CancelButton=cancel;
-                editor.Shown += delegate { input.Focus(); input.SelectAll(); };
-                editor.ShowDialog(this);
-            }
-        }
-
         private void BeginRenameEdit(int rowIndex, int columnIndex)
         {
             try
@@ -1612,8 +1577,61 @@ namespace MechKit.UI
             }
         }
 
+        private static bool IsInlinePropertyColumn(string key)
+        { return key=="assemblynote" || key=="remark" || key=="purchaselink"; }
+
+        private void HighlightRow(int rowIndex)
+        {
+            _grid.ClearSelection();
+            _grid.Rows[rowIndex].Selected=true;
+            _grid.InvalidateRow(rowIndex);
+        }
+
+        private void SaveInlineProperty(int rowIndex,int columnIndex)
+        {
+            if(_running || _renderingRows)return;
+            var gridRow=_grid.Rows[rowIndex];
+            var row=gridRow.Tag as PartListRow;
+            if(row==null)return;
+            var key=_grid.Columns[columnIndex].Name;
+            var cell=gridRow.Cells[columnIndex];
+            var value=Convert.ToString(cell.Value).Trim();
+            var original=key=="assemblynote"?row.AssemblyNote:key=="remark"?row.Remark:row.PurchaseLink;
+            if(value==(original??"")){cell.ErrorText="";return;}
+            var propertyName=key=="assemblynote"?"安装说明":key=="remark"?"备注":"购买链接";
+            _running=true;HideModelPreview();
+            _status.Text="正在保存"+propertyName+"："+row.FullName;
+            try
+            {
+                PurchaseLinkService.SaveProperty(_host.SwApp,row.FilePath,propertyName,value);
+                foreach(var item in _rows)
+                    if(string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
+                    {
+                        if(key=="assemblynote")item.AssemblyNote=value;
+                        else if(key=="remark"){item.Remark=value;item.MarkRemarkClean();}
+                        else item.PurchaseLink=value;
+                    }
+                foreach(DataGridViewRow duplicate in _grid.Rows)
+                {
+                    var item=duplicate.Tag as PartListRow;
+                    if(item!=null && string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
+                    {duplicate.Cells[key].Value=value;duplicate.Cells[key].ErrorText="";}
+                }
+                _status.Text=propertyName+"已保存到零件自定义属性。";
+            }
+            catch(Exception ex)
+            {
+                cell.ErrorText=ex.Message;
+                _status.Text=propertyName+"未保存："+ex.Message;
+                Log.Error("BOM 原位属性保存失败："+row.FilePath,ex);
+            }
+            finally{_running=false;_grid.InvalidateRow(rowIndex);}
+        }
+
         private void OnGridCellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
+            if(e.RowIndex>=0 && e.ColumnIndex>=0 && IsInlinePropertyColumn(_grid.Columns[e.ColumnIndex].Name))
+            { SaveInlineProperty(e.RowIndex,e.ColumnIndex);return; }
             if (!_renameEditPending)
             {
                 return;

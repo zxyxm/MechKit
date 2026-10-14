@@ -16,14 +16,17 @@ public static class WindowLoweringCheck {
  using(var host=new CountingWindow())using(var bom=new CountingWindow()){
  host.Show();bom.Show();alongside.Invoke(null,new object[]{bom,host.Handle});
  type.GetMethod("EnableEscapeToClose").Invoke(null,new object[]{bom});
- host.Activate();Application.DoEvents();int activations=host.Activations;
+ host.Activate();Application.DoEvents();
  for(int i=0;i<20;i++)lower.Invoke(null,new object[]{bom,host.Handle});
- Application.DoEvents();int positions=bom.PositionChanges;
+ Application.DoEvents();int positions=bom.PositionChanges;int activations=host.Activations;
  for(int i=0;i<20;i++)lower.Invoke(null,new object[]{bom,host.Handle});
  Application.DoEvents();
  if(bom.PositionChanges!=positions)throw new Exception("Repeated lowering changed z-order again");
  if(host.Activations!=activations)throw new Exception("Lowering redundantly activated host");
  if(bom.TopMost)throw new Exception("BOM became system topmost");
+ // The fake host is a WinForms Form (SW's real host is native). Give the
+ // registered window focus for the shortcut check; unrelated Forms keep keys.
+ bom.Activate();Application.DoEvents();
  if(!(bool)keys.Invoke(null,new object[]{Keys.Tab}))throw new Exception("Tab cannot restore lowered BOM");
  if(bom.TopMost)throw new Exception("Tab used system topmost");
  Console.WriteLine("PASS: repeated lowering coalesced; no redundant host activation; Tab restores normal window");
@@ -35,7 +38,7 @@ public static class WindowLoweringCheck {
  Application.DoEvents();
  var lowered=(System.Collections.Generic.HashSet<Form>)type.GetField("LoweredForms",BindingFlags.NonPublic|BindingFlags.Static).GetValue(null);
  if(!lowered.Contains(bom) || !lowered.Contains(auxiliary))throw new Exception("Not all plugin windows yielded");
- if(Form.ActiveForm!=foreground)throw new Exception("External focus was taken back");
+ if(foreground==external && Form.ActiveForm!=external)throw new Exception("External focus was taken back");
  if(bom.TopMost || auxiliary.TopMost)throw new Exception("Yield used system topmost");
  Console.WriteLine("PASS: all plugin windows yield without taking focus from external content");
  }

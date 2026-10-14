@@ -24,7 +24,14 @@ namespace MechKit.Features
 
         public static void Save(ISldWorks app, string file, string value)
         {
-            value = Validate(value);
+            SaveProperty(app,file,PropertyName,value);
+        }
+
+        public static void SaveProperty(ISldWorks app, string file, string propertyName, string value)
+        {
+            if(propertyName!=PropertyName && propertyName!="安装说明" && propertyName!="备注")
+                throw new ArgumentException("不支持的 BOM 文本属性。");
+            value = propertyName==PropertyName ? Validate(value) : (value ?? "").Trim();
             if (app == null) throw new InvalidOperationException("SOLIDWORKS 未连接。");
             if (string.IsNullOrEmpty(file) || !File.Exists(file))
                 throw new InvalidOperationException("请先将虚拟件或未保存零件保存为外部文件。");
@@ -44,20 +51,20 @@ namespace MechKit.Features
                 }
                 if (document == null) throw new InvalidOperationException("无法打开零件，错误码："+errors);
                 if (!PropertyService.Write(document, PropertyService.DocumentLevelConfiguration,
-                        new CustomProperty(PropertyName, PropertyTypes.Text, value), true))
-                    throw new InvalidOperationException("购买链接属性写入失败。");
+                        new CustomProperty(propertyName, PropertyTypes.Text, value), true))
+                    throw new InvalidOperationException(propertyName+"属性写入失败。");
                 var property = PropertyService.Read(document, PropertyService.DocumentLevelConfiguration)
-                    .FirstOrDefault(p => p.Name == PropertyName);
+                    .FirstOrDefault(p => p.Name == propertyName);
                 if (property == null || property.Value != value)
-                    throw new InvalidOperationException("购买链接属性回读不一致。");
+                    throw new InvalidOperationException(propertyName+"属性回读不一致。");
                 if (!document.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref errors, ref warnings) || errors != 0)
-                    throw new InvalidOperationException("链接已写入内存，但文件保存失败，错误码："+errors);
-                Log.Info("已保存购买链接："+file);
+                    throw new InvalidOperationException(propertyName+"已写入内存，但文件保存失败，错误码："+errors);
+                Log.Info("已保存"+propertyName+"："+file);
             }
             finally
             {
                 if (opened && document != null) app.CloseDoc(document.GetTitle());
-                if (previous != null)
+                if (previous != null && !Equals(app.IActiveDoc2,previous))
                 {
                     int error=0;
                     app.ActivateDoc3(previous.GetTitle(), false, (int)swRebuildOnActivation_e.swDontRebuildActiveDoc, ref error);
