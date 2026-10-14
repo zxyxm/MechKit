@@ -1,25 +1,13 @@
 {
-    "version":  "0.35.4.0",
+    "version":  "0.35.5.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T16:54:11.9238668+08:00",
+    "generatedAt":  "2026-10-14T17:47:33.4916233+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "src/MechKit/Features/PurchaseLinkService.cs",
-                      "hash":  "08A08E3F20ED924DA4C244E2163A57EA8AF9BF7E5396B769B8E5B2F356CEBC84",
-                      "bytes":  3458,
-                      "lines":  68
-                  },
-                  {
-                      "path":  "tools/Test-PurchaseLinkLive.ps1",
-                      "hash":  "A8DA640D98C671C854407B6EF2921C60270D8A2C0DBB0E1365BB72E4117ABEC0",
-                      "bytes":  3096,
-                      "lines":  44
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -82,7 +70,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "357D0FB3D011A2E9A53330F4130717F944B07FE5EBF9C8D86C86993416C2760E",
+                      "hash":  "A65C32F02B9716AD629D1CE5799DBB76D57E3467B1092D928DB319C0EFC0CDF6",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -273,6 +261,12 @@
                       "lines":  332
                   },
                   {
+                      "path":  "src/MechKit/Features/PurchaseLinkService.cs",
+                      "hash":  "08A08E3F20ED924DA4C244E2163A57EA8AF9BF7E5396B769B8E5B2F356CEBC84",
+                      "bytes":  3458,
+                      "lines":  68
+                  },
+                  {
                       "path":  "src/MechKit/Features/QuickAnnotationService.cs",
                       "hash":  "AAF857136ECBF2329466A0116EAE4CE8F5CBCD7161FC6F3F568EA159F0E7934D",
                       "bytes":  20477,
@@ -460,9 +454,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "B211308522421C805E75130644C9AC87B02175EC4368C09481DB77916FCAADEA",
-                      "bytes":  28389,
-                      "lines":  644
+                      "hash":  "53584220922E511849C4A6F864B6E614A2AAD84F0AA65B6EB292834CF384C8E0",
+                      "bytes":  29493,
+                      "lines":  665
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
@@ -645,6 +639,12 @@
                       "lines":  43
                   },
                   {
+                      "path":  "tools/Test-PurchaseLinkLive.ps1",
+                      "hash":  "A8DA640D98C671C854407B6EF2921C60270D8A2C0DBB0E1365BB72E4117ABEC0",
+                      "bytes":  3096,
+                      "lines":  44
+                  },
+                  {
                       "path":  "tools/Test-QuickAnnotation.ps1",
                       "hash":  "1E75BCE9BFB8563AF9CFCAA966D6A75C5F283F96802F6BD341179D568ACEB779",
                       "bytes":  7955,
@@ -658,9 +658,9 @@
                   },
                   {
                       "path":  "tools/Test-WindowShortcuts.ps1",
-                      "hash":  "FA60D7342D452BCD0275A92A7E9A7C4959206B807E4A7C13646475493538E2EC",
-                      "bytes":  1390,
-                      "lines":  26
+                      "hash":  "D69CB4DB3882AB49003589B4343858BA15121B3882B7EA7576562441E32D04AC",
+                      "bytes":  2698,
+                      "lines":  53
                   },
                   {
                       "path":  "tools/Uninstall-Addin.ps1",

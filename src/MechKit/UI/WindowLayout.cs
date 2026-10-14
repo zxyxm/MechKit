@@ -56,6 +56,21 @@ namespace MechKit.UI
         private static bool HandleWindowShortcut(Keys key)
         {
             if (key != Keys.Tab && key != Keys.Escape) return false;
+            var active = Form.ActiveForm;
+            // Owned ShowDialog windows can temporarily report no ActiveForm
+            // while focus passes between native SW and WinForms controls.
+            if (active == null || !active.Modal)
+                foreach (Form open in Application.OpenForms)
+                    if (!open.IsDisposed && open.Visible && open.Enabled && open.Modal && IsOwnedByShortcutForm(open))
+                        active = open;
+            if (active != null && active.Modal && IsOwnedByShortcutForm(active))
+            {
+                // A nested editor owns Escape; leave Tab to its normal focus navigation.
+                if (key != Keys.Escape) return false;
+                active.DialogResult = DialogResult.Cancel;
+                active.Close();
+                return true;
+            }
             Form target = null;
             for (var i = ShortcutForms.Count - 1; i >= 0; i--)
             {
@@ -78,6 +93,12 @@ namespace MechKit.UI
                 target.Activate();
             }
             return true;
+        }
+        private static bool IsOwnedByShortcutForm(Form form)
+        {
+            for (var owner = form.Owner; owner != null; owner = owner.Owner)
+                if (ShortcutForms.Contains(owner)) return true;
+            return false;
         }
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
