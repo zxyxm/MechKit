@@ -38,11 +38,22 @@ public static class MachiningDrawingLiveTest
             drawing=active;
             if(part.GetSaveFlag()) throw new Exception("Source was changed");
             var views=((object[])((Sheet)((DrawingDoc)drawing).GetCurrentSheet()).GetViews()).Cast<View>().ToArray();
+            var properties=(double[])((Sheet)((DrawingDoc)drawing).GetCurrentSheet()).GetProperties2();
+            if(properties[4]!=0) throw new Exception("Sheet is not third angle");
             if(views.Length!=3 && views.Length!=4 && views.Length<6) throw new Exception("Incomplete compact or general layout");
             Console.WriteLine("View count: "+views.Length);
             var keys=new System.Collections.Generic.HashSet<string>();
             foreach(var view in views)
             {
+                if(view.GetSection()!=null)
+                {
+                    var parent=(View)view.GetBaseView();
+                    var position=(double[])view.Position;
+                    var parentPosition=(double[])parent.Position;
+                    if(Math.Abs(position[1]-parentPosition[1])>1e-6 || position[0]<=parentPosition[0])
+                        throw new Exception("Section is not in its aligned projection position");
+                    Console.WriteLine("PASS: aligned section, alignment="+view.GetAlignment());
+                }
                 if(!string.Equals(view.GetReferencedModelName(),path,StringComparison.OrdinalIgnoreCase))
                     throw new Exception("Model reference lost");
                 for(var d=view.GetFirstDisplayDimension5();d!=null;d=d.GetNext5())

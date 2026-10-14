@@ -90,7 +90,10 @@ namespace MechKit.Features
             if(!compact)
             {
                 views.Add(PlateDrawingService.Project(model,main,.060,.180));
-                views.Add(PlateDrawingService.Project(model,right,.315,.180));
+                // Reserve the right-hand aligned projection slot for the axial section.
+                // If no axial section is possible, retain the ordinary back projection.
+                if(cylinderAxis==null || Math.Abs(PlateMath.Dot(PlateDrawingService.Axis(right,2),cylinderAxis))<.999)
+                    views.Add(PlateDrawingService.Project(model,right,.315,.180));
                 views.Add(PlateDrawingService.Project(model,main,.145,.245));
                 views.Add(PlateDrawingService.Project(model,main,.145,.110));
             }
@@ -121,10 +124,12 @@ namespace MechKit.Features
                     model.ClearSelection2(true);doc.ActivateView(right.GetName2());
                     var line=model.SketchManager.CreateLine(x,y-size,0,x,y+size,0);
                     if(line==null) throw new InvalidOperationException("无法创建轴向剖切线。");
-                    var section=doc.CreateSectionViewAt5(.285,.110,0,"A",0,null,0);
+                    // Keep SOLIDWORKS' native section alignment on a third-angle sheet.
+                    // A vertical cutting line produces a horizontally aligned section.
+                    var section=doc.CreateSectionViewAt5(pos[0]+.085,pos[1],0,"A",0,null,0);
                     if(section==null) throw new InvalidOperationException("轴向剖视创建失败，未发布不完整图纸。");
                     section.ReferencedConfiguration=config;section.UseSheetScale=1;
-                    section.RemoveAlignment();section.Position=new[]{.285,.110};views.Add(section);
+                    views.Add(section);
                     model.ClearSelection2(true);
                 }
                 else messages.Add("圆柱轴未正对端视图，未自动建立轴向剖视。");
