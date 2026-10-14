@@ -2204,6 +2204,12 @@ namespace MechKit.Features
                 row.Material = First(properties, "材料", "材质", "Material", "材质牌号");
                 row.Process = First(properties, "工艺", "加工工艺", "制造工艺", "Process");
                 row.SurfaceTreatment = First(properties, "表面处理", "SurfaceTreatment");
+                if (row.Classification == "外部图纸")
+                {
+                    row.Material = "按图纸";
+                    row.Process = "按图纸";
+                    row.SurfaceTreatment = "按图纸";
+                }
                 row.AssemblyNote = First(properties, "安装说明", "装配说明", "AssemblyNote");
                 row.Remark = First(properties, "备注", "说明", "Remark", "Notes");
                 return;

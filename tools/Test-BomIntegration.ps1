@@ -255,7 +255,9 @@ $externalRow.FullName = 'BRC-123-安装板'
 $externalRow.Quantity = 3
 $applyFields.Invoke($null, @($externalRow, 'BRC-123-安装板', $properties, $customOptions))
 Assert-Equal 'external drawing retains full identifier' $externalRow.Name 'BRC-123-安装板'
-Assert-Equal 'external drawing does not parse material from its name' $externalRow.Material ''
+Assert-Equal 'external drawing material follows drawing' $externalRow.Material '按图纸'
+Assert-Equal 'external drawing process follows drawing' $externalRow.Process '按图纸'
+Assert-Equal 'external drawing surface follows drawing' $externalRow.SurfaceTreatment '按图纸'
 $categoryRows.Add($externalRow)
 $summaryArgs = New-Object object[] 1
 $summaryArgs[0] = $categoryRows
