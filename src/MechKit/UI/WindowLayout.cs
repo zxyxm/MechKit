@@ -120,13 +120,17 @@ namespace MechKit.UI
         public static void LowerAfterDocumentOpened(Form form, IntPtr solidWorksWindow)
         {
             if (form == null || form.IsDisposed || !form.IsHandleCreated || solidWorksWindow == IntPtr.Zero) return;
+            // Mark before queuing: activation callbacks and repeated mouse messages
+            // must not raise the window again or enqueue another lowering operation.
+            if (!LoweredForms.Add(form)) return;
             form.BeginInvoke(new Action(delegate
             {
                 if (form.IsDisposed || !form.Visible) return;
-                LoweredForms.Add(form);
                 form.TopMost = false;
                 form.SendToBack();
-                SetForegroundWindow(solidWorksWindow);
+                // A click in SW has already moved focus there. Repeating this call
+                // can re-enter SW activation/loading handlers while it is busy.
+                if (GetForegroundWindow() == form.Handle) SetForegroundWindow(solidWorksWindow);
             }));
         }
 
@@ -199,6 +203,7 @@ namespace MechKit.UI
             // An unowned modeless window otherwise disappears behind all of SW as
             // soon as the user clicks the tree/task pane. Do not stay above other apps.
             var timer=new Timer {Interval=200};
+            var lastForeground=GetForegroundWindow();
             IntPtr mouseHook=IntPtr.Zero;
             MouseProc mouseCallback=(code,message,data)=>
             {
@@ -208,7 +213,7 @@ namespace MechKit.UI
                     if(code>=0 && (msg==0x201 || msg==0x204 || msg==0x207 || msg==0xA1 || msg==0xA4))
                     {
                         var hit=(MouseHookData)System.Runtime.InteropServices.Marshal.PtrToStructure(data,typeof(MouseHookData));
-                        if(form.Visible && !form.IsDisposed && GetAncestor(hit.Window,GaRoot)==host &&
+                        if(form.Visible && !form.IsDisposed && !LoweredForms.Contains(form) && GetAncestor(hit.Window,GaRoot)==host &&
                             !IsPluginControl(hit.Window))
                             form.BeginInvoke(new Action(()=>
                             {
@@ -226,14 +231,12 @@ namespace MechKit.UI
             // Deactivate alone misses the click after using a task-pane button.
             mouseHook=SetMouseHook(7,mouseCallback,IntPtr.Zero,GetCurrentThreadId());
             form.Activated+=(s,e)=>LoweredForms.Remove(form);
-            form.Deactivate+=(s,e)=>
-            {
-                RaiseWithinHost(form,host);
-            };
             timer.Tick+=(s,e)=>
             {
                 if(form.IsDisposed || !form.Visible) return;
                 var foreground=GetForegroundWindow();
+                if (foreground==lastForeground) return;
+                lastForeground=foreground;
                 if(foreground==form.Handle) LoweredForms.Remove(form);
                 RaiseWithinHost(form,host);
             };

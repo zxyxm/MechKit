@@ -1,13 +1,19 @@
 {
-    "version":  "0.35.8.0",
+    "version":  "0.35.9.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T18:18:07.2907685+08:00",
+    "generatedAt":  "2026-10-14T18:23:14.0876835+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "tools/Test-WindowLowering.ps1",
+                      "hash":  "01F2B1FDBBE6D52CB71A75964FE6E9C8179B59D69CF049E91BB986E1F73D4C1A",
+                      "bytes":  2059,
+                      "lines":  34
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -70,7 +76,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "05C0F7CA13117348B7AF67D5DB328A7A90F38BF88576377F750693448EED31EB",
+                      "hash":  "A6B4A2C189453806CBABC94B08B1C21CBCF52FBA79139057061674D46CC4B377",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -460,9 +466,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "204EA58BB9292D80A0B1E7071721540BCFAD749B05CF2CB01DF93123233A9ECC",
-                      "bytes":  29968,
-                      "lines":  675
+                      "hash":  "28433AD932F353BC729264A178E3432496BA5A3E7FB80814037446B052C19285",
+                      "bytes":  30433,
+                      "lines":  678
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
