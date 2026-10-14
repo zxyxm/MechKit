@@ -14,6 +14,8 @@ BOM 的“购买链接”列：双击打开网址编辑框，剪贴板中有有�
 
 BOM 顶部“关键词”输入框实时筛选对应行，搜索名称、位置、材料、工艺、备注、购买链接等字段，不区分英文字母大小写。空格分隔多个关键词时须全部匹配，可与类型筛选叠加；清空搜索恢复显示，保留未保存的修改和导出勾选。搜索只处理已加载的 BOM 数据，不打开或重新读取 SW 文件。
 
+BOM 列标题右侧“▼”提供多选筛选：勾选该列要显示的类别或字段值，点击“确定”仅显示匹配行。支持全选、全不选、空白值与清除当前列筛选；多个列和关键词条件同时生效，生效的箭头显示为蓝色。点击“显示全部”清除类型、关键词及列筛选。列标题文字仍可点击排序，右键列标题也可打开筛选。
+
 **公差助手**：菜单或 MechKit 选项卡点击“公差助手”。在工程图选中一个或多个尺寸，左键点击网格预设写入公差；右键可自定义 `上公差/下公差/备注`（如 `0.03/0/销钉`）、`±0.02`、`H7` 或 `h7`。输入 `0` 或留空只清空该预设格，“清除选中尺寸公差”按钮才移除尺寸公差。预设自动保存并随配置导出；备注只作预设标签。普通尺寸可直接应用，角度尺寸跳过。孔标注点击预设时自动读取参数；仅一个参数时直接应用，多个参数时弹出选择孔径或深度；普通尺寸前缀和后缀也提供独立预设页。修改后保存工程图。
 
 孔标注通过 [SOLIDWORKS 孔标注变量 API](https://help.solidworks.com/2019/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IDisplayDimension~GetHoleCalloutVariables.html) 独立设置参数公差；前缀、后缀仅支持普通尺寸（[SetText API](https://help.solidworks.com/2019/English/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.IDisplayDimension~SetText.html) 不支持孔标注）。

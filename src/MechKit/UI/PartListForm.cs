@@ -32,6 +32,7 @@ namespace MechKit.UI
         private readonly Timer _searchDelay = new Timer { Interval = 250 };
         private readonly HashSet<PartListRow> _markedExportRows = new HashSet<PartListRow>();
         private bool _renderingRows;
+        private readonly Dictionary<string,HashSet<string>> _columnFilters = new Dictionary<string,HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         private readonly CheckBox _onlyMachined;
         private readonly CheckBox _excludeToolbox;
         private readonly CheckBox _excludeSuppressed;
@@ -385,7 +386,7 @@ namespace MechKit.UI
                 {
                     if (_running) return;
                     PullGridEdits();
-                    if (filter == 0) { _keywordSearch.Clear(); _searchDelay.Stop(); }
+                    if (filter == 0) { _keywordSearch.Clear(); _searchDelay.Stop(); _columnFilters.Clear();_grid.Invalidate(); }
                     if (_classificationFilter.SelectedIndex == filter) ShowFilteredRows(false);
                     else _classificationFilter.SelectedIndex = filter;
                 };
@@ -600,6 +601,11 @@ namespace MechKit.UI
                 columns[key].HeaderText = PartListService.ColumnHeader(headerOptions, key);
                 if (!columns[key].ReadOnly) columns[key].ToolTipText = "可编辑";
                 _grid.Columns.Add(columns[key]);
+                if (key!="sequence")
+                {
+                    columns[key].SortMode=DataGridViewColumnSortMode.Programmatic;
+                    columns[key].HeaderCell.Style.Padding=new Padding(0,0,22,0);
+                }
             }
 
             // 设计树、连接留白和 BOM 共用网格行，展开/滚动时不会错位或交叉。
@@ -635,6 +641,19 @@ namespace MechKit.UI
             };
             _grid.ColumnHeaderMouseClick += delegate(object sender, DataGridViewCellMouseEventArgs e)
             {
+                if(e.ColumnIndex>=0 && CanFilterColumn(_grid.Columns[e.ColumnIndex].Name))
+                {
+                    var column=_grid.Columns[e.ColumnIndex];
+                    if(e.Button==MouseButtons.Right || e.X>=column.Width-24) { ShowColumnFilter(column);return; }
+                    if(e.Button==MouseButtons.Left)
+                    {
+                        var direction=_grid.SortedColumn==column && _grid.SortOrder==SortOrder.Ascending
+                            ? System.ComponentModel.ListSortDirection.Descending : System.ComponentModel.ListSortDirection.Ascending;
+                        _grid.Sort(column,direction);
+                        column.HeaderCell.SortGlyphDirection=SortOrder.None;
+                    }
+                    return;
+                }
                 if (e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "designTree")
                 {
                     PullGridEdits();
@@ -650,6 +669,7 @@ namespace MechKit.UI
                     if (row.Tag == null) row.Visible = false;
                 _grid.Invalidate();
             };
+            _grid.CellPainting += PaintColumnFilterHeader;
             panel.Controls.Add(_grid);
             return panel;
         }
@@ -2047,6 +2067,7 @@ namespace MechKit.UI
             foreach (var row in _rows)
             {
                 if (!MatchesKeywords(row, _keywordSearch.Text)) continue;
+                if (!MatchesColumnFilters(row)) continue;
                 if (_classificationFilter.SelectedIndex == 3 && !PartListService.IsMissingRequiredDrawing(row))
                     continue;
                 if (_classificationFilter.SelectedIndex == 4 && !row.IsUnmatched &&
@@ -2074,6 +2095,46 @@ namespace MechKit.UI
             return true;
         }
 
+        private static bool CanFilterColumn(string key)
+        {
+            return key!="designTree" && key!="treeLink" && key!="select" && key!="sequence";
+        }
+        private bool MatchesColumnFilters(PartListRow row)
+        {
+            foreach(var filter in _columnFilters)
+                if(!filter.Value.Contains(PartListService.ColumnValue(row,0,filter.Key) ?? "")) return false;
+            return true;
+        }
+        private void ShowColumnFilter(DataGridViewColumn column)
+        {
+            if(_running) return;
+            HideModelPreview();PullGridEdits();
+            var values=new List<string>();
+            foreach(var row in _rows)values.Add(PartListService.ColumnValue(row,0,column.Name) ?? "");
+            HashSet<string> selected;_columnFilters.TryGetValue(column.Name,out selected);
+            using(var popup=new BomColumnFilterForm(column.HeaderText,values,selected))
+            {
+                var cell=_grid.GetCellDisplayRectangle(column.Index,-1,true);
+                var point=_grid.PointToScreen(new Point(cell.Left,cell.Bottom));
+                var area=Screen.FromPoint(point).WorkingArea;
+                popup.Location=new Point(Math.Max(area.Left,Math.Min(point.X,area.Right-popup.Width)),
+                    Math.Max(area.Top,Math.Min(point.Y,area.Bottom-popup.Height)));
+                if(popup.ShowDialog(this)!=DialogResult.OK) return;
+                if(popup.SelectedValues==null)_columnFilters.Remove(column.Name);
+                else _columnFilters[column.Name]=popup.SelectedValues;
+                ShowFilteredRows(false);_grid.Invalidate();
+            }
+        }
+        private void PaintColumnFilterHeader(object sender,DataGridViewCellPaintingEventArgs e)
+        {
+            if(e.RowIndex!=-1 || e.ColumnIndex<0 || !CanFilterColumn(_grid.Columns[e.ColumnIndex].Name))return;
+            e.Paint(e.CellBounds,DataGridViewPaintParts.All);
+            var color=_columnFilters.ContainsKey(_grid.Columns[e.ColumnIndex].Name)?Theme.Accent:Theme.Text;
+            var x=e.CellBounds.Right-13;var y=e.CellBounds.Top+e.CellBounds.Height/2;
+            using(var brush=new SolidBrush(color))e.Graphics.FillPolygon(brush,new[]{new Point(x-4,y-2),new Point(x+4,y-2),new Point(x,y+3)});
+            e.Handled=true;
+        }
+
         private void ShowFilteredRows(bool markClean)
         {
             if (markClean)
@@ -2089,6 +2150,7 @@ namespace MechKit.UI
             var filterName = _classificationFilter.SelectedIndex <= 0
                 ? "全部类型"
                 : Convert.ToString(_classificationFilter.SelectedItem);
+            if(_columnFilters.Count>0)filterName+=" · "+_columnFilters.Count+" 列筛选";
             _status.Text = string.Format("{0}：显示 {1} / {2} 行。{3}",
                 filterName, filtered.Count, _rows.Count, PartListService.BuildSummary(filtered));
             _exportButton.Enabled = !_running && filtered.Count > 0;
@@ -2104,7 +2166,7 @@ namespace MechKit.UI
             try
             {
                 var quickFilter = _classificationFilter.SelectedIndex == 3 || _classificationFilter.SelectedIndex == 4 ||
-                    !string.IsNullOrWhiteSpace(_keywordSearch.Text);
+                    !string.IsNullOrWhiteSpace(_keywordSearch.Text) || _columnFilters.Count>0;
                 _designOrder = !quickFilter;
                 foreach (DataGridViewColumn column in _grid.Columns)
                     column.HeaderCell.SortGlyphDirection = SortOrder.None;
