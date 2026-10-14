@@ -42,6 +42,18 @@ try {
  $grid.Rows.Clear();$panel.SaveToSettings()
  Check ($category.GetMethod('Load').Invoke($null,@($hostObject.Settings)).Count -eq 0) 'UI delete all restored defaults'
  $panel.ResetDefaults()
+ $flags=[Reflection.BindingFlags]'Instance,NonPublic'
+ $combo=$panel.GetType().GetField('_externalPrefixes',$flags).GetValue($panel)
+ $edit=$panel.GetType().GetField('_prefixEdit',$flags).GetValue($panel)
+ $modify=$panel.GetType().GetMethod('EditExternalPrefix',$flags)
+ $edit.Text='BRC-';$modify.Invoke($panel,@('添加前缀'))
+ Check ($combo.Items.Contains('BRC-')) 'Prefix add failed'
+ $edit.Text='BPC-';$modify.Invoke($panel,@('修改前缀'))
+ Check ($combo.Items.Contains('BPC-') -and -not $combo.Items.Contains('BRC-')) 'Prefix edit failed'
+ $panel.SaveToSettings()
+ Check ($factory.Invoke($null,@($hostObject.Settings)).RecognizeDesignNode('BPC-轴') -eq 'ExternalDrawing') 'Prefix recognition failed'
+ $modify.Invoke($panel,@('删除前缀'))
+ Check (-not $combo.Items.Contains('BPC-')) 'Prefix delete failed'
  $f.Opacity=0;$f.ShowInTaskbar=$false;$f.Show();[Windows.Forms.Application]::DoEvents()
  $b=New-Object Drawing.Bitmap $f.Width,$f.Height
  $f.DrawToBitmap($b,(New-Object Drawing.Rectangle 0,0,$f.Width,$f.Height));$b.Save("$repo\artifacts\categories.png");$b.Dispose()
