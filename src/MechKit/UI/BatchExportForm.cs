@@ -931,7 +931,7 @@ namespace MechKit.UI
             {
                 if (Directory.Exists(folder))
                 {
-                    Process.Start("explorer.exe", folder);
+                    WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", folder) { UseShellExecute=true });
                 }
             }
             catch (Exception ex)

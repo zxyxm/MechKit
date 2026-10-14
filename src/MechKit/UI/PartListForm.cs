@@ -626,7 +626,7 @@ namespace MechKit.UI
                     try
                     {
                         var link=PurchaseLinkService.Validate(Convert.ToString(_grid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value));
-                        if(link.Length>0) Process.Start(new ProcessStartInfo(link) { UseShellExecute=true });
+                        if(link.Length>0) WindowLayout.OpenExternal(new ProcessStartInfo(link) { UseShellExecute=true });
                     }
                     catch(Exception ex) { _status.Text=ex.Message; }
                 }
@@ -1447,7 +1447,7 @@ namespace MechKit.UI
                 if (!string.IsNullOrEmpty(model))
                 {
                     _status.Text = "已打开：" + Path.GetFileName(model) + " · 按 Tab 返回 BOM";
-                    WindowLayout.LowerAfterDocumentOpened(this, _host.MainWindowHandle);
+                    WindowLayout.YieldToOpenedContent(_host.MainWindowHandle);
                 }
                 return;
             }
@@ -1490,7 +1490,7 @@ namespace MechKit.UI
             }
 
             _status.Text = "已打开：" + Path.GetFileName(opened) + " · 按 Tab 返回 BOM";
-            WindowLayout.LowerAfterDocumentOpened(this, _host.MainWindowHandle);
+            WindowLayout.YieldToOpenedContent(_host.MainWindowHandle);
         }
 
         /// <summary>双击是否落在单元格的文字上（而不是文字后面的空白）。</summary>
@@ -2460,7 +2460,7 @@ namespace MechKit.UI
                             System.Environment.NewLine + System.Environment.NewLine + "是否打开所在目录？",
                             AddinConstants.Title, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                     {
-                        Process.Start("explorer.exe", dialog.SelectedPath);
+                        WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", dialog.SelectedPath) { UseShellExecute=true });
                     }
                 }
                 catch (Exception ex)

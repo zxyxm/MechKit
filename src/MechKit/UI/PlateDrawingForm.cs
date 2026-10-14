@@ -47,7 +47,14 @@ namespace MechKit.UI
                 var r=rows.SelectedItems[0].Tag as PlateDrawingResult;
                 if(r==null || string.IsNullOrEmpty(r.Output)) return;
                 int errors=0,warnings=0;
-                app.OpenDoc6(r.Output,3,1,"",ref errors,ref warnings);
+                var opened=app.OpenDoc6(r.Output,3,1,"",ref errors,ref warnings);
+                if(opened!=null)
+                {
+                    // This result window is modal; closing it releases SW for the drawing.
+                    Close();
+                    var frame=app.Frame() as Frame;
+                    WindowLayout.YieldToOpenedContent(frame==null?IntPtr.Zero:new IntPtr(frame.GetHWndx64()));
+                }
             };
         }
         private void Execute()
@@ -75,7 +82,7 @@ namespace MechKit.UI
             {
                 finished=true; Running=false; stop.Text="关闭";stop.Enabled=true;
                 report.Enabled=!string.IsNullOrEmpty(service.ReportPath);
-                report.Click+=(s,e)=>{try{Process.Start(service.ReportPath);}catch(Exception ex){MessageBox.Show(ex.Message);}};
+                report.Click+=(s,e)=>{try{WindowLayout.OpenExternal(new ProcessStartInfo(service.ReportPath){UseShellExecute=true});Close();}catch(Exception ex){MessageBox.Show(ex.Message);}};
             }
         }
     }

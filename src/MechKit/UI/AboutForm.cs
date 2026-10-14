@@ -98,7 +98,7 @@ namespace MechKit.UI
             openLogs.Click += delegate
             {
                 AppPaths.Ensure(AppPaths.Logs);
-                Process.Start("explorer.exe", AppPaths.Logs);
+                WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", AppPaths.Logs) { UseShellExecute=true });
             };
 
             var close = Theme.CreatePrimaryButton("关闭");

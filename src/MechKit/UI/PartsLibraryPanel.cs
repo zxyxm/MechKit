@@ -40,7 +40,7 @@ namespace MechKit.UI
             for (int i = 0; i < 7; i++) root.RowStyles.Add(new RowStyle(i == 5 ? SizeType.Percent : SizeType.AutoSize, i == 5 ? 100 : 0));
             root.Controls.Add(new Label { Text = "快捷零件库", AutoSize = true, Font = Theme.BodyBold, Margin = new Padding(0, 3, 0, 8) }, 0, 0);
             var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = true, Margin = Padding.Empty };
-            AddButton(actions, "打开库", () => Process.Start(new ProcessStartInfo(_library.Root) { UseShellExecute = true }));
+            AddButton(actions, "打开库", () => WindowLayout.OpenExternal(new ProcessStartInfo(_library.Root) { UseShellExecute = true }));
             AddButton(actions, "添加零件进库", Import);
             AddButton(actions, "刷新", Reload);
             root.Controls.Add(actions, 0, 1);
@@ -256,6 +256,7 @@ namespace MechKit.UI
                 if (component == null) throw new InvalidOperationException("SW 未能插入零件副本。");
                 inserted = true;
                 assembly.GraphicsRedraw2();
+                WindowLayout.YieldToOpenedContent(_host.MainWindowHandle);
                 _status.Text = "已插入：" + Path.GetFileName(copy) + "（装配体根目录）";
                 Log.Info("快捷零件库：" + source + " → " + copy);
             }

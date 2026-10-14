@@ -27,6 +27,18 @@ public static class WindowLoweringCheck {
  if(!(bool)keys.Invoke(null,new object[]{Keys.Tab}))throw new Exception("Tab cannot restore lowered BOM");
  if(bom.TopMost)throw new Exception("Tab used system topmost");
  Console.WriteLine("PASS: repeated lowering coalesced; no redundant host activation; Tab restores normal window");
+ using(var auxiliary=new CountingWindow())using(var external=new CountingWindow()){
+ type.GetMethod("EnableEscapeToClose").Invoke(null,new object[]{auxiliary});
+ auxiliary.Show();external.Show();external.Activate();Application.DoEvents();
+ var foreground=Form.ActiveForm;
+ type.GetMethod("YieldToOpenedContent",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{IntPtr.Zero});
+ Application.DoEvents();
+ var lowered=(System.Collections.Generic.HashSet<Form>)type.GetField("LoweredForms",BindingFlags.NonPublic|BindingFlags.Static).GetValue(null);
+ if(!lowered.Contains(bom) || !lowered.Contains(auxiliary))throw new Exception("Not all plugin windows yielded");
+ if(Form.ActiveForm!=foreground)throw new Exception("External focus was taken back");
+ if(bom.TopMost || auxiliary.TopMost)throw new Exception("Yield used system topmost");
+ Console.WriteLine("PASS: all plugin windows yield without taking focus from external content");
+ }
  }
  }
 }

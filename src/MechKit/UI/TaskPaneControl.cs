@@ -768,7 +768,7 @@ namespace MechKit.UI
             try
             {
                 AppPaths.Ensure(AppPaths.Logs);
-                Process.Start("explorer.exe", AppPaths.Logs);
+                WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", AppPaths.Logs) { UseShellExecute=true });
             }
             catch (Exception ex)
             {

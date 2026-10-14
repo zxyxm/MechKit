@@ -1,19 +1,13 @@
 {
-    "version":  "0.35.10.0",
+    "version":  "0.35.11.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T18:28:37.9852617+08:00",
+    "generatedAt":  "2026-10-14T18:34:44.8743256+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
-                  {
-                      "path":  "tools/Test-BomSearch.ps1",
-                      "hash":  "B4D1C4B434CA12C746C8ADC6215B099D65D458EAACD00FF56FDAFE27D4A1BC58",
-                      "bytes":  2822,
-                      "lines":  46
-                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -76,7 +70,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "2CB02AA66DA7FAB786E055EE96EFE90954B9D99F3C129A6E7E72019720BD2BC3",
+                      "hash":  "4A3BE8C445609EB6669B3DE4CB4BA0C735B85F35CEAABDB190959C8BA6EDBC74",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -292,9 +286,9 @@
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "301631FFE344E3D4D2BFBF57CEEA263F392331B7EEB181603FE1CCA99492F70C",
-                      "bytes":  105406,
-                      "lines":  2684
+                      "hash":  "38268FC91F10AAF3178D9929262819031C00621CE2917A80E37FA8168586E053",
+                      "bytes":  105165,
+                      "lines":  2677
                   },
                   {
                       "path":  "src/MechKit/Resources/drawings/plate-a3-third-angle.drwdot",
@@ -382,14 +376,14 @@
                   },
                   {
                       "path":  "src/MechKit/UI/AboutForm.cs",
-                      "hash":  "E370EF745D380BACAC67E7697E3914490A6B99CAB9488853DBBCF5B4DE3199F2",
-                      "bytes":  5698,
+                      "hash":  "AB2EB282C73850A69EEFE7ADF864A2D53DCA631027F05C4110ECC544420FCE64",
+                      "bytes":  5757,
                       "lines":  151
                   },
                   {
                       "path":  "src/MechKit/UI/BatchExportForm.cs",
-                      "hash":  "F860AB354E0E1B0B9B76C6AE56A5E048FB18E79700BEBC9C3F27C58E66DC4C19",
-                      "bytes":  38019,
+                      "hash":  "955395554B624414F0AE991667FFF54D5BAD66C8754891A0D88A9E7CDCF02D18",
+                      "bytes":  38078,
                       "lines":  943
                   },
                   {
@@ -418,21 +412,21 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "E7073E2CB64C55BC7FBE2348586AE5A263FA21F66053F9856934E9AC12CEEFA1",
-                      "bytes":  118658,
+                      "hash":  "878237FC6AE44E2932E960ACFB0276FC63658928F928A57F69BE590A1D8C9597",
+                      "bytes":  118709,
                       "lines":  2579
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
-                      "hash":  "AF528D87C7763F141C85FB2622C084058AC1179C26AD802AB9F3545A1E8498C9",
-                      "bytes":  16905,
-                      "lines":  301
+                      "hash":  "C7B050406D9E61B2BFDA32D88A3C1F1DFC675116D79505FAC29473D41CF42699",
+                      "bytes":  16994,
+                      "lines":  302
                   },
                   {
                       "path":  "src/MechKit/UI/PlateDrawingForm.cs",
-                      "hash":  "5C4C63A335ED4B938616A9E9D9B78653C9F8335FEAB12B0F21B7ABC50DAD271D",
-                      "bytes":  4874,
-                      "lines":  82
+                      "hash":  "73B7D64C7FDBF548287744AC344CF37589BEFB14003AA04255569B711E5389D2",
+                      "bytes":  5302,
+                      "lines":  89
                   },
                   {
                       "path":  "src/MechKit/UI/PropertyToolForm.cs",
@@ -448,14 +442,14 @@
                   },
                   {
                       "path":  "src/MechKit/UI/SettingsForm.cs",
-                      "hash":  "71FF0FF091BB1FCF85D6D15B6BA1E64602080B30FF476A31C7CCA2113A052080",
-                      "bytes":  59047,
+                      "hash":  "AADB560AFE9A38AB701067A90FC35E945F642A3C1FD9632092D69508B02FE503",
+                      "bytes":  59106,
                       "lines":  1325
                   },
                   {
                       "path":  "src/MechKit/UI/TaskPaneControl.cs",
-                      "hash":  "72D73C0AEBA3895F2752303353A833AF83CA9AF18A087BF8E4D0E7878425D275",
-                      "bytes":  31055,
+                      "hash":  "65CD036DB35CCCA7E89ADF89580816CBD485B4601944D1D6CDC1D6507E65781B",
+                      "bytes":  31114,
                       "lines":  803
                   },
                   {
@@ -466,9 +460,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "28433AD932F353BC729264A178E3432496BA5A3E7FB80814037446B052C19285",
-                      "bytes":  30433,
-                      "lines":  678
+                      "hash":  "5267ABEA8CC48613D60ECFE11585B295C3E632031773038F18A6C54F1CA42906",
+                      "bytes":  32105,
+                      "lines":  711
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",
@@ -571,6 +565,12 @@
                       "hash":  "6D41C2244DDB181494FC0D2592DFA22E5BDEA5A628579739C0F4F4F7A1B966EA",
                       "bytes":  476,
                       "lines":  6
+                  },
+                  {
+                      "path":  "tools/Test-BomSearch.ps1",
+                      "hash":  "B4D1C4B434CA12C746C8ADC6215B099D65D458EAACD00FF56FDAFE27D4A1BC58",
+                      "bytes":  2822,
+                      "lines":  46
                   },
                   {
                       "path":  "tools/Test-BomWorkspace.ps1",
@@ -676,9 +676,9 @@
                   },
                   {
                       "path":  "tools/Test-WindowLowering.ps1",
-                      "hash":  "01F2B1FDBBE6D52CB71A75964FE6E9C8179B59D69CF049E91BB986E1F73D4C1A",
-                      "bytes":  2059,
-                      "lines":  34
+                      "hash":  "616FCAAE172B659C456293627C2C63093BDAF048626DC24F12E2946266476A9B",
+                      "bytes":  3010,
+                      "lines":  46
                   },
                   {
                       "path":  "tools/Test-WindowShortcuts.ps1",

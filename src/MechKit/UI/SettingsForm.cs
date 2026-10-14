@@ -1308,7 +1308,7 @@ namespace MechKit.UI
             {
                 if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
                 {
-                    Process.Start("explorer.exe", path);
+                    WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", path) { UseShellExecute=true });
                     _status.Text = "已打开：" + path;
                 }
                 else

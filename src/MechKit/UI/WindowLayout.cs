@@ -17,6 +17,7 @@ namespace MechKit.UI
         private delegate IntPtr KeyboardProc(int code, IntPtr key, IntPtr flags);
         private static readonly KeyboardProc KeyboardCallback = OnKeyboard;
         private static IntPtr _keyboardHook;
+        private static bool _yieldingContent;
         private delegate IntPtr MouseProc(int code, IntPtr message, IntPtr data);
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint="SetWindowsHookExW")]
         private static extern IntPtr SetMouseHook(int hook, MouseProc callback, IntPtr module, uint thread);
@@ -119,7 +120,7 @@ namespace MechKit.UI
         /// <summary>打开模型后让出绘图区，保留可由 Tab 唤回的窗口及编辑状态。</summary>
         public static void LowerAfterDocumentOpened(Form form, IntPtr solidWorksWindow)
         {
-            if (form == null || form.IsDisposed || !form.IsHandleCreated || solidWorksWindow == IntPtr.Zero) return;
+            if (form == null || form.IsDisposed || !form.IsHandleCreated) return;
             // Mark before queuing: activation callbacks and repeated mouse messages
             // must not raise the window again or enqueue another lowering operation.
             if (!LoweredForms.Add(form)) return;
@@ -130,8 +131,39 @@ namespace MechKit.UI
                 form.SendToBack();
                 // A click in SW has already moved focus there. Repeating this call
                 // can re-enter SW activation/loading handlers while it is busy.
-                if (GetForegroundWindow() == form.Handle) SetForegroundWindow(solidWorksWindow);
+                if (solidWorksWindow != IntPtr.Zero && GetForegroundWindow() == form.Handle) SetForegroundWindow(solidWorksWindow);
             }));
+        }
+
+        internal static void YieldToOpenedContent(IntPtr solidWorksWindow)
+        {
+            var windows=new System.Collections.Generic.List<Form>();
+            foreach (var form in ShortcutForms.ToArray())
+                if (!form.IsDisposed && form.Visible && !form.Modal)
+                { windows.Add(form); LoweredForms.Add(form); }
+            if(windows.Count==0) return;
+            windows[0].BeginInvoke(new Action(()=>
+            {
+                _yieldingContent=true;
+                try
+                {
+                    // Lower as one batch: Windows can temporarily activate another
+                    // plugin form while moving the first one behind the host.
+                    foreach(var form in windows)
+                        if(!form.IsDisposed && form.Visible)
+                        { LoweredForms.Add(form); form.TopMost=false;form.SendToBack(); }
+                    if(solidWorksWindow!=IntPtr.Zero && windows.Exists(f=>!f.IsDisposed && f.IsHandleCreated && GetForegroundWindow()==f.Handle))
+                        SetForegroundWindow(solidWorksWindow);
+                }
+                finally { _yieldingContent=false; }
+            }));
+        }
+
+        internal static void OpenExternal(System.Diagnostics.ProcessStartInfo startInfo)
+        {
+            System.Diagnostics.Process.Start(startInfo);
+            // Do not reactivate SW after launching a browser, Explorer or report viewer.
+            YieldToOpenedContent(IntPtr.Zero);
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -230,14 +262,14 @@ namespace MechKit.UI
             // Thread-local mouse messages also arrive when SW already has focus;
             // Deactivate alone misses the click after using a task-pane button.
             mouseHook=SetMouseHook(7,mouseCallback,IntPtr.Zero,GetCurrentThreadId());
-            form.Activated+=(s,e)=>LoweredForms.Remove(form);
+            form.Activated+=(s,e)=> { if(!_yieldingContent) LoweredForms.Remove(form); };
             timer.Tick+=(s,e)=>
             {
                 if(form.IsDisposed || !form.Visible) return;
                 var foreground=GetForegroundWindow();
                 if (foreground==lastForeground) return;
                 lastForeground=foreground;
-                if(foreground==form.Handle) LoweredForms.Remove(form);
+                if(foreground==form.Handle && !_yieldingContent) LoweredForms.Remove(form);
                 RaiseWithinHost(form,host);
             };
             form.Disposed+=(s,e)=>{
@@ -422,6 +454,7 @@ namespace MechKit.UI
             form.FormClosed += delegate
             {
                 ShortcutForms.Remove(form);
+                LoweredForms.Remove(form);
                 if (ShortcutForms.Count == 0 && _keyboardHook != IntPtr.Zero)
                 {
                     UnhookWindowsHookEx(_keyboardHook);

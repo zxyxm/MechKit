@@ -385,7 +385,7 @@ namespace MechKit
                 // 一键体验：生成后直接打开，Excel 里立刻能用
                 try
                 {
-                    Process.Start(path);
+                    WindowLayout.OpenExternal(new ProcessStartInfo(path) { UseShellExecute=true });
                 }
                 catch (Exception ex)
                 {
@@ -1432,7 +1432,7 @@ namespace MechKit
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"")
+                WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"")
                     { UseShellExecute = true });
             }
             catch (Exception ex)
@@ -1607,13 +1607,6 @@ namespace MechKit
             };
 
             var handle = MainWindowHandle;
-            if (handle != IntPtr.Zero && key == "quick-annotation")
-            {
-                // 标注助手保持在 SW 主窗口之上；BOM 允许下沉以查看打开的模型。
-                form.Show(new SwWindow(handle));
-                form.BringToFront();
-                return;
-            }
             if (handle != IntPtr.Zero)
             {
                 // 不把 SOLIDWORKS 主窗口当 owner：owner 会把窗口永远压在图形区之上，
