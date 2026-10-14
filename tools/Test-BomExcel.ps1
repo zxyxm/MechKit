@@ -16,6 +16,7 @@ foreach ($configuration in @('Default', 'Other', 'Default')) {
     $row.Configuration = $configuration
     $row.Name = '测试 & <零件>'
     $row.Quantity = 3
+    $row.PurchaseLink = 'https://example.com/item?id=123&sku=456'
     $rows.Add($row)
 }
 $options = [Activator]::CreateInstance($optionType)
@@ -56,6 +57,12 @@ try {
     $anchors = $drawing.DocumentElement.ChildNodes
     if ($anchors.Count -ne 2 -or $anchors[0].from.row -ne '1' -or $anchors[1].from.row -ne '3') { throw 'Images do not match BOM rows.' }
     if (-not $zip.GetEntry('xl/media/image1.png') -or -not $zip.GetEntry('xl/media/image2.png')) { throw 'Images are not embedded.' }
+    if ($sheet.SelectNodes('//s:hyperlinks/s:hyperlink',$ns).Count -ne 3) { throw 'Purchase hyperlinks missing.' }
+    [xml]$relationships=Read-Entry 'xl/worksheets/_rels/sheet1.xml.rels'
+    $links=@($relationships.DocumentElement.ChildNodes | Where-Object {$_.TargetMode -eq 'External'})
+    if($links.Count -ne 3 -or $links[0].Target -ne 'https://example.com/item?id=123&sku=456'){throw 'Hyperlink target escaping or relationships failed'}
+    $elements=@($sheet.DocumentElement.ChildNodes | ForEach-Object LocalName)
+    if([Array]::IndexOf($elements,'hyperlinks') -gt [Array]::IndexOf($elements,'drawing')){throw 'Worksheet hyperlink element order invalid'}
 } finally { $zip.Dispose() }
 Write-Host "BOM Excel regression checks passed: $path"
 

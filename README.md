@@ -10,6 +10,8 @@
 
 导出窗口支持“第二字段”筛选：按文件名第二段读取，兼容短横线和下划线。例如 `20260929-p6061-下测板` 的第二字段为 `p6061`，`淘宝-五金-接头` 为 `五金`。选择字段会自动勾选匹配文件；开始导出时也会限定该字段，`p6061` 与 `6061` 分开处理。右侧“输出目录”指定这一组的保存文件夹；切换字段和目录可分别导出不同组。“全部字段”取消限定，“无第二字段”收录没有第二段的文件。BOM 带入的文件仍限于原先勾选的范围，若要按字段处理整个 BOM，可先全选再进入导出窗口。
 
+BOM 的“购买链接”列：双击打开网址编辑框，剪贴板中有有效网址时自动填入；点击“保存并同步”写入零件文档级自定义属性“购买链接”并保存文件，同一文件的其他 BOM 行同步更新。支持 http/https，留空可清除；Ctrl＋单击打开网址。启用“读取自定义属性”后刷新 BOM 会读回已保存的链接；CSV 保留网址，Excel 导出包含可点击超链接。虚拟件或未保存文件需先保存为外部零件。
+
 **公差助手**：菜单或 MechKit 选项卡点击“公差助手”。在工程图选中一个或多个尺寸，左键点击网格预设写入公差；右键可自定义 `上公差/下公差/备注`（如 `0.03/0/销钉`）、`±0.02`、`H7` 或 `h7`。输入 `0` 或留空只清空该预设格，“清除选中尺寸公差”按钮才移除尺寸公差。预设自动保存并随配置导出；备注只作预设标签。普通尺寸可直接应用，角度尺寸跳过。孔标注点击预设时自动读取参数；仅一个参数时直接应用，多个参数时弹出选择孔径或深度；普通尺寸前缀和后缀也提供独立预设页。修改后保存工程图。
 
 孔标注通过 [SOLIDWORKS 孔标注变量 API](https://help.solidworks.com/2019/english/api/sldworksapi/SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IDisplayDimension~GetHoleCalloutVariables.html) 独立设置参数公差；前缀、后缀仅支持普通尺寸（[SetText API](https://help.solidworks.com/2019/English/api/sldworksapi/SOLIDWORKS.Interop.sldworks~SOLIDWORKS.Interop.sldworks.IDisplayDimension~SetText.html) 不支持孔标注）。

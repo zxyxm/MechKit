@@ -43,6 +43,8 @@ namespace MechKit.Features
             data.Add(header);
             var drawing = new XElement(Drawing + "wsDr");
             var drawingRels = new XElement(Package + "Relationships");
+            var worksheetRels = new XElement(Package + "Relationships");
+            var hyperlinks = new XElement(Sheet + "hyperlinks");
             var cache = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
             using (var file = new FileStream(path, FileMode.CreateNew))
             using (var zip = new ZipArchive(file, ZipArchiveMode.Create))
@@ -63,8 +65,23 @@ namespace MechKit.Features
                         new XAttribute("ht", 60), new XAttribute("customHeight", 1));
                     cells.Add(Cell("A" + number, png == null ? "无缩略图" : ""));
                     for (var c = 0; c < columns.Length; c++)
+                    {
                         cells.Add(Cell(Column(c + 2) + number,
                             PartListService.ColumnValue(row, i + 1, columns[c]), columns[c] == "quantity" || columns[c] == "sequence"));
+                        if(columns[c]=="purchaselink" && !string.IsNullOrWhiteSpace(row.PurchaseLink))
+                        {
+                            try
+                            {
+                                var link=PurchaseLinkService.Validate(row.PurchaseLink);
+                                var id="purchase"+number;
+                                hyperlinks.Add(new XElement(Sheet+"hyperlink", new XAttribute("ref",Column(c+2)+number),new XAttribute(Rel+"id",id)));
+                                var relationship=Relationship(id,"hyperlink",link);
+                                relationship.Add(new XAttribute("TargetMode","External"));
+                                worksheetRels.Add(relationship);
+                            }
+                            catch(ArgumentException) { /* Keep invalid legacy values as plain text. */ }
+                        }
+                    }
                     data.Add(cells);
                     if (png == null) continue;
                     imageId++;
@@ -87,15 +104,17 @@ namespace MechKit.Features
                     new XElement(Content + "Default", new XAttribute("Extension", "rels"), new XAttribute("ContentType", "application/vnd.openxmlformats-package.relationships+xml")),
                     new XElement(Content + "Default", new XAttribute("Extension", "xml"), new XAttribute("ContentType", "application/xml")),
                     Override("/xl/workbook.xml", "spreadsheetml.sheet.main"), Override("/xl/worksheets/sheet1.xml", "spreadsheetml.worksheet"));
+                if(hyperlinks.HasElements) worksheet.Add(hyperlinks);
                 if (imageId > 0)
                 {
                     types.Add(new XElement(Content + "Default", new XAttribute("Extension", "png"), new XAttribute("ContentType", "image/png")),
                         Override("/xl/drawings/drawing1.xml", "drawing"));
                     worksheet.Add(new XElement(Sheet + "drawing", new XAttribute(Rel + "id", "rId1")));
-                    Write(zip, "xl/worksheets/_rels/sheet1.xml.rels", new XElement(Package + "Relationships", Relationship("rId1", "drawing", "../drawings/drawing1.xml")));
+                    worksheetRels.Add(Relationship("rId1", "drawing", "../drawings/drawing1.xml"));
                     Write(zip, "xl/drawings/drawing1.xml", drawing);
                     Write(zip, "xl/drawings/_rels/drawing1.xml.rels", drawingRels);
                 }
+                if(worksheetRels.HasElements) Write(zip,"xl/worksheets/_rels/sheet1.xml.rels",worksheetRels);
                 Write(zip, "[Content_Types].xml", types);
                 Write(zip, "_rels/.rels", new XElement(Package + "Relationships", Relationship("rId1", "officeDocument", "xl/workbook.xml")));
                 Write(zip, "xl/workbook.xml", new XElement(Sheet + "workbook", new XElement(Sheet + "sheets",

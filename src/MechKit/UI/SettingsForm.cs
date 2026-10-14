@@ -386,6 +386,7 @@ namespace MechKit.UI
                 case "surface": return _surfaceHeader;
                 case "quantity": return _quantityHeader;
                 case "assemblynote": return _assemblyNoteHeader;
+                case "purchaselink": return new TextBox { Text = "购买链接", ReadOnly = true };
                 default: return _remarkHeader;
             }
         }
@@ -405,6 +406,7 @@ namespace MechKit.UI
                 case "surface": return standard ? _standardSurfaceField : _machinedSurfaceField;
                 case "quantity": return BuildFixedCombo("统计数量");
                 case "assemblynote": return standard ? _standardAssemblyNoteField : _machinedAssemblyNoteField;
+                case "purchaselink": return BuildFixedCombo("自定义属性·购买链接");
                 default: return standard ? _standardRemarkField : _machinedRemarkField;
             }
         }

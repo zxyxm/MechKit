@@ -129,6 +129,7 @@ namespace MechKit.Features
         public string SurfaceTreatment { get; set; }
 
         public string Remark { get; set; }
+        public string PurchaseLink { get; set; }
 
         public int Quantity { get; set; }
 
@@ -272,7 +273,7 @@ namespace MechKit.Features
         internal static class PartListService
     {
         public const string DefaultColumnOrder =
-            "sequence,location,fullname,drawing,classification,name,material,process,surface,quantity,assemblynote,remark";
+            "sequence,location,fullname,drawing,classification,name,material,process,surface,quantity,assemblynote,remark,purchaselink";
 
         /// <summary>不符合命名规则的组件在“属性”列里的显示名（表格最后一行区、标红）。</summary>
         internal const string UnmatchedClassification = "命名不规范";
@@ -709,7 +710,8 @@ namespace MechKit.Features
                     Process=MergeExportText(group.Select(r=>r.Process)),
                     SurfaceTreatment=MergeExportText(group.Select(r=>r.SurfaceTreatment)),
                     Classification=MergeExportText(group.Select(r=>r.Classification)),
-                    Remark=MergeExportText(group.Select(r=>r.Remark))
+                    Remark=MergeExportText(group.Select(r=>r.Remark)),
+                    PurchaseLink=MergeExportText(group.Select(r=>r.PurchaseLink))
                 });
             }
             return result;
@@ -776,6 +778,7 @@ namespace MechKit.Features
                 case "quantity": return Header(options.QuantityHeader, "数量");
                 case "assemblynote": return Header(options.AssemblyNoteHeader, "安装说明");
                 case "remark": return Header(options.RemarkHeader, "备注");
+                case "purchaselink": return "购买链接";
                 default: return key ?? string.Empty;
             }
         }
@@ -818,6 +821,7 @@ namespace MechKit.Features
                 case "quantity": return row.Quantity.ToString();
                 case "assemblynote": return row.AssemblyNote;
                 case "remark": return row.Remark;
+                case "purchaselink": return row.PurchaseLink;
                 default: return string.Empty;
             }
         }
@@ -2188,6 +2192,7 @@ namespace MechKit.Features
         private static void ApplyConfiguredFields(PartListRow row, string sourceName,
             Dictionary<string, string> properties, PartListOptions options)
         {
+            if (row != null) row.PurchaseLink = First(properties, PurchaseLinkService.PropertyName);
             if (row == null || options == null)
             {
                 return;
