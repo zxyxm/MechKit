@@ -103,10 +103,11 @@ namespace MechKit.Features
             {
                 if(string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                     throw new InvalidOperationException("零件尚未保存，请先另存为独立文件。");
-                var kind=naming.RecognizeDesignNode(path);
-                if(kind==DesignNodeKind.Reference || kind==DesignNodeKind.Standard || kind==DesignNodeKind.Stock ||
-                   kind==DesignNodeKind.Spare || kind==DesignNodeKind.ExternalDrawing)
-                    throw new InvalidOperationException("按 MechKit 命名规则排除："+kind);
+                // Opening a part and pressing Draw is an explicit request, including
+                // purchased/standard parts. Naming exclusions apply only to assembly batches.
+                object ownerPaths, ownerTitles;
+                if(part.Extension.IsVirtualComponent3(out ownerPaths,out ownerTitles))
+                    throw new InvalidOperationException("虚拟零件请先另存为独立文件。");
                 var candidate=new Candidate{Path=path};
                 candidate.Configurations.Add(config);
                 targets.Add(path,candidate);

@@ -14,7 +14,9 @@ public static class MachiningDrawingLiveTest
         var original=ReadShared(input);
         var app=(ISldWorks)Marshal.GetActiveObject("SldWorks.Application");
         var old=app.IActiveDoc2;
-        var path=Path.Combine(folder,"MachTest-"+Guid.NewGuid().ToString("N").Substring(0,8)+"-"+Path.GetFileName(input));
+        // Preserve naming prefixes so the live test also exercises explicit standard-part drawing.
+        var path=Path.Combine(folder,Path.GetFileNameWithoutExtension(input)+"-MachTest-"+
+            Guid.NewGuid().ToString("N").Substring(0,8)+Path.GetExtension(input));
         File.Copy(input,path,false);
         ModelDoc2 part=null,drawing=null;
         try

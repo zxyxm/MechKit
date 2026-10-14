@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.6.0",
+    "version":  "0.34.7.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T11:52:44.8320678+08:00",
+    "generatedAt":  "2026-10-14T11:54:59.2217822+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "5C1BB436AE6DB281A673E5D21ECF56FB3E0A85A47798134B212853CB9F588733",
+                      "hash":  "C079CFC7C7EA369509D8F56B06E728AFDF73E3BB47DA986C880D091C93225423",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -232,9 +232,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/PlateDrawingService.cs",
-                      "hash":  "5E5D8F4DEBFFDDA1B1B3648DD14EB1721FB4C83408D98AF578EF35CF96B3D943",
-                      "bytes":  38750,
-                      "lines":  636
+                      "hash":  "6AD2A57F902AD522F55196804ED5A47A9297E2343779A6B77D6F225FC2CC998D",
+                      "bytes":  38808,
+                      "lines":  637
                   },
                   {
                       "path":  "src/MechKit/Features/PlateGeometry.cs",
@@ -640,9 +640,9 @@
                   },
                   {
                       "path":  "tools/testdata/MachiningDrawingLiveTest.cs",
-                      "hash":  "5720F8BFEFAA8012DF8631CE8559902209AE6217EFF30960C29E6A0369F1DCCE",
-                      "bytes":  4221,
-                      "lines":  75
+                      "hash":  "AE7E8A80A5E10EC679EDC85DB2F8E229DBFC131F6DE938E311BDAF183CA47F0F",
+                      "bytes":  4372,
+                      "lines":  77
                   },
                   {
                       "path":  "tools/testdata/PlateDrawingLiveTest.cs",
