@@ -76,6 +76,8 @@ namespace MechKit.UI
         private readonly ModelPreviewPopup _modelPreview = new ModelPreviewPopup();
         private PartListRow _previewRow;
         private Image _previewImage;
+        private readonly ModelPreviewCache _previewCache = new ModelPreviewCache();
+        private bool _loadingPreview;
 
         public PartListForm(IAddinHost host)
         {
@@ -528,7 +530,7 @@ namespace MechKit.UI
             _grid.Scroll += (sender,e)=>HideModelPreview();
             Deactivate += (sender,e)=>HideModelPreview();
             _previewDelay.Tick += (sender,e)=>ShowModelPreview();
-            Disposed += (sender,e)=> { _previewDelay.Dispose();_modelPreview.Dispose();if(_previewImage!=null)_previewImage.Dispose(); };
+            Disposed += (sender,e)=> { _previewDelay.Dispose();_modelPreview.Dispose();_previewCache.Clear();if(_previewImage!=null)_previewImage.Dispose(); };
             _grid.MouseDown += BeginMarkRows;
             _grid.MouseUp += delegate { EndMarkRows(); };
             _grid.Paint += PaintMarkSelection;
@@ -1110,6 +1112,9 @@ namespace MechKit.UI
             {
                 return;
             }
+
+            HideModelPreview();
+            _previewCache.Clear();
 
             var options = BuildOptions();
             _treeItems = new List<DesignTreeItem>();
@@ -1743,11 +1748,16 @@ namespace MechKit.UI
         private void ShowModelPreview()
         {
             _previewDelay.Stop();
-            if(_previewRow==null || _running || _markDragging || !Visible) return;
+            if(_previewRow==null || _running || _loadingPreview || _markDragging || !Visible) return;
             var row=_previewRow;
+            _loadingPreview=true;
             try
             {
-                var bytes=BomExcelExporter.ReadPreview(_host.SwApp,row,true);
+                var bytes=_previewCache.Read(row.FilePath,row.Configuration,
+                    ()=>BomExcelExporter.ReadPreview(_host.SwApp,row,true));
+                // SW may pump messages inside COM. Do not display a result from
+                // the old row after the user has left the cell or changed focus.
+                if(!ReferenceEquals(row,_previewRow) || IsDisposed || !Visible) return;
                 if(bytes!=null)
                     using(var stream=new MemoryStream(bytes))
                     using(var source=Image.FromStream(stream)) _previewImage=new Bitmap(source);
@@ -1760,6 +1770,12 @@ namespace MechKit.UI
                 _modelPreview.Show(this);
             }
             catch(Exception ex) { Log.Warn("显示模型预览失败："+ex.Message);HideModelPreview(); }
+            finally
+            {
+                _loadingPreview=false;
+                if(!IsDisposed && _previewRow!=null && !ReferenceEquals(row,_previewRow) && Visible && !_running)
+                    _previewDelay.Start();
+            }
         }
 
         private void BeginMarkRows(object sender, MouseEventArgs e)

@@ -129,6 +129,7 @@ namespace MechKit.Features
         {
             if (app == null || string.IsNullOrEmpty(row.FilePath) || !File.Exists(row.FilePath)) return null;
             var temp = Path.Combine(Path.GetTempPath(), "MechKit-preview-" + Guid.NewGuid().ToString("N") + ".bmp");
+            var elapsed=System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 var configuration = row.Configuration;
@@ -149,6 +150,9 @@ namespace MechKit.Features
             }
             finally
             {
+                elapsed.Stop();
+                if(elapsed.ElapsedMilliseconds>=100)
+                    Log.Warn("SW 缩略图读取耗时："+elapsed.ElapsedMilliseconds+" ms；"+row.FilePath+"；配置="+row.Configuration);
                 try { if (File.Exists(temp)) File.Delete(temp); }
                 catch (Exception ex) { Log.Warn("清理 BOM 缩略图失败：" + ex.Message); }
             }

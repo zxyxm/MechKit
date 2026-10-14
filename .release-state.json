@@ -1,13 +1,31 @@
 {
-    "version":  "0.35.11.0",
+    "version":  "0.35.12.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T18:34:44.8743256+08:00",
+    "generatedAt":  "2026-10-14T18:41:55.9800258+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
                           "targetFramework":  "net48"
                       },
     "files":  [
+                  {
+                      "path":  "src/MechKit/UI/ModelPreviewCache.cs",
+                      "hash":  "0FCC145BA82A72E38931C24BF2A4DA59978E02F16549A0C07ED40C563A68DB2F",
+                      "bytes":  1550,
+                      "lines":  36
+                  },
+                  {
+                      "path":  "tools/Measure-PreviewActivity.ps1",
+                      "hash":  "13BC096CA3ECCF15CAC2EC481C4D08ECC946037C604446B5EA75C71F7D631CB2",
+                      "bytes":  3363,
+                      "lines":  47
+                  },
+                  {
+                      "path":  "tools/Test-ModelPreviewCache.ps1",
+                      "hash":  "8465F82EBED84FC43E6931DA90983325D87FCAACD4FFDE45686D1CCB0C0F6C06",
+                      "bytes":  1707,
+                      "lines":  30
+                  },
                   {
                       "path":  ".gitignore",
                       "hash":  "32D104457B001404479C57F2D58E8EE2AD79F4DFF21A10B659C5DB80C2C1E6BA",
@@ -70,7 +88,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "4A3BE8C445609EB6669B3DE4CB4BA0C735B85F35CEAABDB190959C8BA6EDBC74",
+                      "hash":  "48C631F9DB48C6A79D0DF19C606C3023597AB11D39E386DB693B8FB77CC9A32B",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -208,9 +226,9 @@
                   },
                   {
                       "path":  "src/MechKit/Features/BomExcelExporter.cs",
-                      "hash":  "7B402F91FED1FF99DC294A68AD1BA48931AB9056E43FFFBE8910DAFC6B0CB096",
-                      "bytes":  14710,
-                      "lines":  241
+                      "hash":  "AE84AACC35F5E97267EA96399450E674BCF399A32A4E67442AB738D7080B3223",
+                      "bytes":  15002,
+                      "lines":  245
                   },
                   {
                       "path":  "src/MechKit/Features/CustomProperty.cs",
@@ -412,9 +430,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "878237FC6AE44E2932E960ACFB0276FC63658928F928A57F69BE590A1D8C9597",
-                      "bytes":  118709,
-                      "lines":  2579
+                      "hash":  "5C8A6C6CDB95E87120EF48B2D859EC3C767FB02E055221CE5359F19952A68F2F",
+                      "bytes":  119561,
+                      "lines":  2595
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
