@@ -1,7 +1,7 @@
 {
-    "version":  "0.35.2.0",
+    "version":  "0.35.3.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T16:14:01.1398473+08:00",
+    "generatedAt":  "2026-10-14T16:43:50.6712670+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -9,15 +9,9 @@
                       },
     "files":  [
                   {
-                      "path":  "docs/feature-audit-2026-10-14.md",
-                      "hash":  "95F912812838BFA2C55EDC5B2AB0FBBA5C3B52732A73EBE6255625F93F6DA85B",
-                      "bytes":  6290,
-                      "lines":  64
-                  },
-                  {
-                      "path":  "tools/Test-HoleAnnotationLive.ps1",
-                      "hash":  "3AB534A54F8A84B5D219CF31A5B7258489053640E0062BC18BE1DA7FFB0CA5AD",
-                      "bytes":  4691,
+                      "path":  "tools/Test-ExportSecondField.ps1",
+                      "hash":  "A234C5F3E19EB734E82208FB6C49118682C515B8C2554C9615598E799732C30F",
+                      "bytes":  3784,
                       "lines":  59
                   },
                   {
@@ -34,9 +28,9 @@
                   },
                   {
                       "path":  "README.md",
-                      "hash":  "047A86A5324F10BA97DFDF793F92067500923518740F35BE71081323AE3690FC",
-                      "bytes":  31293,
-                      "lines":  379
+                      "hash":  "00A70D89CF80099E352C033637D99DA3413EC18A50AD73154DC2FD14D39EFEC4",
+                      "bytes":  31933,
+                      "lines":  381
                   },
                   {
                       "path":  "VERSIONING.md",
@@ -63,6 +57,12 @@
                       "lines":  183
                   },
                   {
+                      "path":  "docs/feature-audit-2026-10-14.md",
+                      "hash":  "95F912812838BFA2C55EDC5B2AB0FBBA5C3B52732A73EBE6255625F93F6DA85B",
+                      "bytes":  6290,
+                      "lines":  64
+                  },
+                  {
                       "path":  "docs/quick-parts-library.md",
                       "hash":  "8E9C4EE3A1705DAE1A9D74561C1D269DF1D15FEA06FA6186E15A5FCFA9E770BF",
                       "bytes":  1942,
@@ -76,7 +76,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "78CB765262A43F9D78A411C189DC18401AA16BB6BC0A457BE0F538371F6D6077",
+                      "hash":  "7707E9932759A38D2C7F3E88869CA2707BB30A8A110A936BFDFC68A78892AF91",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -382,9 +382,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/BatchExportForm.cs",
-                      "hash":  "DF87CD26C2C4F91718003E932A7892948D7273C8DA95F923F3ABD04CD054E26E",
-                      "bytes":  33515,
-                      "lines":  854
+                      "hash":  "F860AB354E0E1B0B9B76C6AE56A5E048FB18E79700BEBC9C3F27C58E66DC4C19",
+                      "bytes":  38019,
+                      "lines":  943
                   },
                   {
                       "path":  "src/MechKit/UI/CategoryRulesPanel.cs",
@@ -595,6 +595,12 @@
                       "hash":  "FAC749E0B300CAF28E3E017CD38298589CA42A2F590D9C3B7D084E0D9410C20A",
                       "bytes":  1959,
                       "lines":  39
+                  },
+                  {
+                      "path":  "tools/Test-HoleAnnotationLive.ps1",
+                      "hash":  "3AB534A54F8A84B5D219CF31A5B7258489053640E0062BC18BE1DA7FFB0CA5AD",
+                      "bytes":  4691,
+                      "lines":  59
                   },
                   {
                       "path":  "tools/Test-LaserDxf.ps1",

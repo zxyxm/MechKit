@@ -18,6 +18,8 @@ namespace MechKit.UI
         private readonly TreeView _fileTree;
         private readonly List<string> _files = new List<string>();
         private bool _checkingTree;
+        private readonly ComboBox _secondFieldFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+        private bool _updatingFieldFilter;
         private readonly TextBox _outputBox;
         private readonly TextBox _subfolderBox;
         private string _assemblyOutputRoot;
@@ -68,6 +70,7 @@ namespace MechKit.UI
             LoadDefaults(false);
             if (initialFiles != null && initialFiles.Count > 0) AddInitialFiles(initialFiles);
             else LoadCurrentAssembly();
+            RefreshSecondFields();
         }
 
         private void AddInitialFiles(IList<string> files)
@@ -238,10 +241,11 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3,
+                RowCount = 4,
                 BackColor = Theme.Surface
             };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 64f));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
 
@@ -252,7 +256,27 @@ namespace MechKit.UI
             _fileTree.CheckBoxes = true;
             _fileTree.ShowNodeToolTips = true;
             _fileTree.BorderStyle = BorderStyle.FixedSingle;
-            layout.Controls.Add(_fileTree, 0, 1);
+            layout.Controls.Add(_fileTree, 0, 2);
+            var fieldBar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 2 };
+            fieldBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
+            fieldBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            fieldBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+            fieldBar.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            fieldBar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            fieldBar.Controls.Add(Theme.CreateValueLabel("第二字段"), 0, 0);
+            fieldBar.Controls.Add(_secondFieldFilter, 1, 0);
+            var selectField = Theme.CreateSecondaryButton("勾选匹配");
+            selectField.Dock = DockStyle.Fill;
+            selectField.Click += delegate { SelectMatchingSecondField(); };
+            fieldBar.Controls.Add(selectField, 2, 0);
+            var fieldHint = Theme.CreateValueLabel("按文件名第二段筛选，再在右侧指定输出目录。");
+            fieldHint.Dock = DockStyle.Fill;
+            fieldBar.Controls.Add(fieldHint, 0, 1); fieldBar.SetColumnSpan(fieldHint, 3);
+            layout.Controls.Add(fieldBar, 0, 1);
+            _secondFieldFilter.SelectedIndexChanged += delegate
+            {
+                if (!_updatingFieldFilter) SelectMatchingSecondField();
+            };
 
             var buttons = new TableLayoutPanel
             {
@@ -288,7 +312,7 @@ namespace MechKit.UI
             buttons.Controls.Add(addFiles, 0, 0);
             buttons.Controls.Add(addFolder, 1, 0);
             buttons.Controls.Add(clear, 2, 0);
-            layout.Controls.Add(buttons, 0, 2);
+            layout.Controls.Add(buttons, 0, 3);
 
             panel.Controls.Add(layout);
             return panel;
@@ -693,12 +717,11 @@ namespace MechKit.UI
 
         private void StartExport()
         {
-            var files = new List<string>();
-            CollectCheckedFiles(_fileTree.Nodes, files);
+            var files = SelectedExportFiles();
 
             if (files.Count == 0)
             {
-                MessageBox.Show(this, "请先添加要导出的文件或文件夹。", AddinConstants.Title,
+                MessageBox.Show(this, "当前第二字段下没有勾选的文件，请选择字段并勾选匹配文件。", AddinConstants.Title,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -816,9 +839,75 @@ namespace MechKit.UI
 
         private void UpdateStatus()
         {
+            RefreshSecondFields();
+            var files = SelectedExportFiles();
+            _status.Text = string.Format("第二字段：{0} · 已选 {1} 个文件（配套工程图自动补齐）",
+                Convert.ToString(_secondFieldFilter.SelectedItem), files.Count);
+        }
+
+        internal static string FileSecondField(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            var fields = Path.GetFileNameWithoutExtension(path).Split(new[] { '-', '_' });
+            return fields.Length > 1 ? fields[1].Trim() : string.Empty;
+        }
+
+        private bool MatchesSecondField(string path)
+        {
+            if (_secondFieldFilter.SelectedIndex <= 0) return true;
+            var field = _secondFieldFilter.SelectedIndex == 1 ? string.Empty : Convert.ToString(_secondFieldFilter.SelectedItem);
+            return string.Equals(FileSecondField(path), field, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void RefreshSecondFields()
+        {
+            var fields = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in _files)
+            {
+                var value = FileSecondField(file);
+                if (value.Length > 0) fields.Add(value);
+            }
+            var items = new List<string> { "全部字段", "无第二字段" }; items.AddRange(fields);
+            bool same = items.Count == _secondFieldFilter.Items.Count;
+            for (int i=0; same && i<items.Count; i++)
+                same = items[i] == Convert.ToString(_secondFieldFilter.Items[i]);
+            if (same) return;
+            var selected = Convert.ToString(_secondFieldFilter.SelectedItem);
+            _updatingFieldFilter = true;
+            try
+            {
+                _secondFieldFilter.Items.Clear();
+                _secondFieldFilter.Items.AddRange(items.ToArray());
+                _secondFieldFilter.SelectedIndex = Math.Max(0, _secondFieldFilter.Items.IndexOf(selected));
+            }
+            finally { _updatingFieldFilter = false; }
+        }
+
+        private List<string> SelectedExportFiles()
+        {
             var files = new List<string>();
             CollectCheckedFiles(_fileTree.Nodes, files);
-            _status.Text = string.Format("已勾选 {0} 个文件（配套工程图自动补齐）", files.Count);
+            files.RemoveAll(file => !MatchesSecondField(file));
+            return files;
+        }
+
+        private void SelectMatchingSecondField()
+        {
+            _checkingTree = true;
+            _fileTree.BeginUpdate();
+            try { SelectFieldNodes(_fileTree.Nodes); }
+            finally { _fileTree.EndUpdate(); _checkingTree = false; }
+            UpdateStatus();
+        }
+
+        private void SelectFieldNodes(TreeNodeCollection nodes)
+        {
+            foreach (TreeNode node in nodes)
+            {
+                var path = node.Tag as string;
+                node.Checked = !string.IsNullOrEmpty(path) && SwUtils.IsSolidWorksFile(path) && MatchesSecondField(path);
+                SelectFieldNodes(node.Nodes);
+            }
         }
 
         private void AppendLog(string message)
