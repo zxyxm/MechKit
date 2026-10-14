@@ -106,7 +106,7 @@ namespace MechKit.Features
             return path;
         }
 
-        private static byte[] ReadPreview(ISldWorks app, PartListRow row)
+        internal static byte[] ReadPreview(ISldWorks app, PartListRow row, bool originalSize = false)
         {
             if (app == null || string.IsNullOrEmpty(row.FilePath) || !File.Exists(row.FilePath)) return null;
             var temp = Path.Combine(Path.GetTempPath(), "MechKit-preview-" + Guid.NewGuid().ToString("N") + ".bmp");
@@ -120,7 +120,8 @@ namespace MechKit.Features
                     configuration = names[0];
                 }
                 if (!app.GetPreviewBitmapFile(row.FilePath, configuration, temp) || !File.Exists(temp)) return null;
-                return PreviewPng(File.ReadAllBytes(temp));
+                var bytes=File.ReadAllBytes(temp);
+                return originalSize ? RepairPreviewBitmap(bytes) : PreviewPng(bytes);
             }
             catch (Exception ex)
             {

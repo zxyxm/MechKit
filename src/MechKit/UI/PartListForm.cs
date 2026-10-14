@@ -68,6 +68,10 @@ namespace MechKit.UI
         private int _markStartRow;
         private int _markLastRow;
         private readonly Timer _markScroll = new Timer { Interval = 80 };
+        private readonly Timer _previewDelay = new Timer { Interval = 400 };
+        private readonly ToolTip _modelPreview = new ToolTip { OwnerDraw=true, ShowAlways=true };
+        private PartListRow _previewRow;
+        private Image _previewImage;
 
         public PartListForm(IAddinHost host)
         {
@@ -490,6 +494,38 @@ namespace MechKit.UI
                 "打开「设置 → BOM 格式」：表头名称、字段来源和列顺序都在那里改";
             _grid.MouseClick += OnGridMouseClick;
             _grid.MouseMove += OnGridMouseMove;
+            _grid.CellMouseEnter += (sender,e)=>
+            {
+                HideModelPreview();
+                if(e.RowIndex<0 || e.ColumnIndex<0 || _grid.Columns[e.ColumnIndex].Name!="location" || _running) return;
+                _previewRow=_grid.Rows[e.RowIndex].Tag as PartListRow;
+                if(_previewRow!=null) _previewDelay.Start();
+            };
+            _grid.CellMouseLeave += (sender,e)=>HideModelPreview();
+            _grid.MouseLeave += (sender,e)=>HideModelPreview();
+            _grid.MouseDown += (sender,e)=>HideModelPreview();
+            _grid.Scroll += (sender,e)=>HideModelPreview();
+            Deactivate += (sender,e)=>HideModelPreview();
+            _previewDelay.Tick += (sender,e)=>ShowModelPreview();
+            _modelPreview.Popup += (sender,e)=>e.ToolTipSize=new Size(480,380);
+            _modelPreview.Draw += (sender,e)=>
+            {
+                e.Graphics.Clear(Color.White);
+                using(var pen=new Pen(Theme.Border)) e.Graphics.DrawRectangle(pen,0,0,e.Bounds.Width-1,e.Bounds.Height-1);
+                TextRenderer.DrawText(e.Graphics,_previewRow==null?"":_previewRow.FullName,Theme.BodyBold,
+                    new Rectangle(12,10,e.Bounds.Width-24,30),Theme.Text,TextFormatFlags.EndEllipsis|TextFormatFlags.SingleLine);
+                var area=new Rectangle(12,48,e.Bounds.Width-24,e.Bounds.Height-60);
+                if(_previewImage==null) TextRenderer.DrawText(e.Graphics,"暂无已保存的缩略图",Theme.Body,area,Theme.Muted,
+                    TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
+                else
+                {
+                    var scale=Math.Min((float)area.Width/_previewImage.Width,(float)area.Height/_previewImage.Height);
+                    var w=_previewImage.Width*scale;var h=_previewImage.Height*scale;
+                    e.Graphics.InterpolationMode=System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    e.Graphics.DrawImage(_previewImage,area.Left+(area.Width-w)/2,area.Top+(area.Height-h)/2,w,h);
+                }
+            };
+            Disposed += (sender,e)=> { _previewDelay.Dispose();_modelPreview.Dispose();if(_previewImage!=null)_previewImage.Dispose(); };
             _grid.MouseDown += BeginMarkRows;
             _grid.MouseUp += delegate { EndMarkRows(); };
             _grid.Paint += PaintMarkSelection;
@@ -1622,6 +1658,33 @@ namespace MechKit.UI
             {
                 _grid.Cursor = wanted;
             }
+        }
+
+        private void HideModelPreview()
+        {
+            _previewDelay.Stop();_modelPreview.Hide(_grid);_previewRow=null;
+            if(_previewImage!=null) {_previewImage.Dispose();_previewImage=null;}
+        }
+
+        private void ShowModelPreview()
+        {
+            _previewDelay.Stop();
+            if(_previewRow==null || _running || _markDragging || !Visible) return;
+            var row=_previewRow;
+            try
+            {
+                var bytes=BomExcelExporter.ReadPreview(_host.SwApp,row,true);
+                if(bytes!=null)
+                    using(var stream=new MemoryStream(bytes))
+                    using(var source=Image.FromStream(stream)) _previewImage=new Bitmap(source);
+                var screen=Cursor.Position;var area=Screen.FromPoint(screen).WorkingArea;
+                var x=screen.X+24;var y=screen.Y+24;
+                if(x+480>area.Right) x=screen.X-504;
+                if(y+380>area.Bottom) y=screen.Y-404;
+                var point=_grid.PointToClient(new Point(Math.Max(area.Left,x),Math.Max(area.Top,y)));
+                _modelPreview.Show("模型预览",_grid,point,15000);
+            }
+            catch(Exception ex) { Log.Warn("显示模型预览失败："+ex.Message);HideModelPreview(); }
         }
 
         private void BeginMarkRows(object sender, MouseEventArgs e)
