@@ -54,7 +54,7 @@ namespace MechKit.UI
             searchRow.Controls.Add(new Label { Text = "检索", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
             searchRow.Controls.Add(_search, 1, 0);
             root.Controls.Add(searchRow, 0, 3);
-            var hint = new Label { AutoSize = true, Dock = DockStyle.Fill, Text = "按名称、型号检索。拖到装配体绘图区后松开，复制并插入；Esc 取消。", ForeColor = Color.DimGray, Margin = new Padding(0, 6, 0, 8) };
+            var hint = new Label { AutoSize = true, Dock = DockStyle.Fill, Text = "按住 Ctrl＋鼠标左键拖到装配体绘图区，松开鼠标复制并插入；Esc 或松开 Ctrl 取消。", ForeColor = Color.DimGray, Margin = new Padding(0, 6, 0, 8) };
             root.Controls.Add(hint, 0, 4);
             root.SizeChanged += (s, e) => { hint.MaximumSize = new Size(Math.Max(100, root.ClientSize.Width - 24), 0); _status.MaximumSize = hint.MaximumSize; };
             _list.Columns.Add("分类", 110);
@@ -68,16 +68,10 @@ namespace MechKit.UI
             _list.MouseDown += StartDrag;
             _list.MouseMove += MoveDrag;
             _list.MouseUp += FinishDrag;
-            _list.MouseCaptureChanged += (s, e) =>
-            {
-                if (_list.Capture) return;
-                // Native ListView can release capture before raising MouseUp.
-                if (_dragging && Control.MouseButtons == MouseButtons.None)
-                    FinishDrag(_list, new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0));
-                else CancelDrag();
-            };
-            // Esc must work while the cursor is outside the task pane as well.
-            _dragTimer.Tick += (s, e) => { if ((GetAsyncKeyState(27) & 0x8000) != 0) CancelDrag(); };
+            // Native ListView/SW can take capture away before MouseMove/MouseUp.
+            // Poll from mouse-down through release, even outside the task pane.
+            _dragTimer.Tick += (s, e) => PollDrag();
+            VisibleChanged += (s, e) => { if (!Visible) CancelDrag(); };
             Reload();
         }
 
@@ -92,6 +86,7 @@ namespace MechKit.UI
         private void Reload()
         {
             if (_reloading) return;
+            CancelDrag();
             _reloading = true;
             try
             {
@@ -146,16 +141,32 @@ namespace MechKit.UI
 
         private void StartDrag(object sender, MouseEventArgs e)
         {
+            CancelDrag();
             if (e.Button != MouseButtons.Left) return;
+            if ((GetAsyncKeyState(17) & 0x8000) == 0)
+            { _status.Text="按住 Ctrl＋鼠标左键拖动零件到装配体绘图区。"; return; }
             var item = _list.GetItemAt(e.X, e.Y);
             if (item == null) return;
             _source = item.Tag as string;
             _start = e.Location;
+            _dragTimer.Start();
+        }
+
+        private void PollDrag()
+        {
+            if(_source==null) { _dragTimer.Stop();return; }
+            if((GetAsyncKeyState(27)&0x8000)!=0 || (GetAsyncKeyState(17)&0x8000)==0)
+            { CancelDrag();return; }
+            if((GetAsyncKeyState(1)&0x8000)==0)
+            { FinishDrag(_list,new MouseEventArgs(MouseButtons.Left,1,0,0,0));return; }
+            var point=_list.PointToClient(Cursor.Position);
+            MoveDrag(_list,new MouseEventArgs(MouseButtons.Left,0,point.X,point.Y,0));
         }
 
         private void MoveDrag(object sender, MouseEventArgs e)
         {
             if (_source == null || e.Button != MouseButtons.Left) return;
+            if((GetAsyncKeyState(17)&0x8000)==0) { CancelDrag();return; }
             try
             {
                 if (!_dragging)
@@ -164,11 +175,13 @@ namespace MechKit.UI
                     _assembly = _host.SwApp.IActiveDoc2;
                     RequireAssembly(_assembly);
                     _dragging = true;
-                    _list.Capture = true;
                     _dragTimer.Start();
-                    _status.Text = "拖入装配体绘图区后松开 · Esc 取消";
+                    _status.Text = "保持 Ctrl，拖入绘图区后松开鼠标 · Esc 取消";
                 }
-                _list.Cursor = IsOverView(Cursor.Position) ? Cursors.Cross : Cursors.No;
+                var over=IsOverView(Cursor.Position);
+                _list.Cursor = over ? Cursors.Cross : Cursors.No;
+                Cursor.Current = _list.Cursor;
+                _status.Text=over ? "可以放置：保持 Ctrl，松开鼠标插入" : "正在拖动：移到目标装配体绘图区";
             }
             catch (Exception ex) { CancelDrag(); Report(ex); }
         }
@@ -200,7 +213,7 @@ namespace MechKit.UI
             var source = _source;
             var point = Cursor.Position;
             bool valid = false;
-            try { valid = _dragging && IsOverView(point); }
+            try { valid = _dragging && (GetAsyncKeyState(17)&0x8000)!=0 && IsOverView(point); }
             catch (Exception ex) { Report(ex); }
             finally { CancelDrag(); }
             if (!valid) return;
@@ -270,6 +283,7 @@ namespace MechKit.UI
             _dragTimer.Stop();
             _list.Capture = false;
             _list.Cursor = Cursors.Default;
+            Cursor.Current = Cursors.Default;
             if (wasDragging) _status.Text = "拖动结束 · 可继续选择零件";
         }
         private void Report(Exception ex) { _status.Text = ex.Message; Log.Error("快捷零件库：" + ex.Message, ex); }
