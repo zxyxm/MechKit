@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.11.0",
+    "version":  "0.34.12.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T12:06:04.3936623+08:00",
+    "generatedAt":  "2026-10-14T12:07:22.5485044+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "D011E5B2BF6B571B6A2E895D50068E7B3C074E0AC93639408E3F0F59BCDEB665",
+                      "hash":  "27D4A1725C83E4333B4F6CED9A41A0AE82C868399FD0C7A76E38B08A7A3CA239",
                       "bytes":  1063,
                       "lines":  25
                   },
@@ -376,8 +376,8 @@
                   },
                   {
                       "path":  "src/MechKit/UI/CommandPanel.cs",
-                      "hash":  "71B3DFBB076C2BCAF83E24BDDF545B9D4121493010C9B00CEC0D4875690B9D78",
-                      "bytes":  10051,
+                      "hash":  "1AD89F5AEE29D7FD5A61DCA38F5D086038C9BA3D10E808C81C31D2568CFAE6CB",
+                      "bytes":  9998,
                       "lines":  161
                   },
                   {
@@ -556,7 +556,7 @@
                   },
                   {
                       "path":  "tools/Test-CommandPanel.ps1",
-                      "hash":  "5E38A47AE66111C26F4622C715F5039D18AC8D8A6707721773B2140A59E3DFD7",
+                      "hash":  "5AA3B5EF462B363480B1F951F3C6E622ECE8DF3178455B4D798EED482404C1E0",
                       "bytes":  2798,
                       "lines":  47
                   },
