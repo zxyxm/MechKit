@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.5.0",
+    "version":  "0.34.6.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T02:44:59.0546122+08:00",
+    "generatedAt":  "2026-10-14T11:52:44.8320678+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,7 +64,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "027ABE8AA67848D758E7741472734E803392EE22DE510E3F67E0AD3AA390C9E0",
+                      "hash":  "5C1BB436AE6DB281A673E5D21ECF56FB3E0A85A47798134B212853CB9F588733",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -268,9 +268,9 @@
                   },
                   {
                       "path":  "src/MechKit/MechKitAddin.cs",
-                      "hash":  "776824A9E61BCAFE276D6D064C3335F720F774F30F0F264FA584DEE1A35C33CF",
-                      "bytes":  102781,
-                      "lines":  2626
+                      "hash":  "F4C17D52EC40E80DC27CB0DC2782E119B90E90898B0277CC0052BD03AE70D2AF",
+                      "bytes":  104798,
+                      "lines":  2669
                   },
                   {
                       "path":  "src/MechKit/Resources/drawings/plate-a3-third-angle.drwdot",
@@ -376,8 +376,8 @@
                   },
                   {
                       "path":  "src/MechKit/UI/CommandPanel.cs",
-                      "hash":  "782276A1E110DE747A361A03C279B17F7EB9A2F32922785648AF600A5495900C",
-                      "bytes":  9997,
+                      "hash":  "71B3DFBB076C2BCAF83E24BDDF545B9D4121493010C9B00CEC0D4875690B9D78",
+                      "bytes":  10051,
                       "lines":  161
                   },
                   {

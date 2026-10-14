@@ -1385,6 +1385,49 @@ namespace MechKit
             ShowPartListDialog();
         }
 
+        public void OnOpenDocumentFolder()
+        {
+            try
+            {
+                var model = _swApp == null ? null : _swApp.IActiveDoc2;
+                if (model == null)
+                {
+                    MessageBox.Show("请先打开零件或装配体。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                object ownerPaths, ownerTitles;
+                if (model.GetType() != SwUtils.DocDrawing &&
+                    model.Extension.IsVirtualComponent3(out ownerPaths, out ownerTitles))
+                {
+                    MessageBox.Show("当前是虚拟组件，请先保存为外部文件，再打开所在文件夹。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                var path = model.GetPathName();
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    MessageBox.Show("当前文档尚未保存，请先保存文件。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                if (!File.Exists(path))
+                {
+                    MessageBox.Show("找不到当前文件，请先确认文件已保存：\r\n" + path, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"")
+                    { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                Log.Error("打开所在文件夹失败", ex);
+                MessageBox.Show("打开所在文件夹失败：" + ex.Message, AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         public void OnBatchExport()
         {
             ShowBatchExportDialog();
