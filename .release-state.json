@@ -1,7 +1,7 @@
 {
-    "version":  "0.35.5.0",
+    "version":  "0.35.6.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T17:47:33.4916233+08:00",
+    "generatedAt":  "2026-10-14T17:48:28.4821531+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -70,7 +70,7 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "A65C32F02B9716AD629D1CE5799DBB76D57E3467B1092D928DB319C0EFC0CDF6",
+                      "hash":  "8F133A89E9CE71B38196C50BC2D062F88607AC77F5AA4A3B45C38BE50858393A",
                       "bytes":  1062,
                       "lines":  25
                   },
@@ -406,8 +406,8 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "5B101BDE3DB9FD6C48F0AB30496F7C7E7AC8EB0F37D92680ACE8A08FD53CED2D",
-                      "bytes":  116537,
+                      "hash":  "6185F3BA9D3BE6151247CCDA0F41534C46C6B6DCD0FEED9168FEEC9D9D8CC395",
+                      "bytes":  116650,
                       "lines":  2542
                   },
                   {

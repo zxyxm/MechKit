@@ -1513,7 +1513,7 @@ namespace MechKit.UI
         /// <summary>双击名字后进入编辑；编辑提交时会问一次是否同步重命名文件。</summary>
         private void EditPurchaseLink(PartListRow row)
         {
-            using (var editor = new Form { Text="购买链接", ClientSize=new Size(620,150),
+            using (var editor = new Form { Text="购买链接 — " + (string.IsNullOrWhiteSpace(row.FullName) ? Path.GetFileNameWithoutExtension(row.FilePath) : row.FullName), ClientSize=new Size(620,150),
                 Font=Theme.Body, StartPosition=FormStartPosition.CenterParent,
                 FormBorderStyle=FormBorderStyle.FixedDialog, MinimizeBox=false, MaximizeBox=false })
             {
