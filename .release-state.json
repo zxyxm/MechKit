@@ -1,7 +1,7 @@
 {
-    "version":  "0.34.9.0",
+    "version":  "0.34.10.0",
     "level":  "none",
-    "generatedAt":  "2026-10-14T11:59:22.4962683+08:00",
+    "generatedAt":  "2026-10-14T12:03:46.6504910+08:00",
     "compatibility":  {
                           "addinGuid":  "A7F3C1E2-5B4D-4E8A-9C21-3D6F0B7A5E10",
                           "progId":  "MechKit.Addin",
@@ -64,8 +64,8 @@
                   },
                   {
                       "path":  "installer/MechKitSetup/MechKitSetup.csproj",
-                      "hash":  "E24442126BEBB715D3EA5E78A2A3D59E664BC18724F9167D73BD5CA2D82F774B",
-                      "bytes":  1062,
+                      "hash":  "D2877A5DFF84A848BEC75818E47809B3163992AE568F61611F6B2A70379686F9",
+                      "bytes":  1063,
                       "lines":  25
                   },
                   {
@@ -388,9 +388,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/PartListForm.cs",
-                      "hash":  "B3C1C28A65FE1E9C61B2ED3C902A4A937F60CA50C363284C68EE2662AF5A63E7",
-                      "bytes":  108542,
-                      "lines":  2413
+                      "hash":  "9C6F85AFD8221A6F6D7696C2AA9CB27CA3236C3A587AFB759C0E530D51690AAF",
+                      "bytes":  108776,
+                      "lines":  2418
                   },
                   {
                       "path":  "src/MechKit/UI/PartsLibraryPanel.cs",
@@ -436,9 +436,9 @@
                   },
                   {
                       "path":  "src/MechKit/UI/WindowLayout.cs",
-                      "hash":  "6B85A8BF7E1EB291FD236B1D4214133B3C155E7F8C91EC56082F5BB48DF1B8BE",
-                      "bytes":  25790,
-                      "lines":  602
+                      "hash":  "B211308522421C805E75130644C9AC87B02175EC4368C09481DB77916FCAADEA",
+                      "bytes":  28389,
+                      "lines":  644
                   },
                   {
                       "path":  "tools/DocInspector/DocInspector.csproj",

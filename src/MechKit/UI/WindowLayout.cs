@@ -17,6 +17,11 @@ namespace MechKit.UI
         private delegate IntPtr KeyboardProc(int code, IntPtr key, IntPtr flags);
         private static readonly KeyboardProc KeyboardCallback = OnKeyboard;
         private static IntPtr _keyboardHook;
+        private delegate IntPtr MouseProc(int code, IntPtr message, IntPtr data);
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint="SetWindowsHookExW")]
+        private static extern IntPtr SetMouseHook(int hook, MouseProc callback, IntPtr module, uint thread);
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct MouseHookData { public POINT Point; public IntPtr Window; public uint HitTest; public UIntPtr Extra; }
         private static readonly System.Collections.Generic.HashSet<Form> LoweredForms =
             new System.Collections.Generic.HashSet<Form>();
 
@@ -163,6 +168,32 @@ namespace MechKit.UI
             // An unowned modeless window otherwise disappears behind all of SW as
             // soon as the user clicks the tree/task pane. Do not stay above other apps.
             var timer=new Timer {Interval=200};
+            IntPtr mouseHook=IntPtr.Zero;
+            MouseProc mouseCallback=(code,message,data)=>
+            {
+                try
+                {
+                    var msg=message.ToInt32();
+                    if(code>=0 && (msg==0x201 || msg==0x204 || msg==0x207 || msg==0xA1 || msg==0xA4))
+                    {
+                        var hit=(MouseHookData)System.Runtime.InteropServices.Marshal.PtrToStructure(data,typeof(MouseHookData));
+                        if(form.Visible && !form.IsDisposed && GetAncestor(hit.Window,GaRoot)==host &&
+                            !IsPluginControl(hit.Window))
+                            form.BeginInvoke(new Action(()=>
+                            {
+                                // A native MechKit toolbar command may have just brought
+                                // the BOM or another plugin dialog forward. Respect it.
+                                if(!form.IsDisposed && !form.ContainsFocus && Form.ActiveForm==null)
+                                    LowerAfterDocumentOpened(form,host);
+                            }));
+                    }
+                }
+                catch(Exception ex) { Log.Warn("检测 SW 点击失败："+ex.Message); }
+                return CallNextHookEx(mouseHook,code,message,data);
+            };
+            // Thread-local mouse messages also arrive when SW already has focus;
+            // Deactivate alone misses the click after using a task-pane button.
+            mouseHook=SetMouseHook(7,mouseCallback,IntPtr.Zero,GetCurrentThreadId());
             form.Activated+=(s,e)=>LoweredForms.Remove(form);
             form.Deactivate+=(s,e)=>
             {
@@ -175,8 +206,19 @@ namespace MechKit.UI
                 if(foreground==form.Handle) LoweredForms.Remove(form);
                 form.TopMost=!LoweredForms.Contains(form) && (foreground==host || foreground==form.Handle);
             };
-            form.FormClosed+=(s,e)=>{timer.Stop();timer.Dispose();LoweredForms.Remove(form);};
+            form.Disposed+=(s,e)=>{
+                timer.Stop();timer.Dispose();LoweredForms.Remove(form);
+                if(mouseHook!=IntPtr.Zero) {UnhookWindowsHookEx(mouseHook);mouseHook=IntPtr.Zero;}
+                GC.KeepAlive(mouseCallback);
+            };
             timer.Start();
+        }
+
+        private static bool IsPluginControl(IntPtr window)
+        {
+            for(var control=Control.FromChildHandle(window);control!=null;control=control.Parent)
+                if(control is TaskPaneControl || control is CommandPanel || control is Form) return true;
+            return false;
         }
 
         /// <summary>

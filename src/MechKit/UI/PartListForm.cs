@@ -575,6 +575,11 @@ namespace MechKit.UI
             _grid.AllowUserToResizeRows = false;
             _grid.CellPainting += PaintDesignTreeCell;
             _grid.CellClick += OnDesignTreeClick;
+            _grid.CellClick += (sender,e)=>
+            {
+                if(e.RowIndex>=0 && e.ColumnIndex>=0 && _grid.Columns[e.ColumnIndex].Name=="location")
+                    OnGridCellDoubleClick(sender,e);
+            };
             _grid.ColumnHeaderMouseClick += delegate(object sender, DataGridViewCellMouseEventArgs e)
             {
                 if (e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "designTree")
