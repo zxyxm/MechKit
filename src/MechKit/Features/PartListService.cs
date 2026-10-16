@@ -156,12 +156,18 @@ namespace MechKit.Features
         public string OriginalProcess { get; private set; }
 
         public string OriginalRemark { get; private set; }
+        public string OriginalSurfaceTreatment { get; private set; }
+        public string OriginalAssemblyNote { get; private set; }
+        public string OriginalPurchaseLink { get; private set; }
 
         public bool HasBomEdits
         {
             get
             {
                 return HasNamingEdits ||
+                       !string.Equals(SurfaceTreatment ?? string.Empty, OriginalSurfaceTreatment ?? string.Empty, StringComparison.Ordinal) ||
+                       !string.Equals(AssemblyNote ?? string.Empty, OriginalAssemblyNote ?? string.Empty, StringComparison.Ordinal) ||
+                       !string.Equals(PurchaseLink ?? string.Empty, OriginalPurchaseLink ?? string.Empty, StringComparison.Ordinal) ||
                        !string.Equals(Remark ?? string.Empty, OriginalRemark ?? string.Empty, StringComparison.Ordinal);
             }
         }
@@ -190,8 +196,17 @@ namespace MechKit.Features
         {
             MarkNamingClean();
             OriginalRemark = Remark ?? string.Empty;
+            OriginalSurfaceTreatment = SurfaceTreatment ?? string.Empty;
+            OriginalAssemblyNote = AssemblyNote ?? string.Empty;
+            OriginalPurchaseLink = PurchaseLink ?? string.Empty;
         }
         public void MarkRemarkClean() { OriginalRemark = Remark ?? string.Empty; }
+        public void MarkInlinePropertyClean(string key)
+        {
+            if (key == "assemblynote") OriginalAssemblyNote = AssemblyNote ?? string.Empty;
+            else if (key == "purchaselink") OriginalPurchaseLink = PurchaseLink ?? string.Empty;
+            else if (key == "remark") MarkRemarkClean();
+        }
 
         public void MarkNamingClean()
         {
@@ -661,17 +676,25 @@ namespace MechKit.Features
 
         public static string BuildSummary(IList<PartListRow> rows)
         {
-            var totals=new Dictionary<string,int>();var kinds=0;
-            foreach(var row in rows)
+            var parts = new List<string>();
+            var totalKinds = 0;
+            long totalQuantity = 0;
+            foreach (var group in rows.Where(row => row != null).GroupBy(row =>
+                string.IsNullOrWhiteSpace(row.Classification) ? UnmatchedClassification : row.Classification))
             {
-                var key=row.Classification ?? UnmatchedClassification;
-                if(!totals.ContainsKey(key)) totals[key]=0;
-                totals[key]+=row.Quantity;if(key=="加工件") kinds++;
+                // Match merged export identity: the same file/configuration is one kind across assembly locations.
+                // Unsaved/pathless parts cannot safely be identified by name, so count each separately.
+                var kinds = group.Where(row => !string.IsNullOrWhiteSpace(row.FilePath))
+                    .Select(row => row.FilePath.Replace('/', '\\') + "\0" + (row.Configuration ?? string.Empty))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count() +
+                    group.Count(row => string.IsNullOrWhiteSpace(row.FilePath));
+                var quantity = group.Sum(row => (long)row.Quantity);
+                parts.Add(string.Format("{0} {1} 种 / {2} 件", group.Key, kinds, quantity));
+                totalKinds += kinds;
+                totalQuantity += quantity;
             }
-            var parts=new List<string>();
-            foreach(var total in totals) parts.Add(total.Key=="加工件" ? string.Format("加工件 {0} 种 / {1} 件",kinds,total.Value) : total.Key+" "+total.Value+" 件");
-            var summary=string.Join("；",parts)+"。";
-            return summary;
+            parts.Add(string.Format("合计：{0} 种 / {1} 件", totalKinds, totalQuantity));
+            return string.Join("；", parts) + "。";
         }
 
         /// <summary>导出 CSV（带 BOM，Excel 直接打开不乱码）。</summary>
@@ -1153,6 +1176,19 @@ namespace MechKit.Features
                         ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
                             new CustomProperty("备注", PropertyTypes.Text, row.Remark ?? string.Empty), true);
                     }
+
+                    if (!string.Equals(row.SurfaceTreatment ?? string.Empty, row.OriginalSurfaceTreatment ?? string.Empty,
+                            StringComparison.Ordinal))
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("表面处理", PropertyTypes.Text, row.SurfaceTreatment ?? string.Empty), true);
+                    if (!string.Equals(row.AssemblyNote ?? string.Empty, row.OriginalAssemblyNote ?? string.Empty,
+                            StringComparison.Ordinal))
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("安装说明", PropertyTypes.Text, row.AssemblyNote ?? string.Empty), true);
+                    if (!string.Equals(row.PurchaseLink ?? string.Empty, row.OriginalPurchaseLink ?? string.Empty,
+                            StringComparison.Ordinal))
+                        ok &= PropertyService.Write(doc, PropertyService.DocumentLevelConfiguration,
+                            new CustomProperty("购买链接", PropertyTypes.Text, PurchaseLinkService.Validate(row.PurchaseLink)), true);
 
                     if (!ok)
                     {
@@ -2193,7 +2229,8 @@ namespace MechKit.Features
         private static void ApplyConfiguredFields(PartListRow row, string sourceName,
             Dictionary<string, string> properties, PartListOptions options)
         {
-            if (row != null) row.PurchaseLink = First(properties, PurchaseLinkService.PropertyName);
+            if (row != null) row.PurchaseLink = PurchaseLinkService.Resolve(sourceName,
+                First(properties, PurchaseLinkService.PropertyName));
             if (row == null || options == null)
             {
                 return;
@@ -2218,6 +2255,7 @@ namespace MechKit.Features
                 }
                 row.AssemblyNote = First(properties, "安装说明", "装配说明", "AssemblyNote");
                 row.Remark = First(properties, "备注", "说明", "Remark", "Notes");
+                ApplyAutomaticRemarks(row);
                 return;
             }
             var standard = string.Equals(row.Classification, "标准件", StringComparison.Ordinal);
@@ -2248,6 +2286,28 @@ namespace MechKit.Features
             row.Remark = ResolveConfiguredFieldWithNaming(
                 standard ? options.StandardRemarkField : options.MachinedRemarkField,
                 row.Remark, sourceName, properties, standard, options.Naming);
+            ApplyAutomaticRemarks(row);
+        }
+
+        internal static void ApplyAutomaticRemarks(PartListRow row)
+        {
+            if (row == null) return;
+            var names = new[] { row.Name ?? string.Empty, row.FullName ?? string.Empty };
+            if (names.Any(name => name.Contains("弹簧") || name.Contains("唐璜")))
+                AppendRemark(row, "需要测试");
+
+            var fullName = string.IsNullOrWhiteSpace(row.FullName) ? row.FilePath : row.FullName;
+            var prefix = NamingOptions.GetFileNameWithoutExtension(fullName ?? string.Empty).Trim()
+                .Split(new[] { '-', '_', ' ' }, StringSplitOptions.None)[0];
+            if (prefix == "淘宝加工" || prefix == "淘宝追加工" ||
+                row.Classification == "淘宝加工" || row.Classification == "淘宝追加工")
+                AppendRemark(row, "需要买回来加工");
+        }
+
+        private static void AppendRemark(PartListRow row, string note)
+        {
+            if ((row.Remark ?? string.Empty).Contains(note)) return;
+            row.Remark = string.IsNullOrWhiteSpace(row.Remark) ? note : row.Remark.TrimEnd() + "；" + note;
         }
 
         private static string ResolveConfiguredField(string setting, string automaticValue,

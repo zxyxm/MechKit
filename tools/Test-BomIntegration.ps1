@@ -262,10 +262,11 @@ $categoryRows.Add($externalRow)
 $summaryArgs = New-Object object[] 1
 $summaryArgs[0] = $categoryRows
 $categorySummary = $serviceType.GetMethod('BuildSummary').Invoke($null, $summaryArgs)
-Assert-Equal 'inventory counted separately' ($categorySummary.Contains('库存件 5 件')) $true
-Assert-Equal 'external drawings counted separately' ($categorySummary.Contains('外部图纸 3 件')) $true
-Assert-Equal 'spare counted separately' ($categorySummary.Contains('备件 2 件')) $true
-Assert-Equal 'inventory and spare not counted as standards' ($categorySummary.Contains('标准件 0 件')) $true
+Assert-Equal 'inventory counted separately' ($categorySummary.Contains('库存件 1 种 / 5 件')) $true
+Assert-Equal 'external drawings counted separately' ($categorySummary.Contains('外部图纸 1 种 / 3 件')) $true
+Assert-Equal 'spare counted separately' ($categorySummary.Contains('备件 1 种 / 2 件')) $true
+Assert-Equal 'inventory and spare not counted as standards' ($categorySummary.Contains('标准件')) $false
+Assert-Equal 'all category totals' ($categorySummary.Contains('合计：3 种 / 10 件')) $true
 
 # Unmatched rows must be sorted behind the regular ones
 $sortRowType = $assembly.GetType('MechKit.Features.PartListRow', $true)

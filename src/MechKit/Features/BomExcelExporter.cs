@@ -68,7 +68,7 @@ namespace MechKit.Features
                     {
                         cells.Add(Cell(Column(c + 2) + number,
                             PartListService.ColumnValue(row, i + 1, columns[c]), columns[c] == "quantity" || columns[c] == "sequence"));
-                        if(columns[c]=="purchaselink" && !string.IsNullOrWhiteSpace(row.PurchaseLink))
+                        if(columns[c]=="purchaselink" && PurchaseLinkService.IsWebLink(row.PurchaseLink))
                         {
                             try
                             {
@@ -99,7 +99,10 @@ namespace MechKit.Features
                     new XElement(Sheet + "cols",
                         new XElement(Sheet + "col", new XAttribute("min", 1), new XAttribute("max", 1), new XAttribute("width", 16), new XAttribute("customWidth", 1)),
                         new XElement(Sheet + "col", new XAttribute("min", 2), new XAttribute("max", columns.Length + 1), new XAttribute("width", 22), new XAttribute("customWidth", 1))), data,
-                    new XElement(Sheet + "autoFilter", new XAttribute("ref", "A1:" + Column(columns.Length + 1) + (rows.Count + 1))));
+                    new XElement(Sheet + "autoFilter", new XAttribute("ref", "A1:" + Column(columns.Length + 1) + (rows.Count + 1))),
+                    new XElement(Sheet + "mergeCells", new XAttribute("count", 1),
+                        new XElement(Sheet + "mergeCell", new XAttribute("ref", "A" + (rows.Count + 3) + ":" +
+                            Column(columns.Length + 1) + (rows.Count + 3)))));
                 var types = new XElement(Content + "Types",
                     new XElement(Content + "Default", new XAttribute("Extension", "rels"), new XAttribute("ContentType", "application/vnd.openxmlformats-package.relationships+xml")),
                     new XElement(Content + "Default", new XAttribute("Extension", "xml"), new XAttribute("ContentType", "application/xml")),

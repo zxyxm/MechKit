@@ -10,15 +10,29 @@ namespace MechKit.Features
     internal static class PurchaseLinkService
     {
         public const string PropertyName = "购买链接";
+        public const string AgentMarker = "代理";
+
+        public static string Resolve(string sourceName, string storedValue)
+        {
+            if (!string.IsNullOrWhiteSpace(storedValue)) return storedValue;
+            var name = NamingOptions.GetFileNameWithoutExtension(sourceName ?? string.Empty).Trim();
+            return name.StartsWith(AgentMarker, StringComparison.OrdinalIgnoreCase) ? AgentMarker : string.Empty;
+        }
+
+        public static bool IsWebLink(string value)
+        {
+            Uri uri;
+            return Uri.TryCreate((value ?? string.Empty).Trim(), UriKind.Absolute, out uri) &&
+                !string.IsNullOrEmpty(uri.Host) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        }
 
         public static string Validate(string value)
         {
             value = (value ?? string.Empty).Trim();
-            if (value.Length == 0) return value;
-            Uri uri;
-            if (!Uri.TryCreate(value, UriKind.Absolute, out uri) || string.IsNullOrEmpty(uri.Host) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                throw new ArgumentException("请输入完整的 http:// 或 https:// 购买网址；留空可清除链接。");
+            if (value.Length == 0 || value == AgentMarker) return value;
+            if (!IsWebLink(value))
+                throw new ArgumentException("请输入完整的 http:// 或 https:// 购买网址，或填写“代理”；留空可清除属性，代理件刷新后仍默认显示“代理”。");
             return value;
         }
 

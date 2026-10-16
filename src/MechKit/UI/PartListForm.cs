@@ -50,8 +50,10 @@ namespace MechKit.UI
         private List<DesignTreeItem> _treeItems = new List<DesignTreeItem>();
         private readonly TextBox _logBox;
         private readonly Label _status;
+        private readonly Label _summaryLabel = Theme.CreateValueLabel("合计：0 种 / 0 件。");
         private readonly Button _runButton;
         private readonly Button _exportButton;
+        private readonly Button _importButton;
         private readonly Button _mergeExportButton;
         private readonly Button _exportFilesButton;
         private readonly CheckBox _selectAll;
@@ -116,6 +118,7 @@ namespace MechKit.UI
             _status = Theme.CreateValueLabel("就绪");
             _runButton = Theme.CreatePrimaryButton("刷新预览");
             _exportButton = Theme.CreateSecondaryButton("导出 BOM");
+            _importButton = Theme.CreateSecondaryButton("导入 BOM…");
             _mergeExportButton = Theme.CreateSecondaryButton("合并导出 BOM");
             _exportFilesButton = Theme.CreateSecondaryButton("导出 PDF / STP…");
             _selectAll = new CheckBox
@@ -370,6 +373,10 @@ namespace MechKit.UI
             refresh.Click += delegate { if (!_running) RunSummary(); };
             _runButton.EnabledChanged += delegate { refresh.Enabled = _runButton.Enabled; };
             row.Controls.Add(refresh);
+            _importButton.AutoSize = true;
+            _importButton.Height = 34;
+            _importButton.Margin = new Padding(0, 2, 10, 2);
+            row.Controls.Add(_importButton);
             var arrange=Theme.CreateSecondaryButton("三栏布局");
             arrange.AutoSize=true;
             arrange.Click+=(s,e)=>ArrangeWorkspace();
@@ -500,7 +507,7 @@ namespace MechKit.UI
             };
             _grid.CellFormatting += (sender,e)=>
             {
-                if(e.ColumnIndex>=0 && _grid.Columns[e.ColumnIndex].Name=="purchaselink" && !string.IsNullOrEmpty(Convert.ToString(e.Value)))
+                if(e.ColumnIndex>=0 && _grid.Columns[e.ColumnIndex].Name=="purchaselink" && PurchaseLinkService.IsWebLink(Convert.ToString(e.Value)))
                 {e.CellStyle.ForeColor=Theme.Accent;e.CellStyle.Font=_purchaseLinkFont;}
             };
             // 勾选框点一下就要立即生效，不要等离开单元格才提交。
@@ -642,7 +649,7 @@ namespace MechKit.UI
                     try
                     {
                         var link=PurchaseLinkService.Validate(Convert.ToString(_grid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value));
-                        if(link.Length>0) WindowLayout.OpenExternal(new ProcessStartInfo(link) { UseShellExecute=true });
+                        if(PurchaseLinkService.IsWebLink(link)) WindowLayout.OpenExternal(new ProcessStartInfo(link) { UseShellExecute=true });
                     }
                     catch(Exception ex) { _status.Text=ex.Message; }
                 }
@@ -678,8 +685,21 @@ namespace MechKit.UI
                 _grid.Invalidate();
             };
             _grid.CellPainting += PaintColumnFilterHeader;
+            _summaryLabel.Dock = DockStyle.Bottom;
+            _summaryLabel.Padding = new Padding(0, 6, 0, 6);
+            _summaryLabel.AutoEllipsis = false;
+            _summaryLabel.TextChanged += delegate { ResizeSummaryLabel(); };
+            _summaryLabel.SizeChanged += delegate { ResizeSummaryLabel(); };
             panel.Controls.Add(_grid);
+            panel.Controls.Add(_summaryLabel);
             return panel;
+        }
+
+        private void ResizeSummaryLabel()
+        {
+            var size = TextRenderer.MeasureText(_summaryLabel.Text, _summaryLabel.Font,
+                new Size(Math.Max(1, _summaryLabel.ClientSize.Width), int.MaxValue), TextFormatFlags.WordBreak);
+            _summaryLabel.Height = Math.Max(28, size.Height + _summaryLabel.Padding.Vertical);
         }
 
         private Control BuildLogPanel()
@@ -767,6 +787,8 @@ namespace MechKit.UI
             };
             Disposed += delegate { _searchDelay.Dispose(); };
             _runButton.Click += delegate { RunSummary(); };
+            _importButton.Click += delegate { ImportBom(); };
+            _runButton.EnabledChanged += delegate { _importButton.Enabled = _runButton.Enabled && _rows.Count > 0; };
             _selectComponentButton.Click += delegate { SelectComponentScope(); };
             _clearComponentButton.Click += delegate { ClearComponentScope(true); };
             _reloadSubassembliesButton.Click += delegate { ReloadSubassemblies(); };
@@ -852,6 +874,7 @@ namespace MechKit.UI
             _materialProperty.Text = settings.MaterialProperty;
 
             _exportButton.Enabled = false;
+            _importButton.Enabled = false;
             _writeBackButton.Enabled = false;
             _renameComponentsButton.Enabled = false;
 
@@ -1171,6 +1194,7 @@ namespace MechKit.UI
             _logBox.Clear();
             _rows = new List<PartListRow>();
             _grid.Rows.Clear();
+            _summaryLabel.Text = PartListService.BuildSummary(_rows);
 
             try
             {
@@ -1434,6 +1458,7 @@ namespace MechKit.UI
                     Process = "电机",
                     SurfaceTreatment = string.Empty,
                     Quantity = 4,
+                    PurchaseLink = PurchaseLinkService.AgentMarker,
                     Remark = "代理-电机-MG996"
                 },
                 new PartListRow
@@ -1447,6 +1472,7 @@ namespace MechKit.UI
                     Process = "电气",
                     SurfaceTreatment = string.Empty,
                     Quantity = 3,
+                    PurchaseLink = PurchaseLinkService.AgentMarker,
                     Remark = "代理-接近开关-LJ12A3"
                 }
             };
@@ -1608,8 +1634,9 @@ namespace MechKit.UI
                     if(string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
                     {
                         if(key=="assemblynote")item.AssemblyNote=value;
-                        else if(key=="remark"){item.Remark=value;item.MarkRemarkClean();}
+                        else if(key=="remark")item.Remark=value;
                         else item.PurchaseLink=value;
+                        item.MarkInlinePropertyClean(key);
                     }
                 foreach(DataGridViewRow duplicate in _grid.Rows)
                 {
@@ -2169,9 +2196,11 @@ namespace MechKit.UI
                 ? "全部类型"
                 : Convert.ToString(_classificationFilter.SelectedItem);
             if(_columnFilters.Count>0)filterName+=" · "+_columnFilters.Count+" 列筛选";
-            _status.Text = string.Format("{0}：显示 {1} / {2} 行。{3}",
-                filterName, filtered.Count, _rows.Count, PartListService.BuildSummary(filtered));
+            _summaryLabel.Text = PartListService.BuildSummary(filtered);
+            _status.Text = string.Format("{0}：显示 {1} / {2} 行。",
+                filterName, filtered.Count, _rows.Count);
             _exportButton.Enabled = !_running && filtered.Count > 0;
+            _importButton.Enabled = !_running && filtered.Count > 0;
             _writeBackButton.Enabled = !_running && filtered.Count > 0 && _host.SwApp != null;
             _renameComponentsButton.Enabled = !_running && filtered.Count > 0 &&
                                               _sourceDocument.Checked && _host.SwApp != null;
@@ -2388,7 +2417,7 @@ namespace MechKit.UI
             }
 
             var message = string.Format(
-                "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」「备注」并保存。" +
+                "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」「表面处理」「安装说明」「备注」「购买链接」并保存。数量仅用于 BOM 预览和导出。" +
                 System.Environment.NewLine + System.Environment.NewLine +
                 "本轮不会重命名零件文件，因此不会破坏装配引用。是否继续？", changed);
             if (MessageBox.Show(this, message, AddinConstants.Title,
@@ -2509,6 +2538,53 @@ namespace MechKit.UI
                 _running = false;
                 _runButton.Enabled = true;
                 ShowFilteredRows(false);
+            }
+        }
+
+        private void ImportBom()
+        {
+            if (_running || FilteredRows().Count == 0) return;
+            PullGridEdits();
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Title = "导入 BOM（按名称匹配当前筛选范围，空值保留原参数）";
+                dialog.Filter = "BOM 文件 (*.xlsx;*.csv)|*.xlsx;*.csv|Excel 工作簿 (*.xlsx)|*.xlsx|CSV 文件 (*.csv)|*.csv";
+                dialog.CheckFileExists = true;
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                ImportBomFile(dialog.FileName);
+            }
+        }
+
+        private void ImportBomFile(string path)
+        {
+            var activeRows = FilteredRows();
+            _running = true;
+            _runButton.Enabled = false;
+            HideModelPreview();
+            BomImportResult result = null;
+            try
+            {
+                result = BomImporter.Import(path, activeRows, BuildOptions());
+            }
+            catch (Exception ex)
+            {
+                Log.Error("导入 BOM 失败", ex);
+                MessageBox.Show(this, "导入失败：" + ex.Message, AddinConstants.Title,
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _running = false;
+                _runButton.Enabled = true;
+                ShowFilteredRows(false);
+            }
+            if (result != null)
+            {
+                _status.Text = string.Format("导入完成：回填 {0} 行，跳过 {1} 行（详情见处理日志）。参数尚未保存；数量仅用于 BOM 导出。",
+                    result.Updated, result.Skipped);
+                // AppendLog pumps UI events; refresh the grid first so filtering cannot pull stale cell values.
+                AppendLog("导入 BOM：" + path + System.Environment.NewLine +
+                    string.Join(System.Environment.NewLine, result.Messages) + System.Environment.NewLine + _status.Text);
             }
         }
 
