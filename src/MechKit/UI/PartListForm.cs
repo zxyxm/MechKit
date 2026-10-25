@@ -13,7 +13,7 @@ namespace MechKit.UI
     /// <summary>
     /// BOM 预览：汇总零件后可直接编辑名称、材料和工艺，并写回零件属性。
     /// </summary>
-    internal sealed class PartListForm : Form
+    internal sealed partial class PartListForm : Form
     {
         private readonly IAddinHost _host;
         private Dictionary<PartListRow,string> _quickNamingUndo;
@@ -72,6 +72,7 @@ namespace MechKit.UI
         private bool _running;
         private bool _renameEditPending;
         private ModelDoc2 _bomAssembly;
+        private string _excelLinkSourcePath;
         private bool _markDragging;
         private int _markStartRow;
         private int _markLastRow;
@@ -162,7 +163,7 @@ namespace MechKit.UI
             var title = Theme.CreateLabel("预览和导出 BOM", Theme.Title, Color.White);
             title.Margin = new Padding(0, 0, 0, 4);
 
-            var subtitle = Theme.CreateLabel("双击可编辑字段；列宽首次自动适配，之后可拖动表头边界调整",
+            var subtitle = Theme.CreateLabel("双击编辑；🔒 列只读；悬停显示缩略图和名称；位置列右键打开文件",
                 Theme.Small, Color.FromArgb(214, 232, 248));
             subtitle.Margin = new Padding(0);
 
@@ -377,6 +378,10 @@ namespace MechKit.UI
             _importButton.Height = 34;
             _importButton.Margin = new Padding(0, 2, 10, 2);
             row.Controls.Add(_importButton);
+            var syncExcel = Theme.CreateSecondaryButton("同步关联 Excel…");
+            syncExcel.AutoSize = true;
+            syncExcel.Click += delegate { SyncLinkedExcel(); };
+            row.Controls.Add(syncExcel);
             var arrange=Theme.CreateSecondaryButton("三栏布局");
             arrange.AutoSize=true;
             arrange.Click+=(s,e)=>ArrangeWorkspace();
@@ -486,9 +491,13 @@ namespace MechKit.UI
             _grid.AllowUserToDeleteRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             _grid.SelectionMode = DataGridViewSelectionMode.RowHeaderSelect;
-            _grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableAlwaysIncludeHeaderText;
-            // 双击任意一行打开该零件的图：优先同名的工程图，没有工程图时打开模型。
+            _grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
+            // 双击仅编辑；打开模型由位置列右键菜单处理。
             _grid.CellDoubleClick += OnGridCellDoubleClick;
+            _grid.KeyDown += PasteBomIllustration;
+            ConfigureSpreadsheetEditing();
+            BomNoteStore.Changed += OnAssetNoteChanged;
+            Disposed += delegate { BomNoteStore.Changed -= OnAssetNoteChanged; };
             _grid.CellEndEdit += OnGridCellEndEdit;
             _grid.CellValueChanged += (sender,e)=>
             {
@@ -500,9 +509,8 @@ namespace MechKit.UI
             };
             _grid.CellBeginEdit += (sender, e) =>
             {
-                if(_running) {e.Cancel=true;return;}
+                if(_running || IsGeneratedColumn(_grid.Columns[e.ColumnIndex].Name)) {e.Cancel=true;return;}
                 var name = _grid.Columns[e.ColumnIndex].Name;
-                if(IsInlinePropertyColumn(name)) HighlightRow(e.RowIndex);
                 if (name == "fullname" || name == "name") _renameEditPending = true;
             };
             _grid.CellFormatting += (sender,e)=>
@@ -520,6 +528,8 @@ namespace MechKit.UI
             };
             // 在表格里选中零件后，选项卡上的快捷按钮直接改这些零件。
             _grid.SelectionChanged += delegate { PublishBomSelection(); };
+            _grid.CellMouseDown += RememberHighlightedRow;
+            _grid.RowPostPaint += PaintHighlightedRow;
             Theme.StyleGrid(_grid);
 
             // 表格左上角（行头与列头交汇处）放一个「表头设置」入口，
@@ -535,8 +545,8 @@ namespace MechKit.UI
             _grid.CellMouseEnter += (sender,e)=>
             {
                 HideModelPreview();
-                _grid.ShowCellToolTips = e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "location";
-                if(e.RowIndex<0 || e.ColumnIndex<0 || _grid.Columns[e.ColumnIndex].Name!="location" || _running) return;
+                _grid.ShowCellToolTips = e.RowIndex < 0 || e.ColumnIndex < 0;
+                if(e.RowIndex<0 || e.ColumnIndex<0 || _running || _grid.IsCurrentCellInEditMode) return;
                 _previewRow=_grid.Rows[e.RowIndex].Tag as PartListRow;
                 if(_previewRow!=null) _previewDelay.Start();
             };
@@ -583,7 +593,7 @@ namespace MechKit.UI
             var assemblyNoteColumn = new DataGridViewTextBoxColumn { Name = "assemblynote", Width = 120 };
             var remarkColumn = new DataGridViewTextBoxColumn { Name = "remark", Width = 150 };
             var purchaseColumn = new DataGridViewTextBoxColumn { Name = "purchaselink", Width = 210,
-                ToolTipText = "双击原位编辑，提交后保存到自定义属性；Ctrl＋单击打开链接" };
+                ToolTipText = "双击原位编辑，提交后保存到零部件资产；Ctrl＋单击打开链接" };
 
 
             var columns = new Dictionary<string, DataGridViewColumn>(StringComparer.OrdinalIgnoreCase)
@@ -593,6 +603,7 @@ namespace MechKit.UI
                 { "classification", typeColumn }, { "name", nameColumn },
                 { "material", materialColumn }, { "process", processColumn },
                 { "surface", surfaceColumn }, { "quantity", quantityColumn },
+                { "unfinished", new DataGridViewTextBoxColumn { Name = "unfinished", Width = 200 } },
                 { "assemblynote", assemblyNoteColumn }, { "remark", remarkColumn }, { "purchaselink", purchaseColumn }
             };
 
@@ -613,8 +624,10 @@ namespace MechKit.UI
             var headerOptions = PartListService.CreateOptions(_host.Settings);
             foreach (var key in PartListService.ParseColumnOrder(headerOptions.ColumnOrder))
             {
-                columns[key].HeaderText = PartListService.ColumnHeader(headerOptions, key);
-                if (!columns[key].ReadOnly) columns[key].ToolTipText = "可编辑";
+                columns[key].ReadOnly = IsGeneratedColumn(key);
+                columns[key].HeaderText = (columns[key].ReadOnly ? "🔒 " : "") + PartListService.ColumnHeader(headerOptions, key);
+                if (columns[key].ReadOnly) columns[key].ToolTipText = "系统自动生成，不可编辑；Ctrl+C 复制内容";
+                if (!columns[key].ReadOnly) columns[key].ToolTipText = key == "fullname" ? "双击编辑三维文件名；确认后同步模型、同名工程图及当前装配引用" : "可编辑";
                 _grid.Columns.Add(columns[key]);
                 if (key!="sequence")
                 {
@@ -641,8 +654,6 @@ namespace MechKit.UI
             _grid.CellClick += OnDesignTreeClick;
             _grid.CellClick += (sender,e)=>
             {
-                if(e.RowIndex>=0 && e.ColumnIndex>=0 && _grid.Columns[e.ColumnIndex].Name=="location")
-                    OnGridCellDoubleClick(sender,e);
                 if(e.RowIndex>=0 && e.ColumnIndex>=0 && _grid.Columns[e.ColumnIndex].Name=="purchaselink" &&
                     (ModifierKeys & Keys.Control) == Keys.Control)
                 {
@@ -844,8 +855,7 @@ namespace MechKit.UI
             {
                 if (_running)
                 {
-                    MessageBox.Show(this, "汇总正在进行，请等待本次处理结束。", AddinConstants.Title,
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _status.Text = "BOM 正在处理，请等待本次操作结束后关闭。";
                     e.Cancel = true;
                 }
             };
@@ -933,117 +943,123 @@ namespace MechKit.UI
 
         private void SelectComponentScope()
         {
-            if (_running)
+            using (OperationTrace.Begin("PartListForm.SelectComponentScope"))
             {
-                return;
-            }
-
-            var doc = SwUtils.ActiveDoc(_host.SwApp);
-            if (doc == null || doc.GetType() != SwUtils.DocAssembly)
+                if (_running)
             {
-                MessageBox.Show(this, "请先打开装配体，并在装配树或图形区选中一个零件或子装配体。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var selection = doc.SelectionManager as SelectionMgr;
-            Component2 component = null;
-            if (selection != null)
-            {
-                for (var i = 1; i <= selection.GetSelectedObjectCount2(-1); i++)
-                {
-                    try
-                    {
-                        component = selection.GetSelectedObject6(i, -1) as Component2;
-                    }
-                    catch
-                    {
-                        component = null;
-                    }
-                    if (component != null)
-                    {
-                        break;
-                    }
-                }
-            }
-
-            if (component == null)
-            {
-                MessageBox.Show(this, "没有检测到已选部件。请先在装配树或图形区选中零件/子装配体，再点“选择部件”。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var displayName = PartListService.DisplayNameForComponent(component);
-            _loadingSubassemblies = true;
-            try
-            {
-                for (var index = 1; index < _subassemblyCombo.Items.Count; index++)
-                {
-                    var scope = _subassemblyCombo.Items[index] as SubassemblyScope;
-                    if (scope != null && IsSameComponent(scope.Component, component))
-                    {
-                        _subassemblyCombo.SelectedIndex = index;
-                        displayName = scope.DisplayName;
-                        break;
-                    }
-                }
-            }
-            finally
-            {
-                _loadingSubassemblies = false;
-            }
-
-            ApplyComponentScope(component, displayName, true);
-        }
-
-        private void ReloadSubassemblies()
-        {
-            if (_running)
-            {
-                return;
-            }
-
-            _loadingSubassemblies = true;
-            try
-            {
-                _subassemblyCombo.Items.Clear();
-                _subassemblyCombo.Items.Add(new SubassemblyScope { DisplayName = "全部装配体" });
-
-                if (_host.SwApp == null)
-                {
-                    _subassemblyCombo.Items.Add(new SubassemblyScope { DisplayName = "离线示例：机架组件" });
-                    _subassemblyCombo.Items.Add(new SubassemblyScope { DisplayName = "离线示例：驱动组件" });
-                    _subassemblyCombo.SelectedIndex = 0;
                     return;
                 }
 
                 var doc = SwUtils.ActiveDoc(_host.SwApp);
-                var assembly = doc as AssemblyDoc;
-                if (doc == null || doc.GetType() != SwUtils.DocAssembly || assembly == null)
-                {
-                    _subassemblyCombo.SelectedIndex = 0;
+                if (doc == null || doc.GetType() != SwUtils.DocAssembly)
+            {
+                    MessageBox.Show(this, "请先打开装配体，并在装配树或图形区选中一个零件或子装配体。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
-                var scopes = PartListService.GetSubassemblies(assembly, NamingOptionsFactory.FromSettings(_host.Settings));
-                var selectedIndex = 0;
-                foreach (var scope in scopes)
-                {
-                    _subassemblyCombo.Items.Add(scope);
-                    if (_selectedComponent != null && IsSameComponent(scope.Component, _selectedComponent))
+                var selection = doc.SelectionManager as SelectionMgr;
+                Component2 component = null;
+                if (selection != null)
+            {
+                    for (var i = 1; i <= selection.GetSelectedObjectCount2(-1); i++)
                     {
-                        selectedIndex = _subassemblyCombo.Items.Count - 1;
+                        try
+                        {
+                            component = selection.GetSelectedObject6(i, -1) as Component2;
+                        }
+                        catch
+                        {
+                            component = null;
+                        }
+                        if (component != null)
+                        {
+                            break;
+                        }
                     }
                 }
 
-                _subassemblyCombo.SelectedIndex = selectedIndex;
-                AppendLog(string.Format("已读取子装配体：{0} 个。", scopes.Count));
-            }
-            finally
+                if (component == null)
             {
-                _loadingSubassemblies = false;
-                UpdateSourceState();
+                    MessageBox.Show(this, "没有检测到已选部件。请先在装配树或图形区选中零件/子装配体，再点“选择部件”。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var displayName = PartListService.DisplayNameForComponent(component);
+                _loadingSubassemblies = true;
+                try
+            {
+                    for (var index = 1; index < _subassemblyCombo.Items.Count; index++)
+                    {
+                        var scope = _subassemblyCombo.Items[index] as SubassemblyScope;
+                        if (scope != null && IsSameComponent(scope.Component, component))
+                        {
+                            _subassemblyCombo.SelectedIndex = index;
+                            displayName = scope.DisplayName;
+                            break;
+                        }
+                    }
+                }
+                finally
+            {
+                    _loadingSubassemblies = false;
+                }
+
+                ApplyComponentScope(component, displayName, true);
+            }
+        }
+
+        private void ReloadSubassemblies()
+        {
+            using (OperationTrace.Begin("PartListForm.ReloadSubassemblies"))
+            {
+                if (_running)
+            {
+                    return;
+                }
+
+                _loadingSubassemblies = true;
+                try
+            {
+                    _subassemblyCombo.Items.Clear();
+                    _subassemblyCombo.Items.Add(new SubassemblyScope { DisplayName = "全部装配体" });
+
+                    if (_host.SwApp == null)
+                    {
+                        _subassemblyCombo.Items.Add(new SubassemblyScope { DisplayName = "离线示例：机架组件" });
+                        _subassemblyCombo.Items.Add(new SubassemblyScope { DisplayName = "离线示例：驱动组件" });
+                        _subassemblyCombo.SelectedIndex = 0;
+                        return;
+                    }
+
+                    var doc = SwUtils.ActiveDoc(_host.SwApp);
+                    var assembly = doc as AssemblyDoc;
+                    if (doc == null || doc.GetType() != SwUtils.DocAssembly || assembly == null)
+                    {
+                        _subassemblyCombo.SelectedIndex = 0;
+                        return;
+                    }
+
+                    var scopes = PartListService.GetSubassemblies(assembly, NamingOptionsFactory.FromSettings(_host.Settings));
+                    var selectedIndex = 0;
+                    foreach (var scope in scopes)
+                    {
+                        _subassemblyCombo.Items.Add(scope);
+                        if (_selectedComponent != null && IsSameComponent(scope.Component, _selectedComponent))
+                        {
+                            selectedIndex = _subassemblyCombo.Items.Count - 1;
+                        }
+                    }
+
+                    _subassemblyCombo.SelectedIndex = selectedIndex;
+                    AppendLog(string.Format("已读取子装配体：{0} 个。", scopes.Count));
+                }
+                finally
+            {
+                    _loadingSubassemblies = false;
+                    UpdateSourceState();
+                }
             }
         }
 
@@ -1159,117 +1175,133 @@ namespace MechKit.UI
 
         private void RunSummary()
         {
-            if (_running)
+            using (OperationTrace.Begin("PartListForm.RunSummary"))
             {
-                return;
-            }
-
-            HideModelPreview();
-            _previewCache.Clear();
-
-            var options = BuildOptions();
-            _treeItems = new List<DesignTreeItem>();
-            options.DesignTree = _treeItems;
-            _designTree.Nodes.Clear();
-            var swApp = _host.SwApp;
-            if (swApp == null)
+                if (_running)
             {
-                // 离线测试宿主：展示与真实 BOM 完全相同的列和典型解析结果。
-                _rows = BuildOfflinePreviewRows();
-                BuildRowTree();
-                ShowDesignTree();
-                ShowFilteredRows(true);
-                AppendLog("离线示例：20260919-6061-扫码枪安装板 → 加工件 / 扫码枪安装板 / 6061");
-                AppendLog("离线示例：代理-电机-MG996 → 标准件 / 电机 / MG996 / 代理");
+                    return;
+                }
+
+                PullGridEdits();
+                if (_rows.Exists(row => row.HasBomEdits || row.HasFullNameEdit) &&
+                    MessageBox.Show(this, "当前 BOM 有尚未保存的修改（可能来自导入）。重新生成会丢弃这些修改。\n建议先应用 BOM 修改；是否仍要丢弃并重新生成？",
+                        AddinConstants.Title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                var activeDoc = SwUtils.ActiveDoc(_host.SwApp);
+                if (_host.SwApp != null && (activeDoc == null ||
+                    (activeDoc.GetType() != SwUtils.DocPart && activeDoc.GetType() != SwUtils.DocAssembly)))
+            {
+                    _status.Text = "请先切换到零件或装配体再生成 BOM，当前预览已保留。";
+                    return;
+                }
+                HideModelPreview();
+                _previewCache.Clear();
+
+                var options = BuildOptions();
+                _treeItems = new List<DesignTreeItem>();
+                options.DesignTree = _treeItems;
+                _designTree.Nodes.Clear();
+                var swApp = _host.SwApp;
+                if (swApp == null)
+            {
+                    // 离线测试宿主：展示与真实 BOM 完全相同的列和典型解析结果。
+                    _rows = BuildOfflinePreviewRows();
+                    BuildRowTree();
+                    ShowDesignTree();
+                    ShowFilteredRows(true);
+                    AppendLog("离线示例：20260919-6061-扫码枪安装板 → 加工件 / 扫码枪安装板 / 6061");
+                    AppendLog("离线示例：代理-电机-MG996 → 标准件 / 电机 / MG996 / 代理");
+                    _writeBackButton.Enabled = false;
+                    _renameComponentsButton.Enabled = false;
+                    return;
+                }
+
+                _running = true;
+                _runButton.Enabled = false;
+                _exportButton.Enabled = false;
                 _writeBackButton.Enabled = false;
                 _renameComponentsButton.Enabled = false;
-                return;
-            }
+                _logBox.Clear();
+                _rows = new List<PartListRow>();
+                _grid.Rows.Clear();
+                _summaryLabel.Text = PartListService.BuildSummary(_rows);
 
-            _running = true;
-            _runButton.Enabled = false;
-            _exportButton.Enabled = false;
-            _writeBackButton.Enabled = false;
-            _renameComponentsButton.Enabled = false;
-            _logBox.Clear();
-            _rows = new List<PartListRow>();
-            _grid.Rows.Clear();
-            _summaryLabel.Text = PartListService.BuildSummary(_rows);
-
-            try
+                try
             {
-                AppendLog("规则：" + options.Naming.Describe());
-                AppendLog("提示：双击表格任意一行，可打开该零件的工程图（没有工程图时打开零件模型）。");
+                    AppendLog("规则：" + options.Naming.Describe());
+                    AppendLog("提示：双击编辑，悬停显示缩略图和名称；位置列右键打开当前零件或父装配体。");
 
-                {
-                    var doc = SwUtils.ActiveDoc(swApp);
-                    if (doc == null)
                     {
-                        MessageBox.Show(this, "请先打开一个装配体或零件。", AddinConstants.Title,
-                            MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        return;
-                    }
-
-                    var docType = doc.GetType();
-                    _bomAssembly = docType == SwUtils.DocAssembly ? doc : null;
-                    if (docType == SwUtils.DocAssembly)
-                    {
-                        var assembly = doc as AssemblyDoc;
-                        if (assembly == null)
+                        var doc = SwUtils.ActiveDoc(swApp);
+                        if (doc == null)
                         {
-                            MessageBox.Show(this, "无法访问装配体接口。", AddinConstants.Title,
-                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show(this, "请先打开一个装配体或零件。", AddinConstants.Title,
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
                             return;
                         }
 
-                        if (_selectedComponent != null)
+                        var docType = doc.GetType();
+                        _bomAssembly = docType == SwUtils.DocAssembly ? doc : null;
+                        _excelLinkSourcePath = doc.GetPathName();
+                        if (docType == SwUtils.DocAssembly)
                         {
-                            AppendLog("统计选中部件：" + _selectedComponentName);
-                            _rows = PartListService.FromComponent(
-                                swApp, _selectedComponent, options, AppendLog);
+                            var assembly = doc as AssemblyDoc;
+                            if (assembly == null)
+                            {
+                                MessageBox.Show(this, "无法访问装配体接口。", AddinConstants.Title,
+                                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                return;
+                            }
+
+                            if (_selectedComponent != null)
+                            {
+                                AppendLog("统计选中部件：" + _selectedComponentName);
+                                _rows = PartListService.FromComponent(
+                                    swApp, _selectedComponent, options, AppendLog);
+                            }
+                            else
+                            {
+                                AppendLog("统计装配体：" + Path.GetFileName(doc.GetPathName()));
+                                _rows = PartListService.FromAssembly(swApp, assembly, options, AppendLog);
+                            }
+                        }
+                        else if (docType == SwUtils.DocPart)
+                        {
+                            AppendLog("读取零件：" + Path.GetFileName(doc.GetPathName()));
+                            var row = PartListService.FromPart(swApp, doc, options);
+                            if (row != null)
+                            {
+                                _rows.Add(row);
+                            }
                         }
                         else
                         {
-                            AppendLog("统计装配体：" + Path.GetFileName(doc.GetPathName()));
-                            _rows = PartListService.FromAssembly(swApp, assembly, options, AppendLog);
+                            MessageBox.Show(this, "当前文档不是零件或装配体。", AddinConstants.Title,
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
                         }
                     }
-                    else if (docType == SwUtils.DocPart)
-                    {
-                        AppendLog("读取零件：" + Path.GetFileName(doc.GetPathName()));
-                        var row = PartListService.FromPart(swApp, doc, options);
-                        if (row != null)
-                        {
-                            _rows.Add(row);
-                        }
-                    }
-                    else
-                    {
-                        MessageBox.Show(this, "当前文档不是零件或装配体。", AddinConstants.Title,
-                            MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        return;
-                    }
-                }
 
-                if (_treeItems.Count == 0) BuildRowTree();
-                ShowDesignTree();
-                ShowFilteredRows(true);
-                var summary = PartListService.BuildSummary(_rows);
-                AppendLog(summary);
-                Log.Info("明细汇总完成：" + summary);
-            }
-            catch (Exception ex)
+                    if (_treeItems.Count == 0) BuildRowTree();
+                    ShowDesignTree();
+                    ShowFilteredRows(true);
+                    var summary = PartListService.BuildSummary(_rows);
+                    AppendLog(summary);
+                    Log.Info("明细汇总完成：" + summary);
+                }
+                catch (Exception ex)
             {
-                Log.Error("明细汇总失败", ex);
-                MessageBox.Show(this, "汇总过程出错：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
+                    Log.Error("明细汇总失败", ex);
+                    MessageBox.Show(this, "汇总过程出错：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
             {
-                _running = false;
-                _runButton.Enabled = true;
-                ShowFilteredRows(false);
-                UpdateSourceState();
+                    _running = false;
+                    _runButton.Enabled = true;
+                    ShowFilteredRows(false);
+                    UpdateSourceState();
+                }
             }
         }
 
@@ -1479,111 +1511,57 @@ namespace MechKit.UI
         }
 
         /// <summary>
-        /// 双击设计树中的装配/组件名称打开其模型；BOM 名称文字进入编辑，
-        /// 其它 BOM 单元格打开模型，失败时退回工程图。
+        /// 将剪贴板说明图保存为标准件资产。
         /// </summary>
-        private void OnGridCellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        private void PasteBomIllustration(object sender, KeyEventArgs e)
         {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _running)
-            {
-                return;
-            }
-
-            var columnName = _grid.Columns[e.ColumnIndex].Name;
-            if (columnName == "designTree")
-            {
-                var node = _grid.Rows[e.RowIndex].Cells[e.ColumnIndex].Tag as TreeNode;
-                var item = node == null ? null : node.Tag as DesignTreeItem;
-                if (item == null || (item.Kind != DesignNodeKind.Assembly && item.Kind != DesignNodeKind.Group)) return;
-                var bounds = _grid.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false);
-                var point = _grid.PointToClient(Cursor.Position);
-                var textLeft = bounds.Left + (_designOrder ? node.Level * 16 : 0) + 26;
-                var textRight = Math.Min(bounds.Right - 6,
-                    textLeft + TextRenderer.MeasureText(node.Text, _grid.Font).Width);
-                if (!bounds.Contains(point) || point.X < textLeft || point.X > textRight) return;
-                var model = PartListService.OpenRowModelDocument(_host.SwApp,
-                    new PartListRow { FilePath = item.FilePath, Configuration = item.Configuration }, AppendLog);
-                if (!string.IsNullOrEmpty(model))
-                {
-                    _status.Text = "已打开：" + Path.GetFileName(model) + " · 按 Tab 返回 BOM";
-                    WindowLayout.YieldToOpenedContent(_host.MainWindowHandle);
-                }
-                return;
-            }
-            if (columnName == "treeLink") return;
-
-            var row = _grid.Rows[e.RowIndex].Tag as PartListRow;
-            if (row == null)
-            {
-                return;
-            }
-
-            var onText = IsDoubleClickOnCellText(e);
-            if (IsInlinePropertyColumn(columnName))
-            {
-                _grid.CurrentCell=_grid.Rows[e.RowIndex].Cells[e.ColumnIndex];
-                HighlightRow(e.RowIndex);_grid.BeginEdit(true);return;
-            }
-
-            // 双击名字文字 → 直接在单元格里改名字（提交后按新名字重命名文件）。
-            if (onText && (string.Equals(columnName, "fullname", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(columnName, "name", StringComparison.OrdinalIgnoreCase)))
-            {
-                BeginRenameEdit(e.RowIndex, e.ColumnIndex);
-                return;
-            }
-
-            // 双击文字后面的空白（或其它列） → 打开这一行的三维模型；
-            // 三维文件打不开时再退回工程图。
-            var opened = PartListService.OpenRowModelDocument(_host.SwApp, row, AppendLog);
-            if (string.IsNullOrEmpty(opened))
-            {
-                opened = PartListService.OpenRowDocument(_host.SwApp, row, AppendLog);
-            }
-
-            if (string.IsNullOrEmpty(opened))
-            {
-                MessageBox.Show(this,
-                    "这一行没有可打开的零件文件或工程图。\r\n\r\n" +
-                    "· 双击名字文字 = 在表格里改名字；双击后面的空白 = 打开三维模型；\r\n" +
-                    "· 虚拟件 / 未保存的零件没有磁盘文件；\r\n" +
-                    "· 工程图需要与零件同目录、同文件名（.slddrw）。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            _status.Text = "已打开：" + Path.GetFileName(opened) + " · 按 Tab 返回 BOM";
-            WindowLayout.YieldToOpenedContent(_host.MainWindowHandle);
-        }
-
-        /// <summary>双击是否落在单元格的文字上（而不是文字后面的空白）。</summary>
-        private bool IsDoubleClickOnCellText(DataGridViewCellEventArgs e)
-        {
+            if (!e.Control || e.KeyCode != Keys.V || _running || _grid.CurrentCell == null ||
+                _grid.CurrentCell.OwningColumn.Name != "drawing" ||
+                (!Clipboard.ContainsImage() && !Clipboard.ContainsFileDropList())) return;
+            var row = _grid.CurrentCell.OwningRow.Tag as PartListRow;
+            if (row == null || row.Classification != "标准件") return;
+            e.Handled = true; e.SuppressKeyPress = true;
             try
             {
-                var cell = _grid.Rows[e.RowIndex].Cells[e.ColumnIndex];
-                var text = Convert.ToString(cell.Value) ?? string.Empty;
-                if (text.Length == 0)
+                if (!File.Exists(row.FilePath)) throw new InvalidOperationException("请先保存标准件模型。");
+                byte[] png = null;
+                if (Clipboard.ContainsImage())
                 {
-                    return false;
+                    using (var image = Clipboard.GetImage()) png = BomAssets.Png(image);
                 }
-
-                var bounds = _grid.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false);
-                var point = _grid.PointToClient(Cursor.Position);
-                if (!bounds.Contains(point))
+                else if (Clipboard.ContainsFileDropList())
                 {
-                    return false;
+                    var files = Clipboard.GetFileDropList();
+                    if (files.Count != 1) throw new InvalidOperationException("请一次复制一张说明图。");
+                    using (var image = Image.FromFile(files[0])) png = BomAssets.Png(image);
                 }
-
-                var style = cell.InheritedStyle;
-                var font = style.Font ?? Theme.Body;
-                var width = TextRenderer.MeasureText(text, font).Width;
-                var left = bounds.Left + style.Padding.Left + 8;
-                return point.X <= left + width + 4;
+                if (png == null) throw new InvalidOperationException("请先复制图片或一个图片文件，再按 Ctrl+V。");
+                var path = BomAssets.AssetPath(row.FilePath, row.Configuration, "尺寸说明图", ".png");
+                BomAssets.Write(path, png);
+                foreach (DataGridViewRow gridRow in _grid.Rows)
+                {
+                    var item = gridRow.Tag as PartListRow;
+                    if (item != null) gridRow.Cells["drawing"].Value = PartListService.DrawingCellText(item);
+                }
+                _status.Text = "说明图已保存：" + path;
             }
-            catch
+            catch (Exception ex) { _status.Text = "粘贴说明图失败：" + ex.Message; }
+        }
+
+        private void OnGridCellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _running) return;
+            HideModelPreview();
+            var cell = _grid.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            var columnName = cell.OwningColumn.Name;
+            if (cell.ReadOnly || IsGeneratedColumn(columnName) || columnName == "select") return;
+            if (cell.OwningRow.Tag as PartListRow == null) return;
+            if (columnName == "fullname")
+                BeginRenameEdit(e.RowIndex, e.ColumnIndex);
+            else
             {
-                return false;
+                _grid.CurrentCell = cell;
+                _grid.BeginEdit(true);
             }
         }
 
@@ -1603,56 +1581,74 @@ namespace MechKit.UI
             }
         }
 
-        private static bool IsInlinePropertyColumn(string key)
-        { return key=="assemblynote" || key=="remark" || key=="purchaselink"; }
-
-        private void HighlightRow(int rowIndex)
+        private void OnAssetNoteChanged(string path, string key, string value)
         {
-            _grid.ClearSelection();
-            _grid.Rows[rowIndex].Selected=true;
-            _grid.InvalidateRow(rowIndex);
+            if (IsDisposed) return;
+            foreach (var row in _rows)
+            {
+                if (!string.Equals(row.FilePath, path, StringComparison.OrdinalIgnoreCase)) continue;
+                if (key == "remark") row.Remark = value;
+                else if (key == "purchaselink") row.PurchaseLink = value;
+                else if (key == "assemblynote") row.AssemblyNote = value;
+                else if (key == "unfinished") row.Unfinished = value;
+                row.MarkInlinePropertyClean(key);
+            }
+            if (!_grid.Columns.Contains(key)) return;
+            foreach (DataGridViewRow display in _grid.Rows)
+            {
+                var row = display.Tag as PartListRow;
+                if (row != null && string.Equals(row.FilePath,path,StringComparison.OrdinalIgnoreCase) && !display.Cells[key].IsInEditMode)
+                    display.Cells[key].Value = value;
+            }
         }
+
+        private static bool IsInlinePropertyColumn(string key)
+        { return key=="unfinished" || key=="assemblynote" || key=="remark" || key=="purchaselink"; }
 
         private void SaveInlineProperty(int rowIndex,int columnIndex)
         {
-            if(_running || _renderingRows)return;
-            var gridRow=_grid.Rows[rowIndex];
-            var row=gridRow.Tag as PartListRow;
-            if(row==null)return;
-            var key=_grid.Columns[columnIndex].Name;
-            var cell=gridRow.Cells[columnIndex];
-            var value=Convert.ToString(cell.Value).Trim();
-            var original=key=="assemblynote"?row.AssemblyNote:key=="remark"?row.Remark:row.PurchaseLink;
-            if(value==(original??"")){cell.ErrorText="";return;}
-            var propertyName=key=="assemblynote"?"安装说明":key=="remark"?"备注":"购买链接";
-            _running=true;HideModelPreview();
-            _status.Text="正在保存"+propertyName+"："+row.FullName;
-            try
+            using (OperationTrace.Begin("PartListForm.SaveInlineProperty"))
             {
-                PurchaseLinkService.SaveProperty(_host.SwApp,row.FilePath,propertyName,value);
-                foreach(var item in _rows)
-                    if(string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
+                if(_running || _renderingRows)return;
+                var gridRow=_grid.Rows[rowIndex];
+                var row=gridRow.Tag as PartListRow;
+                if(row==null)return;
+                var key=_grid.Columns[columnIndex].Name;
+                var cell=gridRow.Cells[columnIndex];
+                var value=Convert.ToString(cell.Value).Trim();
+                var original=key=="assemblynote"?row.AssemblyNote:key=="remark"?row.Remark:key=="unfinished"?row.Unfinished:row.PurchaseLink;
+                if(value==(original??"")){cell.ErrorText="";return;}
+                var propertyName=key=="assemblynote"?"安装说明":key=="remark"?"备注":key=="unfinished"?"未尽事宜":"购买链接";
+                _running=true;HideModelPreview();
+                _status.Text="正在保存"+propertyName+"："+row.FullName;
+                try
+            {
+                    BomNoteStore.Save(row.FilePath,key,value);
+                    foreach(var item in _rows)
+                        if(string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
+                        {
+                            if(key=="assemblynote")item.AssemblyNote=value;
+                            else if(key=="remark")item.Remark=value;
+                            else if(key=="unfinished")item.Unfinished=value;
+                            else item.PurchaseLink=value;
+                            item.MarkInlinePropertyClean(key);
+                        }
+                    foreach(DataGridViewRow duplicate in _grid.Rows)
                     {
-                        if(key=="assemblynote")item.AssemblyNote=value;
-                        else if(key=="remark")item.Remark=value;
-                        else item.PurchaseLink=value;
-                        item.MarkInlinePropertyClean(key);
+                        var item=duplicate.Tag as PartListRow;
+                        if(item!=null && string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
+                        {duplicate.Cells[key].Value=value;duplicate.Cells[key].ErrorText="";}
                     }
-                foreach(DataGridViewRow duplicate in _grid.Rows)
-                {
-                    var item=duplicate.Tag as PartListRow;
-                    if(item!=null && string.Equals(item.FilePath,row.FilePath,StringComparison.OrdinalIgnoreCase))
-                    {duplicate.Cells[key].Value=value;duplicate.Cells[key].ErrorText="";}
+                    _status.Text=propertyName+"已保存到零部件资产文件夹。";
                 }
-                _status.Text=propertyName+"已保存到零件自定义属性。";
-            }
-            catch(Exception ex)
+                catch(Exception ex)
             {
-                cell.ErrorText=ex.Message;
-                _status.Text=propertyName+"未保存："+ex.Message;
-                Log.Error("BOM 原位属性保存失败："+row.FilePath,ex);
+                    cell.ErrorText=ex.Message;
+                    _status.Text=propertyName+"未保存："+ex.Message;
+                    Log.Error("BOM 原位属性保存失败："+row.FilePath,ex);
+                }
+                finally{_running=false;_grid.InvalidateRow(rowIndex);}
             }
-            finally{_running=false;_grid.InvalidateRow(rowIndex);}
         }
 
         private void OnGridCellEndEdit(object sender, DataGridViewCellEventArgs e)
@@ -1673,72 +1669,78 @@ namespace MechKit.UI
         /// <summary>把这一行改成的新名字同步到零件文件（SOLIDWORKS 重命名接口，保持装配关系）。</summary>
         private void PromptRenameRow(PartListRow row)
         {
-            if (_running || row == null || (!row.HasFullNameEdit && !row.HasNamingEdits))
+            using (OperationTrace.Begin("PartListForm.PromptRenameRow"))
             {
-                return;
-            }
-
-            if (string.IsNullOrEmpty(row.FilePath))
+                if (_running || row == null || (!row.HasFullNameEdit && !row.HasNamingEdits))
             {
-                AppendLog("这一行没有可重命名的零件文件，名字只保留在表格里。");
-                return;
-            }
-
-            var newBase = row.HasFullNameEdit ? NamingOptions.GetFileNameWithoutExtension(row.FullName).Trim() :
-                PartListService.BuildComponentBaseName(row, NamingOptionsFactory.FromSettings(_host.Settings));
-            var currentBase = Path.GetFileNameWithoutExtension(row.FilePath);
-            if (newBase.Length == 0 || string.Equals(newBase, currentBase, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            var answer = MessageBox.Show(this,
-                "同步重命名模型及同名工程图，并保存装配引用？\r\n\r\n" +
-                currentBase + "  →  " + newBase + "\r\n\r\n" +
-                "虚拟组件会以新名称另存到总装所在文件夹，成为独立文件。\r\n\r\n" +
-                "· “是”＝现在就重命名文件（引用同步更新）；\r\n" +
-                "· “否”＝只保留表格里的名字，稍后点「按规则重命名文件」再统一执行。",
-                AddinConstants.Title, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-            if (answer != DialogResult.Yes)
-            {
-                if (answer == DialogResult.Cancel)
-                {
-                    row.FullName = currentBase;
-                    ShowRows(FilteredRows(), false);
+                    return;
                 }
-                return;
-            }
 
-            try
+                if (string.IsNullOrEmpty(row.FilePath))
             {
-                var previousPath = row.FilePath;
-                ActivateBomAssembly();
-                var renamed = PartListService.RenameAssemblyFilesByBomRules(_host.SwApp,
-                    new List<PartListRow> { row }, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
-                if (renamed > 0)
-                {
-                    foreach (var duplicate in _rows)
+                    AppendLog("这一行没有可重命名的零件文件，名字只保留在表格里。");
+                    return;
+                }
+
+                var newBase = row.HasFullNameEdit ? NamingOptions.GetFileNameWithoutExtension(row.FullName).Trim() :
+                    PartListService.BuildComponentBaseName(row, NamingOptionsFactory.FromSettings(_host.Settings));
+                var currentBase = Path.GetFileNameWithoutExtension(row.FilePath);
+                if (newBase.Length == 0 || string.Equals(newBase, currentBase, StringComparison.OrdinalIgnoreCase))
+            {
+                    return;
+                }
+
+                var answer = MessageBox.Show(this,
+                    "同步重命名模型及同名工程图，并保存装配引用？\r\n\r\n" +
+                    currentBase + "  →  " + newBase + "\r\n\r\n" +
+                    "虚拟组件会以新名称另存到总装所在文件夹，成为独立文件。\r\n\r\n" +
+                    "· “是”＝现在就重命名文件（引用同步更新）；\r\n" +
+                    "· “否”＝只保留表格里的名字，稍后点「按规则重命名文件」再统一执行。",
+                    AddinConstants.Title, MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (answer != DialogResult.Yes)
+            {
+                    if (answer == DialogResult.Cancel)
                     {
-                        if (!string.Equals(duplicate.FilePath, previousPath, StringComparison.OrdinalIgnoreCase)) continue;
-                        duplicate.FilePath = row.FilePath;
-                        duplicate.FullName = row.FullName;
-                        duplicate.PartNumber = row.PartNumber;
-                        duplicate.DrawingPath = row.DrawingPath;
-                        duplicate.MarkNamingClean();
+                        row.FullName = currentBase;
+                        ShowRows(FilteredRows(), false);
                     }
-                    UpdateRenamedTree(_treeItems, previousPath, row.FilePath, row.FullName);
-                    ShowDesignTree();
+                    return;
                 }
-                _status.Text = renamed > 0
-                    ? "已重命名：" + newBase
-                    : "重命名未全部完成（详见处理日志）。";
-                ShowFilteredRows(false);
-            }
-            catch (Exception ex)
+
+                try
             {
-                Log.Error("按名字重命名失败", ex);
-                MessageBox.Show(this, "重命名失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    _running = true;
+                    HideModelPreview();
+                    var previousPath = row.FilePath;
+                    ActivateBomAssembly();
+                    var renamed = PartListService.RenameAssemblyFilesByBomRules(_host.SwApp,
+                        new List<PartListRow> { row }, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
+                    if (renamed > 0)
+                    {
+                        foreach (var duplicate in _rows)
+                        {
+                            if (!string.Equals(duplicate.FilePath, previousPath, StringComparison.OrdinalIgnoreCase)) continue;
+                            duplicate.FilePath = row.FilePath;
+                            duplicate.FullName = row.FullName;
+                            duplicate.PartNumber = row.PartNumber;
+                            duplicate.DrawingPath = row.DrawingPath;
+                            duplicate.MarkNamingClean();
+                        }
+                        UpdateRenamedTree(_treeItems, previousPath, row.FilePath, row.FullName);
+                        ShowDesignTree();
+                    }
+                    _status.Text = renamed > 0
+                        ? "已重命名：" + newBase
+                        : "重命名未全部完成（详见处理日志）。";
+                    ShowFilteredRows(false);
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("按名字重命名失败", ex);
+                    MessageBox.Show(this, "重命名失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally { _running = false; ShowFilteredRows(false); }
             }
         }
 
@@ -1812,34 +1814,37 @@ namespace MechKit.UI
 
         private void ShowModelPreview()
         {
-            _previewDelay.Stop();
-            if(_previewRow==null || _running || _loadingPreview || _markDragging || !Visible) return;
-            var row=_previewRow;
-            _loadingPreview=true;
-            try
+            using (OperationTrace.Begin("PartListForm.ShowModelPreview"))
             {
-                var bytes=_previewCache.Read(row.FilePath,row.Configuration,
-                    ()=>BomExcelExporter.ReadPreview(_host.SwApp,row,true));
-                // SW may pump messages inside COM. Do not display a result from
-                // the old row after the user has left the cell or changed focus.
-                if(!ReferenceEquals(row,_previewRow) || IsDisposed || !Visible) return;
-                if(bytes!=null)
-                    using(var stream=new MemoryStream(bytes))
-                    using(var source=Image.FromStream(stream)) _previewImage=new Bitmap(source);
-                var screen=Cursor.Position;var area=Screen.FromPoint(screen).WorkingArea;
-                _modelPreview.SetPreview(row.FullName,row.Location,_previewImage);
-                var x=screen.X+24;var y=screen.Y+24;
-                if(x+_modelPreview.Width>area.Right) x=screen.X-_modelPreview.Width-24;
-                if(y+_modelPreview.Height>area.Bottom) y=screen.Y-_modelPreview.Height-24;
-                _modelPreview.Location=new Point(Math.Max(area.Left,x),Math.Max(area.Top,y));
-                _modelPreview.Show(this);
-            }
-            catch(Exception ex) { Log.Warn("显示模型预览失败："+ex.Message);HideModelPreview(); }
-            finally
+                _previewDelay.Stop();
+                if(_previewRow==null || _running || _loadingPreview || _markDragging || _grid.IsCurrentCellInEditMode || !Visible) return;
+                var row=_previewRow;
+                _loadingPreview=true;
+                try
             {
-                _loadingPreview=false;
-                if(!IsDisposed && _previewRow!=null && !ReferenceEquals(row,_previewRow) && Visible && !_running)
-                    _previewDelay.Start();
+                    var bytes=_previewCache.Read(row.FilePath,row.Configuration,
+                        ()=>BomExcelExporter.ReadPreview(_host.SwApp,row,true));
+                    // SW may pump messages inside COM. Do not display a result from
+                    // the old row after the user has left the cell or changed focus.
+                    if(!ReferenceEquals(row,_previewRow) || IsDisposed || !Visible) return;
+                    if(bytes!=null)
+                        using(var stream=new MemoryStream(bytes))
+                        using(var source=Image.FromStream(stream)) _previewImage=new Bitmap(source);
+                    var screen=Cursor.Position;var area=Screen.FromPoint(screen).WorkingArea;
+                    _modelPreview.SetPreview(row.FullName,row.Location,_previewImage);
+                    var x=screen.X+24;var y=screen.Y+24;
+                    if(x+_modelPreview.Width>area.Right) x=screen.X-_modelPreview.Width-24;
+                    if(y+_modelPreview.Height>area.Bottom) y=screen.Y-_modelPreview.Height-24;
+                    _modelPreview.Location=new Point(Math.Max(area.Left,x),Math.Max(area.Top,y));
+                    _modelPreview.Show(this);
+                }
+                catch(Exception ex) { Log.Warn("显示模型预览失败："+ex.Message);HideModelPreview(); }
+                finally
+            {
+                    _loadingPreview=false;
+                    if(!IsDisposed && _previewRow!=null && !ReferenceEquals(row,_previewRow) && Visible && !_running)
+                        _previewDelay.Start();
+                }
             }
         }
 
@@ -2070,37 +2075,40 @@ namespace MechKit.UI
         /// <summary>把表格里勾选的行送进批量导出（PDF / DWG / DXF / STEP / IGES / STL）。</summary>
         private void ExportSelectedFiles()
         {
-            PullGridEdits();
-            var files = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (DataGridViewRow gridRow in _grid.Rows)
+            using (OperationTrace.Begin("PartListForm.ExportSelectedFiles"))
             {
-                if (!IsRowMarkedForExport(gridRow))
-                {
-                    continue;
+                PullGridEdits();
+                var files = new List<string>();
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (DataGridViewRow gridRow in _grid.Rows)
+            {
+                    if (!IsRowMarkedForExport(gridRow))
+                    {
+                        continue;
+                    }
+
+                    var target = ResolveExportTarget(gridRow.Tag as PartListRow);
+                    if (string.IsNullOrEmpty(target) || !File.Exists(target) || !seen.Add(target))
+                    {
+                        continue;
+                    }
+
+                    files.Add(target);
                 }
 
-                var target = ResolveExportTarget(gridRow.Tag as PartListRow);
-                if (string.IsNullOrEmpty(target) || !File.Exists(target) || !seen.Add(target))
-                {
-                    continue;
+                if (files.Count == 0)
+            {
+                    MessageBox.Show(this,
+                        "请先在最左侧的「导出」列勾选要导出的行。\r\n\r\n" +
+                        "· 勾选后点“导出 PDF / STP…”即可选择格式（PDF / DWG / DXF / STEP / IGES / STL）和输出目录；\r\n" +
+                        "· 有同名工程图的零件会自动导出它的工程图，没有工程图的按零件 / 装配体导出。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
 
-                files.Add(target);
+                AppendLog(string.Format("已把勾选的 {0} 个文件送进批量导出。", files.Count));
+                _host.ShowBatchExportDialog(files);
             }
-
-            if (files.Count == 0)
-            {
-                MessageBox.Show(this,
-                    "请先在最左侧的「导出」列勾选要导出的行。\r\n\r\n" +
-                    "· 勾选后点“导出 PDF / STP…”即可选择格式（PDF / DWG / DXF / STEP / IGES / STL）和输出目录；\r\n" +
-                    "· 有同名工程图的零件会自动导出它的工程图，没有工程图的按零件 / 装配体导出。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            AppendLog(string.Format("已把勾选的 {0} 个文件送进批量导出。", files.Count));
-            _host.ShowBatchExportDialog(files);
         }
 
         private List<PartListRow> FilteredRows()
@@ -2133,7 +2141,7 @@ namespace MechKit.UI
             var words=(query ?? "").Split((char[])null,StringSplitOptions.RemoveEmptyEntries);
             if(words.Length==0) return true;
             var text=string.Join("\n",new[]{row.FullName,row.Name,row.Location,row.PartNumber,row.Material,
-                row.Process,row.SurfaceTreatment,row.Classification,row.AssemblyNote,row.Remark,
+                row.Process,row.SurfaceTreatment,row.Classification,row.AssemblyNote,row.Remark,row.DesignNote,
                 row.PurchaseLink,row.FilePath,row.DrawingPath,row.Quantity.ToString()});
             foreach(var word in words)
                 if(text.IndexOf(word,StringComparison.OrdinalIgnoreCase)<0) return false;
@@ -2276,6 +2284,7 @@ namespace MechKit.UI
                     gridRow.Cells["quantity"].Value = row.Quantity;
                     gridRow.Cells["assemblynote"].Value = row.AssemblyNote;
                     gridRow.Cells["remark"].Value = row.Remark;
+                    gridRow.Cells["unfinished"].Value = row.Unfinished;
                     gridRow.Cells["purchaselink"].Value = row.PurchaseLink;
 
                     // 类别决定整行底色；缺图提醒只覆盖工程图单元格。
@@ -2373,6 +2382,12 @@ namespace MechKit.UI
         }
 
         /// <summary>把表格中尚未失去焦点的编辑值同步回 BOM 行对象。</summary>
+        private static bool IsGeneratedColumn(string key)
+        {
+            return key != "fullname" && key != "select" && key != "designTree" && key != "treeLink" &&
+                key != "remark" && key != "assemblynote" && key != "purchaselink" && key != "unfinished";
+        }
+
         private void PullGridEdits()
         {
             _grid.EndEdit();
@@ -2383,161 +2398,164 @@ namespace MechKit.UI
                 {
                     continue;
                 }
-                row.Name = Convert.ToString(gridRow.Cells["name"].Value).Trim();
-                row.Material = Convert.ToString(gridRow.Cells["material"].Value).Trim();
-                row.Process = Convert.ToString(gridRow.Cells["process"].Value).Trim();
-                row.Remark = Convert.ToString(gridRow.Cells["remark"].Value).Trim();
                 row.FullName = Convert.ToString(gridRow.Cells["fullname"].Value).Trim();
+                row.Remark = Convert.ToString(gridRow.Cells["remark"].Value).Trim();
             }
         }
 
         private void ApplyBomChanges()
         {
-            if (_running || FilteredRows().Count == 0)
+            using (OperationTrace.Begin("PartListForm.ApplyBomChanges"))
             {
-                return;
-            }
-
-            PullGridEdits();
-            var activeRows = FilteredRows();
-            var changed = 0;
-            foreach (var row in activeRows)
+                if (_running || FilteredRows().Count == 0)
             {
-                if (row.HasBomEdits)
-                {
-                    changed++;
+                    return;
                 }
-            }
 
-            if (changed == 0)
+                PullGridEdits();
+                var activeRows = FilteredRows();
+                var changed = 0;
+                foreach (var row in activeRows)
             {
-                MessageBox.Show(this, "BOM 表中没有需要应用的修改。", AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var message = string.Format(
-                "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」「表面处理」「安装说明」「备注」「购买链接」并保存。数量仅用于 BOM 预览和导出。" +
-                System.Environment.NewLine + System.Environment.NewLine +
-                "本轮不会重命名零件文件，因此不会破坏装配引用。是否继续？", changed);
-            if (MessageBox.Show(this, message, AddinConstants.Title,
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-            {
-                return;
-            }
-
-            _running = true;
-            _runButton.Enabled = false;
-            _exportButton.Enabled = false;
-            _writeBackButton.Enabled = false;
-            _renameComponentsButton.Enabled = false;
-            _status.Text = "正在应用 BOM 修改…";
-
-            try
-            {
-                var updated = PartListService.ApplyBomEdits(_host.SwApp, activeRows, AppendLog);
-                _status.Text = string.Format("已应用 {0} / {1} 个零件。", updated, changed);
-                Log.Info(string.Format("BOM 编辑已应用：{0} / {1} 个零件。", updated, changed));
-
-                if (updated < changed)
-                {
-                    MessageBox.Show(this, "部分零件未能保存，请查看窗口下方处理日志。",
-                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    if (row.HasBomEdits)
+                    {
+                        changed++;
+                    }
                 }
-            }
-            catch (Exception ex)
+
+                if (changed == 0)
             {
-                Log.Error("应用 BOM 修改失败", ex);
-                MessageBox.Show(this, "应用失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
+                    MessageBox.Show(this, "BOM 表中没有需要应用的修改。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var message = string.Format(
+                    "将把 {0} 个零件的修改写入自定义属性「名称」「材料」「工艺」「表面处理」「安装说明」「备注」「购买链接」并保存。数量仅用于 BOM 预览和导出。" +
+                    System.Environment.NewLine + System.Environment.NewLine +
+                    "本轮不会重命名零件文件，因此不会破坏装配引用。是否继续？", changed);
+                if (MessageBox.Show(this, message, AddinConstants.Title,
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
-                _running = false;
-                _runButton.Enabled = true;
-                ShowFilteredRows(false);
+                    return;
+                }
+
+                _running = true;
+                _runButton.Enabled = false;
+                _exportButton.Enabled = false;
+                _writeBackButton.Enabled = false;
+                _renameComponentsButton.Enabled = false;
+                _status.Text = "正在应用 BOM 修改…";
+
+                try
+            {
+                    var updated = PartListService.ApplyBomEdits(_host.SwApp, activeRows, AppendLog);
+                    _status.Text = string.Format("已应用 {0} / {1} 个零件。", updated, changed);
+                    Log.Info(string.Format("BOM 编辑已应用：{0} / {1} 个零件。", updated, changed));
+
+                    if (updated < changed)
+                    {
+                        MessageBox.Show(this, "部分零件未能保存，请查看窗口下方处理日志。",
+                            AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("应用 BOM 修改失败", ex);
+                    MessageBox.Show(this, "应用失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+            {
+                    _running = false;
+                    _runButton.Enabled = true;
+                    ShowFilteredRows(false);
+                }
             }
         }
 
         private void ApplyBomChangesAndRename()
         {
-            if (_running || FilteredRows().Count == 0)
+            using (OperationTrace.Begin("PartListForm.ApplyBomChangesAndRename"))
             {
-                return;
-            }
-
-            ActivateBomAssembly();
-            var active = SwUtils.ActiveDoc(_host.SwApp);
-            if (active == null || active.GetType() != SwUtils.DocAssembly)
+                if (_running || FilteredRows().Count == 0)
             {
-                MessageBox.Show(this, "请先打开装配体，再使用“按规则重命名文件”。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            PullGridEdits();
-            var activeRows = FilteredRows();
-            var changed = 0;
-            foreach (var row in activeRows)
-            {
-                if (row.HasNamingEdits || row.HasFullNameEdit)
-                {
-                    changed++;
+                    return;
                 }
-            }
 
-            if (changed == 0)
-            {
-                MessageBox.Show(this, "BOM 表中没有需要重命名的修改。", AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var message = string.Format(
-                "将按当前命名规则反推并重命名 {0} 行对应的零件文件：\r\n\r\n" +
-                "1. 加工件：保留日期、变更序号和拓展代号，用材料/工艺反查材料段，用零件名更新名称段；\r\n" +
-                "2. 标准件：按“工艺-零件名-材料/型号”重新组装文件名；\r\n" +
-                "3. 虚拟组件另存到总装所在文件夹，成为独立文件；同名文件不覆盖；\r\n" +
-                "4. 更新当前装配体引用并保存装配体。\r\n\r\n" +
-                "不会写入任何自定义属性；备注不参与文件名。是否继续？",
-                changed);
-            if (MessageBox.Show(this, message, AddinConstants.Title,
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-            {
-                return;
-            }
-
-            _running = true;
-            _runButton.Enabled = false;
-            _exportButton.Enabled = false;
-            _writeBackButton.Enabled = false;
-            _renameComponentsButton.Enabled = false;
-            _status.Text = "正在按命名规则重命名零件文件…";
-
-            try
-            {
                 ActivateBomAssembly();
-                var renamed = PartListService.RenameAssemblyFilesByBomRules(
-                    _host.SwApp, activeRows, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
+                var active = SwUtils.ActiveDoc(_host.SwApp);
+                if (active == null || active.GetType() != SwUtils.DocAssembly)
+            {
+                    MessageBox.Show(this, "请先打开装配体，再使用“按规则重命名文件”。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
 
-                _status.Text = string.Format("已按规则重命名 {0} 个零件文件。", renamed);
-                Log.Info(string.Format("BOM 按规则重命名：{0} 个零件文件。", renamed));
-                MessageBox.Show(this,
-                    string.Format("同步改名成功：{0} 个。\r\n\r\n成功项已保存装配引用及同名工程图；未完成项请查看处理日志。",
-                        renamed),
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
+                PullGridEdits();
+                var activeRows = FilteredRows();
+                var changed = 0;
+                foreach (var row in activeRows)
             {
-                Log.Error("写入并重命名失败", ex);
-                MessageBox.Show(this, "处理失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
+                    if (row.HasNamingEdits || row.HasFullNameEdit)
+                    {
+                        changed++;
+                    }
+                }
+
+                if (changed == 0)
             {
-                _running = false;
-                _runButton.Enabled = true;
-                ShowFilteredRows(false);
+                    MessageBox.Show(this, "BOM 表中没有需要重命名的修改。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var message = string.Format(
+                    "将按当前命名规则反推并重命名 {0} 行对应的零件文件：\r\n\r\n" +
+                    "1. 加工件：保留日期、变更序号和拓展代号，用材料/工艺反查材料段，用零件名更新名称段；\r\n" +
+                    "2. 标准件：按“工艺-零件名-材料/型号”重新组装文件名；\r\n" +
+                    "3. 虚拟组件另存到总装所在文件夹，成为独立文件；同名文件不覆盖；\r\n" +
+                    "4. 更新当前装配体引用并保存装配体。\r\n\r\n" +
+                    "不会写入任何自定义属性；备注不参与文件名。是否继续？",
+                    changed);
+                if (MessageBox.Show(this, message, AddinConstants.Title,
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                    return;
+                }
+
+                _running = true;
+                _runButton.Enabled = false;
+                _exportButton.Enabled = false;
+                _writeBackButton.Enabled = false;
+                _renameComponentsButton.Enabled = false;
+                _status.Text = "正在按命名规则重命名零件文件…";
+
+                try
+            {
+                    ActivateBomAssembly();
+                    var renamed = PartListService.RenameAssemblyFilesByBomRules(
+                        _host.SwApp, activeRows, NamingOptionsFactory.FromSettings(_host.Settings), AppendLog);
+
+                    _status.Text = string.Format("已按规则重命名 {0} 个零件文件。", renamed);
+                    Log.Info(string.Format("BOM 按规则重命名：{0} 个零件文件。", renamed));
+                    MessageBox.Show(this,
+                        string.Format("同步改名成功：{0} 个。\r\n\r\n成功项已保存装配引用及同名工程图；未完成项请查看处理日志。",
+                            renamed),
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("写入并重命名失败", ex);
+                    MessageBox.Show(this, "处理失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+            {
+                    _running = false;
+                    _runButton.Enabled = true;
+                    ShowFilteredRows(false);
+                }
             }
         }
 
@@ -2555,63 +2573,92 @@ namespace MechKit.UI
             }
         }
 
-        private void ImportBomFile(string path)
+        private string ExcelLinkSource()
         {
-            var activeRows = FilteredRows();
-            _running = true;
-            _runButton.Enabled = false;
-            HideModelPreview();
-            BomImportResult result = null;
+            if (!string.IsNullOrEmpty(_excelLinkSourcePath)) return _excelLinkSourcePath;
+            var doc = _bomAssembly ?? SwUtils.ActiveDoc(_host.SwApp);
+            return doc == null ? null : doc.GetPathName();
+        }
+
+        private void SyncLinkedExcel()
+        {
+            if (_running || _rows.Count == 0) return;
             try
             {
-                result = BomImporter.Import(path, activeRows, BuildOptions());
+                var source = ExcelLinkSource();
+                var path = BomExcelLink.Load(source);
+                using (var dialog = new OpenFileDialog { Filter = "Excel 工作簿 (*.xlsx)|*.xlsx", Title = "从关联 Excel 同步（请先在 Excel 中保存）", FileName = path ?? "" })
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                    ImportBomFileCore(dialog.FileName, true);
+                    BomExcelLink.Save(source, dialog.FileName);
+                }
             }
-            catch (Exception ex)
+            catch (Exception ex) { MessageBox.Show(this, "关联同步失败：" + ex.Message, AddinConstants.Title); }
+        }
+
+        private void ImportBomFile(string path) { ImportBomFileCore(path, false); }
+
+        private void ImportBomFileCore(string path, bool linked)
+        {
+            using (OperationTrace.Begin("PartListForm.ImportBomFile"))
             {
-                Log.Error("导入 BOM 失败", ex);
-                MessageBox.Show(this, "导入失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
+                if (_running || IsDisposed) return;
+                PullGridEdits();
+                var activeRows = FilteredRows();
+                _running = true;
+                _runButton.Enabled = false;
+                HideModelPreview();
+                BomImportResult result = null;
+                try
             {
-                _running = false;
-                _runButton.Enabled = true;
-                ShowFilteredRows(false);
-            }
-            if (result != null)
+                    var plan = BomImporter.CreatePlanCore(path, linked ? _rows : activeRows, BuildOptions(), _rows, linked);
+                    using (var review = new BomImportReviewForm(plan))
+                    {
+                        if (review.ShowDialog(this) != DialogResult.OK) return;
+                        result = BomImporter.ApplyPlan(plan);
+                    }
+                }
+                catch (Exception ex)
             {
-                _status.Text = string.Format("导入完成：回填 {0} 行，跳过 {1} 行（详情见处理日志）。参数尚未保存；数量仅用于 BOM 导出。",
-                    result.Updated, result.Skipped);
-                // AppendLog pumps UI events; refresh the grid first so filtering cannot pull stale cell values.
-                AppendLog("导入 BOM：" + path + System.Environment.NewLine +
-                    string.Join(System.Environment.NewLine, result.Messages) + System.Environment.NewLine + _status.Text);
+                    Log.Error("导入 BOM 失败", ex);
+                    MessageBox.Show(this, "导入失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+            {
+                    _running = false;
+                    _runButton.Enabled = true;
+                    ShowFilteredRows(false);
+                }
+                if (result != null)
+            {
+                    _status.Text = string.Format("导入完成：更新 {0} 个实例，未匹配 {1} 行，应用时冲突 {2} 个字段。请应用 BOM 修改以保存；数量保持自动统计结果。",
+                        result.Updated, result.Skipped, result.Conflicts);
+                    if (linked) _status.Text = string.Format("Excel 同步完成：更新 {0} 个实例，未匹配 {1} 行，冲突/保存失败 {2} 项；已保存至资产文件夹。", result.Updated, result.Skipped, result.Conflicts);
+                    // AppendLog pumps UI events; refresh the grid first so filtering cannot pull stale cell values.
+                    AppendLog("导入 BOM：" + path + System.Environment.NewLine +
+                        string.Join(System.Environment.NewLine, result.Messages) + System.Environment.NewLine + _status.Text);
+                }
             }
         }
 
         private void ExportBom(bool excel, bool merge = false)
         {
-            if (_running || FilteredRows().Count == 0)
+            using (OperationTrace.Begin("PartListForm.ExportBom"))
             {
-                return;
-            }
-
-            PullGridEdits();
-            var activeRows = FilteredRows();
-            using (var dialog = new FolderBrowserDialog())
+                if (_running || FilteredRows().Count == 0)
             {
-                dialog.Description = "选择明细表的保存目录";
-                dialog.ShowNewFolderButton = true;
-                var preferred = _host.Settings.OutputFolder;
-                if (!string.IsNullOrEmpty(preferred) && Directory.Exists(preferred))
-                {
-                    dialog.SelectedPath = preferred;
-                }
-
-                if (dialog.ShowDialog(this) != DialogResult.OK)
-                {
                     return;
                 }
 
+                PullGridEdits();
+                var activeRows = FilteredRows();
+                _running = true;
+                _runButton.Enabled = false;
+                _importButton.Enabled = false;
+                _exportButton.Enabled = false;
+                HideModelPreview();
                 try
                 {
                     var title = string.IsNullOrWhiteSpace(_selectedComponentName)
@@ -2621,18 +2668,21 @@ namespace MechKit.UI
                     var exportRows = merge ? PartListService.MergeForExport(activeRows) : activeRows;
                     if (merge) title += "-合并数量";
                     var path = excel
-                        ? BomExcelExporter.Export(_host.SwApp, exportRows, dialog.SelectedPath, title, options)
-                        : PartListService.ExportCsv(exportRows, dialog.SelectedPath, title, options);
+                        ? BomExcelExporter.Export(_host.SwApp, exportRows, null, title, options)
+                        : PartListService.ExportCsv(exportRows, null, title, options);
                     if (merge) AppendLog(string.Format("合并数量：{0} 行 → {1} 行，按相同文件及配置汇总。",activeRows.Count,exportRows.Count));
                     AppendLog("已导出：" + path);
-                    _host.Settings.OutputFolder = dialog.SelectedPath;
-                    SaveSettings();
+                    if (excel)
+                    {
+                        try { BomExcelLink.Save(ExcelLinkSource(), path); AppendLog("已关联 Excel，可用“同步关联 Excel…”回读修改。"); }
+                        catch (Exception ex) { AppendLog("Excel 已导出，关联未保存：" + ex.Message); }
+                    }
 
                     if (MessageBox.Show(this, "已导出到：" + System.Environment.NewLine + path +
                             System.Environment.NewLine + System.Environment.NewLine + "是否打开所在目录？",
                             AddinConstants.Title, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                     {
-                        WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", dialog.SelectedPath) { UseShellExecute=true });
+                        WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", Path.GetDirectoryName(path)) { UseShellExecute=true });
                     }
                 }
                 catch (Exception ex)
@@ -2640,6 +2690,16 @@ namespace MechKit.UI
                     Log.Error("导出明细失败", ex);
                     MessageBox.Show(this, "导出失败：" + ex.Message, AddinConstants.Title,
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    _running = false;
+                    if (!IsDisposed)
+                    {
+                        _runButton.Enabled = true;
+                        ShowFilteredRows(false);
+                        UpdateSourceState();
+                    }
                 }
             }
         }
@@ -2656,60 +2716,63 @@ namespace MechKit.UI
 
         private void WriteBackProperties()
         {
-            if (_rows.Count == 0)
+            using (OperationTrace.Begin("PartListForm.WriteBackProperties"))
             {
-                return;
-            }
-
-            var partNumberProperty = _partNumberProperty.Text.Trim();
-            var materialProperty = _materialProperty.Text.Trim();
-            var writePartNumber = !string.IsNullOrEmpty(partNumberProperty);
-            var writeMaterial = !string.IsNullOrEmpty(materialProperty);
-
-            if (!writePartNumber && !writeMaterial)
+                if (_rows.Count == 0)
             {
-                MessageBox.Show(this, "请填写要写回的属性名。", AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
+                    return;
+                }
 
-            var message = string.Format(
-                "将把汇总结果写回零件的自定义属性：{0}{1}。" + System.Environment.NewLine +
-                System.Environment.NewLine + "这会逐个打开并保存 {2} 个零件文件，是否继续？",
-                writePartNumber ? "「" + partNumberProperty + "」" : string.Empty,
-                writeMaterial ? "「" + materialProperty + "」" : string.Empty,
-                _rows.Count);
+                var partNumberProperty = _partNumberProperty.Text.Trim();
+                var materialProperty = _materialProperty.Text.Trim();
+                var writePartNumber = !string.IsNullOrEmpty(partNumberProperty);
+                var writeMaterial = !string.IsNullOrEmpty(materialProperty);
 
-            if (MessageBox.Show(this, message, AddinConstants.Title,
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                if (!writePartNumber && !writeMaterial)
             {
-                return;
-            }
+                    MessageBox.Show(this, "请填写要写回的属性名。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
 
-            _running = true;
-            _runButton.Enabled = false;
-            _exportButton.Enabled = false;
-            _writeBackButton.Enabled = false;
-            _status.Text = "正在写回属性…";
+                var message = string.Format(
+                    "将把汇总结果写回零件的自定义属性：{0}{1}。" + System.Environment.NewLine +
+                    System.Environment.NewLine + "这会逐个打开并保存 {2} 个零件文件，是否继续？",
+                    writePartNumber ? "「" + partNumberProperty + "」" : string.Empty,
+                    writeMaterial ? "「" + materialProperty + "」" : string.Empty,
+                    _rows.Count);
 
-            try
+                if (MessageBox.Show(this, message, AddinConstants.Title,
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
-                var updated = PartListService.WriteBack(_host.SwApp, _rows, partNumberProperty,
-                    materialProperty, writePartNumber, writeMaterial, AppendLog);
-                _status.Text = string.Format("已写回 {0} 个零件。", updated);
-            }
-            catch (Exception ex)
+                    return;
+                }
+
+                _running = true;
+                _runButton.Enabled = false;
+                _exportButton.Enabled = false;
+                _writeBackButton.Enabled = false;
+                _status.Text = "正在写回属性…";
+
+                try
             {
-                Log.Error("写回属性失败", ex);
-                MessageBox.Show(this, "写回失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
+                    var updated = PartListService.WriteBack(_host.SwApp, _rows, partNumberProperty,
+                        materialProperty, writePartNumber, writeMaterial, AppendLog);
+                    _status.Text = string.Format("已写回 {0} 个零件。", updated);
+                }
+                catch (Exception ex)
             {
-                _running = false;
-                _runButton.Enabled = true;
-                _exportButton.Enabled = true;
-                _writeBackButton.Enabled = true;
+                    Log.Error("写回属性失败", ex);
+                    MessageBox.Show(this, "写回失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+            {
+                    _running = false;
+                    _runButton.Enabled = true;
+                    _exportButton.Enabled = true;
+                    _writeBackButton.Enabled = true;
+                }
             }
         }
 

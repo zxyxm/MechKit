@@ -51,9 +51,15 @@ namespace MechKit
         /// <summary>动态中间名命令的 UserID 起点。</summary>
         public const int MiddleNameCommandUserIdBase = 2000;
 
-        public const int MaxMachinedLevel2Commands = 12;
+        // Material definitions and their selected shortcuts are not limited to 12 rows.
+        public const int MaxMachinedLevel2Commands = int.MaxValue;
         public const int MaxMachinedLevel3Commands = 12;
         public const int MachinedLevel2CommandUserIdBase = 4000;
+        internal static int MachinedLevel2CommandId(int index)
+        {
+            // Preserve existing IDs; avoid the level-3 range starting at 5000.
+            return index < 1000 ? MachinedLevel2CommandUserIdBase + index : 100000 + index;
+        }
         public const int MachinedLevel3CommandUserIdBase = 5000;
 
         /// <summary>加工件快捷命名：写入当天日期。</summary>

@@ -82,7 +82,7 @@ $targets = Rows
 foreach ($source in $rows) { $targets.Add((Row $source.FullName $source.Name $source.Location)) }
 $result = $importMethod.Invoke($null, @($xlsx, $targets, $options))
 Check ($result.Updated -eq 3) 'Exported XLSX failed round trip'
-Check ($targets[0].Quantity -eq 4 -and $targets[0].PurchaseLink -eq $rows[0].PurchaseLink -and $targets[0].Remark -eq $rows[0].Remark) 'XLSX round trip lost values'
+Check ($targets[0].Quantity -eq 4 -and $targets[0].PurchaseLink -eq $rows[0].PurchaseLink -and ($targets[0].Remark -replace '\r\n',"`n") -eq ($rows[0].Remark -replace '\r\n',"`n")) 'XLSX round trip lost values'
 $csvExporter = $assembly.GetType('MechKit.Features.PartListService').GetMethod('ExportCsv')
 $csv = $csvExporter.Invoke($null, @($rows, $folder, 'roundtrip', $options))
 $result = $importMethod.Invoke($null, @($csv, $targets, $options))
@@ -135,17 +135,27 @@ try {
     $button = $formType.GetField('_importButton', $flags).GetValue($form)
     Check ($button.Text -eq '导入 BOM…' -and $button.Enabled) 'Import action not available'
     $formRows[0].FullName = 'ImportTarget'; $formRows[1].FullName = 'OutsideScope'
+    $formRows[0].FilePath='C:\models\ImportTarget.sldprt'; $formRows[1].FilePath='C:\models\OutsideScope.sldprt'
     $search.Text = 'ImportTarget'
     $formType.GetMethod('ShowFilteredRows', $flags).Invoke($form, @($false)) | Out-Null
     $grid.Rows[0].Cells['select'].Value = $true
     [string]$formCsv = Join-Path $folder 'form.csv'
     [IO.File]::WriteAllText($formCsv, "完整名称,材料/型号,表面处理,数量,安装说明,备注,购买链接`nImportTarget,TEST,黑色,7,向上,导入备注,https://example.com/import`nOutsideScope,WRONG,错误,99,错误,错误,https://example.com/wrong", $utf8)
-    $formType.GetMethod('ImportBomFile', $flags).Invoke($form, @($formCsv)) | Out-Null
-    Check ($formRows[0].Material -eq 'TEST' -and $formRows[0].Quantity -eq 7 -and $formRows[0].AssemblyNote -eq '向上') 'Form did not import values'
+    $reviewTimer=New-Object Windows.Forms.Timer
+    $reviewTimer.Interval=100
+    $reviewTimer.Add_Tick({
+        foreach($window in @([Windows.Forms.Application]::OpenForms)) {
+            if($window.GetType().FullName -eq 'MechKit.UI.BomImportReviewForm') { $window.DialogResult=[Windows.Forms.DialogResult]::OK }
+        }
+    })
+    $reviewTimer.Start()
+    try { $formType.GetMethod('ImportBomFile', $flags).Invoke($form, @($formCsv)) | Out-Null }
+    finally { $reviewTimer.Stop();$reviewTimer.Dispose() }
+    Check ($formRows[0].Material -eq 'TEST' -and $formRows[0].Quantity -ne 7) 'Reviewed fields or quantity policy incorrect'
     Check ($formRows[1].Material -ne 'WRONG') 'Import ignored current filter scope'
-    Check ($grid.Rows[0].Cells['surface'].Value -eq '黑色' -and $grid.Rows[0].Cells['select'].Value) 'Grid refresh lost imported data or export marks'
+    Check ($grid.Rows[0].Cells['surface'].Value -eq '黑色' -and $grid.Rows[0].Cells['select'].Value) 'Conflict partially changed data or lost export marks'
     $formType.GetMethod('PullGridEdits', $flags).Invoke($form, @()) | Out-Null
-    Check ($formRows[0].PurchaseLink -eq 'https://example.com/import' -and $formRows[0].HasBomEdits) 'Export preparation lost staged attributes'
+    Check ($formRows[0].PurchaseLink -eq 'https://example.com/import') 'Conflict changed purchase link'
     $search.Clear()
     $formType.GetMethod('ShowFilteredRows', $flags).Invoke($form, @($false)) | Out-Null
     $form.ClientSize = New-Object Drawing.Size 1080, 640

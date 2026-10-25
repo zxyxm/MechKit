@@ -34,6 +34,56 @@ try {
     [IO.File]::WriteAllText($orphan, '')
     $missing = $resolve.Invoke($null, @([string[]]@($orphan), $true, $log))
     Assert ($missing.Count -eq 1) 'Missing companion was fabricated.'
+    $quickExport = $assembly.GetType('MechKit.Features.QuickExport', $true)
+    $matchField = $quickExport.GetMethod('MatchesFilter', [Reflection.BindingFlags]'NonPublic,Static')
+    $naming = [Activator]::CreateInstance($assembly.GetType('MechKit.Core.NamingOptions'), $true)
+    $naming.UseNameSegments = $true
+    $sheetMetal = [string][char]0x94a3 + [char]0x91d1
+    $factory = $assembly.GetType('MechKit.Core.NamingOptionsFactory')
+    $rules = "304=304|CNC|`n6061=6061|CNC|`n5052=5052|$sheetMetal|`nd6061=6061|cnc-large|"
+    $naming.MachinedMaterialProcessPresets = $factory.GetMethod('ParseMaterialProcessPresets').Invoke($null, @($rules))
+    Assert ($matchField.Invoke($null, @('20261019-304-clamp.sldprt', 'cnc', $naming))) 'CNC rule not resolved.'
+    Assert ($matchField.Invoke($null, @('20261019_6061_clamp.sldprt', 'CNC', $naming))) 'Same process across material fields not matched.'
+    Assert ($matchField.Invoke($null, @('20261019-5052-clamp.sldprt', $sheetMetal, $naming))) 'Sheet metal rule not matched.'
+    Assert ($matchField.Invoke($null, @('20261019-5052-clamp.sldprt', ('CNC,'+$sheetMetal), $naming))) 'Multiple processes not matched.'
+    Assert (-not $matchField.Invoke($null, @('20261019-d6061-clamp.sldprt', 'CNC', $naming))) 'Process must match exactly.'
+    Assert (-not $matchField.Invoke($null, @('20261019-304-clamp.sldprt', '304', $naming))) 'Material token must not match process.'
+    Assert (-not $matchField.Invoke($null, @('plain.sldprt', 'CNC', $naming))) 'Unmapped part must not match CNC.'
+    Assert ($matchField.Invoke($null, @('plain.sldprt', '', $naming))) 'Empty filter must include all parts.'
+    $staticFlags = [Reflection.BindingFlags]'NonPublic,Static'
+    $select = $quickExport.GetMethod('MatchesSelection', $staticFlags)
+    $categoryState = $quickExport.GetField('CategoryFilter', $staticFlags)
+    $secondaryState = $quickExport.GetField('FieldFilter', $staticFlags)
+    $machined = -join ([char[]]@(0x52a0,0x5de5,0x4ef6))
+    $standard = -join ([char[]]@(0x6807,0x51c6,0x4ef6))
+    $all = -join ([char[]]@(0x5168,0x90e8))
+    $vendor = -join ([char[]]@(0x6dd8,0x5b9d))
+    $categoryState.SetValue($null, $machined)
+    $secondaryState.SetValue($null, 'CNC')
+    Assert ($select.Invoke($null, @('20261019-304-clamp.sldprt', $naming))) 'Machined CNC selection failed.'
+    Assert (-not $select.Invoke($null, @('20261019-5052-clamp.sldprt', $naming))) 'Secondary process not applied.'
+    $categoryState.SetValue($null, $standard)
+    $secondaryState.SetValue($null, 'Motor')
+    Assert ($select.Invoke($null, @(($vendor+'-Motor-model.sldprt'), $naming))) 'Standard middle-name selection failed.'
+    Assert (-not $select.Invoke($null, @(($vendor+'-Bolt-model.sldprt'), $naming))) 'Standard secondary filter not applied.'
+    Assert (-not $select.Invoke($null, @('20261019-304-clamp.sldprt', $naming))) 'Category filter leaked machined parts.'
+    $categoryState.SetValue($null, $all)
+    Assert ($select.Invoke($null, @('plain.sldprt', $naming))) 'All categories must ignore stale secondary values.'
+    $secondaryState.SetValue($null, '')
+    Assert ([bool]$quickExport.GetField('Overwrite', [Reflection.BindingFlags]'NonPublic,Static').GetValue($null)) 'Quick export must refresh existing outputs by default.'
+    Assert (-not [bool]$quickExport.GetField('OnlyWithDrawing', [Reflection.BindingFlags]'NonPublic,Static').GetValue($null)) 'All parts must be included by default.'
+    $collectPairs = $quickExport.GetMethod('CollectPairedParts', [Reflection.BindingFlags]'NonPublic,Static')
+    $nestedFolder = Join-Path $fixture 'nested'
+    [IO.Directory]::CreateDirectory($nestedFolder) | Out-Null
+    $nestedPart = Join-Path $nestedFolder 'child.sldprt'
+    [IO.File]::WriteAllText($nestedPart, '')
+    [IO.File]::WriteAllText([IO.Path]::ChangeExtension($nestedPart, '.slddrw'), '')
+    $quickFiles = $collectPairs.Invoke($null, @([string[]]@($part, $part.ToLowerInvariant(), $orphan, $assemblyFile, $drawing, $nestedPart), $log))
+    Assert ($quickFiles.Count -eq 2 -and $quickFiles.Contains($part) -and $quickFiles.Contains($nestedPart)) 'Quick export must include paired parts only, deduplicated across nested assemblies.'
+    $quickPairs = $resolve.Invoke($null, @([string[]]$quickFiles.ToArray(), $true, $log))
+    Assert ($quickPairs.Count -eq 4) 'Quick export must produce one model and one drawing per paired part.'
+    $emptyQuick = $collectPairs.Invoke($null, @([string[]]@($orphan, $assemblyFile), $log))
+    Assert ($emptyQuick.Count -eq 0) 'Quick export must not fall back to the assembly when no paired parts exist.'
     $step = $formats.GetMethod('Find').Invoke($null, @('.step'))
     Assert ($step.Extension -eq '.stp') 'Legacy STEP setting was not migrated.'
     $pdf = $formats.GetField('Pdf').GetValue($null)

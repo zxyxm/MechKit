@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -361,6 +361,18 @@ namespace MechKit.Features
                     return false;
                 }
 
+                // Cache only saved documents, including every referenced model.
+                var configuration = SwUtils.ActiveConfigurationName(doc);
+                var cachePath = BomAssets.AssetPath(file, configuration,
+                    format == ExportFormats.Pdf ? "工程图" : "三维模型", format.Extension);
+                var cacheable = format == ExportFormats.Step || format == ExportFormats.Pdf;
+                var stamp = cacheable ? ExportStamp(swApp, file, configuration, format) : null;
+                if (stamp != null && BomAssets.IsCurrent(cachePath, stamp))
+                {
+                    File.Copy(cachePath, target, true);
+                    message = "源文件及引用未变更，复用资产";
+                    return true;
+                }
                 object exportData = null;
                 if (format == ExportFormats.Pdf)
                 {
@@ -395,6 +407,15 @@ namespace MechKit.Features
                     message = DescribeSaveAsError(errors);
                 }
 
+                if (ok && stamp != null && stamp == ExportStamp(swApp, file, configuration, format))
+                {
+                    try
+                    {
+                        BomAssets.Write(cachePath, File.ReadAllBytes(target));
+                        BomAssets.MarkCurrent(cachePath, stamp);
+                    }
+                    catch (Exception ex) { Log.Warn("导出成功，但资产缓存保存失败：" + ex.Message); }
+                }
                 return ok;
             }
             finally
@@ -413,6 +434,53 @@ namespace MechKit.Features
 
                 PropertyService.Release(doc);
             }
+        }
+
+        private static bool IsExportPreference(string name)
+        {
+            return name.IndexOf("export", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("step", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string ExportStamp(ISldWorks app, string file, string configuration, ExportFormat format)
+        {
+            try
+            {
+                var paths = new SortedSet<string>(StringComparer.OrdinalIgnoreCase) { file };
+                var dependencies = app.GetDocumentDependencies2(file, true, true, false) as Array;
+                if (dependencies == null)
+                {
+                    if (!string.Equals(Path.GetExtension(file), ".sldprt", StringComparison.OrdinalIgnoreCase)) return null;
+                    dependencies = new string[0];
+                }
+                if (dependencies.Length % 2 != 0) return null;
+                for (var i = 1; i < dependencies.Length; i += 2)
+                {
+                    var dependency = dependencies.GetValue(i) as string;
+                    if (string.IsNullOrEmpty(dependency) || !File.Exists(dependency)) return null;
+                    paths.Add(dependency);
+                }
+                var stamp = new StringBuilder("MechKit-assets-v1\n" + configuration + "\n" + format.Extension);
+                // Export preferences affect geometry, units, fonts and PDF quality.
+                foreach (swUserPreferenceIntegerValue_e preference in Enum.GetValues(typeof(swUserPreferenceIntegerValue_e)))
+                    if (IsExportPreference(preference.ToString())) stamp.Append("|i").Append((int)preference).Append('=').Append(app.GetUserPreferenceIntegerValue((int)preference));
+                foreach (swUserPreferenceToggle_e preference in Enum.GetValues(typeof(swUserPreferenceToggle_e)))
+                    if (IsExportPreference(preference.ToString())) stamp.Append("|t").Append((int)preference).Append('=').Append(app.GetUserPreferenceToggle((int)preference));
+                foreach (swUserPreferenceDoubleValue_e preference in Enum.GetValues(typeof(swUserPreferenceDoubleValue_e)))
+                    if (IsExportPreference(preference.ToString())) stamp.Append("|d").Append((int)preference).Append('=').Append(app.GetUserPreferenceDoubleValue((int)preference).ToString("R", CultureInfo.InvariantCulture));
+                foreach (swUserPreferenceStringValue_e preference in Enum.GetValues(typeof(swUserPreferenceStringValue_e)))
+                    if (IsExportPreference(preference.ToString())) stamp.Append("|s").Append((int)preference).Append('=').Append(app.GetUserPreferenceStringValue((int)preference));
+                foreach (var path in paths)
+                {
+                    var open = app.GetOpenDocumentByName(path) as ModelDoc2;
+                    if (open != null && open.GetSaveFlag()) return null;
+                    stamp.Append("\n").Append(path.ToUpperInvariant()).Append(':').Append(BomAssets.Stamp(path));
+                    if (open != null) stamp.Append(':').Append(SwUtils.ActiveConfigurationName(open));
+                }
+                return BomAssets.Hash(Encoding.UTF8.GetBytes(stamp.ToString()));
+            }
+            catch (Exception ex) { Log.Warn("资产版本无法校验，本次重新导出：" + ex.Message); return null; }
         }
 
         private static string DescribeSaveAsError(int errors)

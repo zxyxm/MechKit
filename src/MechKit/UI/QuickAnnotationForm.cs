@@ -22,7 +22,11 @@ namespace MechKit.UI
             Font = Theme.Body;
             BackColor = Theme.Canvas;
             ShowInTaskbar = false;
-            WindowLayout.Attach(this, host.Settings, new Size(540, 680), new Size(490, 560));
+            // Stay visible while selecting dimensions or running native drawing commands.
+            // Exclude this palette from the shared Tab-lower / Escape-close behavior.
+            WindowLayout.Attach(this, host.Settings, new Size(540, 680), new Size(490, 560), false);
+            TopMost = true;
+            MinimizeBox = false;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(10) };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -14,11 +14,12 @@ namespace MechKit.Features
     {
         public int Updated { get; set; }
         public int Skipped { get; set; }
+        public int Conflicts { get; set; }
         public List<string> Messages { get; private set; } = new List<string>();
     }
 
     /// <summary>Import values into existing preview rows. Never opens or saves model documents.</summary>
-    internal static class BomImporter
+    internal static partial class BomImporter
     {
         private static readonly string[] ValueKeys =
             { "material", "process", "surface", "quantity", "assemblynote", "remark", "purchaselink" };
@@ -41,6 +42,18 @@ namespace MechKit.Features
         }
 
         public static BomImportResult Import(string path, IList<PartListRow> targets, PartListOptions options)
+        {
+            return ImportCore(path, targets, options, null);
+        }
+
+        public static BomImportResult ImportValidated(string path, IList<PartListRow> targets,
+            PartListOptions options, IList<PartListRow> allRows)
+        {
+            return ImportCore(path, targets, options, allRows ?? targets);
+        }
+
+        private static BomImportResult ImportCore(string path, IList<PartListRow> targets,
+            PartListOptions options, IList<PartListRow> validationRows)
         {
             var extension = Path.GetExtension(path).ToLowerInvariant();
             var table = extension == ".xlsx" ? ReadWorkbook(path) :
@@ -130,6 +143,56 @@ namespace MechKit.Features
                     Skip(result, source.Number, ex.Message);
                 }
             }
+            if (validationRows != null)
+            {
+                var rejected = new HashSet<Update>();
+                foreach (var update in updates)
+                {
+                    var differences = new List<string>();
+                    if (update.Target.HasBomEdits || update.Target.HasFullNameEdit)
+                        differences.Add("该行存在尚未保存的预览修改，请先应用或取消修改");
+                    foreach (var value in update.Values.Where(v => v.Value.Length > 0))
+                    {
+                        var current = PartListService.ColumnValue(update.Target, 0, value.Key) ?? "";
+                        if ((value.Key == "quantity" || current.Length > 0) && !SameText(current, value.Value))
+                            differences.Add(PartListService.ColumnHeader(new PartListOptions(), value.Key) +
+                                "：当前【" + current + "】 / 导入【" + value.Value + "】");
+                    }
+                    if (differences.Count > 0)
+                    {
+                        rejected.Add(update);
+                        Conflict(result, update, string.Join("；", differences));
+                    }
+                }
+                // Document-level properties are shared across configurations and assembly locations.
+                // Evaluate the final proposed values before applying any update, including hidden rows.
+                var candidates = updates.Where(u => !rejected.Contains(u)).ToList();
+                foreach (var group in candidates.Where(u => !string.IsNullOrEmpty(u.Target.FilePath))
+                    .GroupBy(u => u.Target.FilePath, StringComparer.OrdinalIgnoreCase))
+                {
+                    var peers = validationRows.Where(r => string.Equals(r.FilePath, group.Key, StringComparison.OrdinalIgnoreCase)).ToList();
+                    var reasons = new List<string>();
+                    foreach (var key in ValueKeys.Where(k => k != "quantity"))
+                    {
+                        if (!group.Any(u => u.Values.ContainsKey(key) && u.Values[key].Length > 0)) continue;
+                        var values = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var peer in peers)
+                        {
+                            var proposals = candidates.Where(u => ReferenceEquals(u.Target, peer) && u.Values.ContainsKey(key) && u.Values[key].Length > 0).ToList();
+                            if (proposals.Count == 0) values.Add((PartListService.ColumnValue(peer, 0, key) ?? "").Trim());
+                            else foreach (var proposal in proposals) values.Add(proposal.Values[key]);
+                        }
+                        if (values.Count > 1) reasons.Add(PartListService.ColumnHeader(new PartListOptions(), key));
+                    }
+                    if (reasons.Count == 0) continue;
+                    foreach (var update in group)
+                    {
+                        rejected.Add(update);
+                        Conflict(result, update, "同一文件在其他位置或配置的参数不一致（含筛选隐藏行）：" + string.Join("、", reasons));
+                    }
+                }
+                updates.RemoveAll(rejected.Contains);
+            }
             // Resolve all rows before mutating anything: repeated source records must not silently overwrite one another.
             foreach (var group in updates.GroupBy(u => u.Target))
             {
@@ -156,6 +219,12 @@ namespace MechKit.Features
                 result.Updated++;
             }
             return result;
+        }
+
+        private static void Conflict(BomImportResult result, Update update, string reason)
+        {
+            result.Conflicts++;
+            Skip(result, update.Number, "冲突，整行未导入：" + update.Target.FullName + "；" + reason);
         }
 
         private static void Skip(BomImportResult result, int row, string reason)

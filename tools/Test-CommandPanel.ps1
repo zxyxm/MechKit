@@ -15,10 +15,28 @@ $form.ShowInTaskbar=$false
 $form.Opacity=0
 try {
  $form.Show()
+ $exportType=$a.GetType('MechKit.UI.QuickExportPanel')
+ $exportPanel=[Activator]::CreateInstance($exportType,[Reflection.BindingFlags]'Instance,NonPublic',$null,@($addin),$null)
+ try {
+  $filters=@($exportPanel.Controls | Where-Object {$_ -is [Windows.Forms.ComboBox]})
+  if($filters.Count -ne 2 -or $filters[1].Enabled) { throw 'Two-level filters or initial all-category state incorrect' }
+  $filters[0].SelectedIndex=1
+  if(-not $filters[1].Enabled) { throw 'Selecting category must enable secondary filter' }
+  $filters[1].Text='CNC'
+  $filters[0].SelectedIndex=2
+  if($filters[1].Text -eq 'CNC') { throw 'Category change kept stale secondary filter' }
+  $filters[0].SelectedIndex=0
+ } finally { $exportPanel.Dispose() }
  [Windows.Forms.Application]::DoEvents()
  $groups=$panel.Controls[0].GetControlFromPosition(0,0)
  if($groups.Controls.Count -ne (6 + $a.GetType('MechKit.Core.PartCategory').GetMethod('Load').Invoke($null,@($settings)).Count)) { throw 'Category count' }
  foreach($section in $groups.Controls) {
+  if($section.GetType().Name -eq 'QuickExportPanel') {
+   if(@($section.Controls | Where-Object {$_ -is [Windows.Forms.Button]}).Count -ne 3) { throw 'Quick export actions missing' }
+   if(@($section.Controls | Where-Object {$_ -is [Windows.Forms.ComboBox]}).Count -ne 1) { throw 'Middle field filter missing' }
+   if(@($section.Controls | Where-Object {$_ -is [Windows.Forms.CheckBox]}).Count -ne 2) { throw 'Export options missing' }
+   continue
+  }
   $grid=$section.GetControlFromPosition(0,1)
   if($grid.RowCount -gt 6) { throw 'Too many rows' }
   for($i=0;$i -lt $grid.Controls.Count;$i++) {

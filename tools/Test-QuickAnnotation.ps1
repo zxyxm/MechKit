@@ -87,6 +87,14 @@ $flags = [Reflection.BindingFlags]'Instance, NonPublic'
 try {
     $form.Show()
     [Windows.Forms.Application]::DoEvents()
+    Check 'assistant stays topmost and cannot minimize' ($form.TopMost -and -not $form.MinimizeBox)
+    $windowLayout = $assembly.GetType('MechKit.UI.WindowLayout', $true)
+    $staticFlags = [Reflection.BindingFlags]'Static, NonPublic'
+    $shortcutForms = $windowLayout.GetField('ShortcutForms', $staticFlags).GetValue($null)
+    Check 'assistant excluded from Tab lowering and Escape closing' (-not $shortcutForms.Contains($form))
+    $windowLayout.GetMethod('YieldToOpenedContent', $staticFlags).Invoke($null, @([IntPtr]::Zero))
+    [Windows.Forms.Application]::DoEvents()
+    Check 'opening content leaves assistant visible and topmost' ($form.Visible -and $form.TopMost)
     $tabs = $formType.GetField('_tabs', $flags).GetValue($form)
     $grids = $formType.GetField('_grids', $flags).GetValue($form)
     $tools = $formType.GetField('_annotationTools', $flags).GetValue($form)

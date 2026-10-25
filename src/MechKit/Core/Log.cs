@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 
@@ -51,6 +51,8 @@ namespace MechKit.Core
             {
                 line += Environment.NewLine + ex;
             }
+
+            OperationTrace.Event("LOG " + line);
 
             try
             {

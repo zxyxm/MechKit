@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -386,6 +386,7 @@ namespace MechKit.UI
                 case "surface": return _surfaceHeader;
                 case "quantity": return _quantityHeader;
                 case "assemblynote": return _assemblyNoteHeader;
+                case "unfinished": return new TextBox { Text = "未尽事宜", ReadOnly = true };
                 case "purchaselink": return new TextBox { Text = "购买链接", ReadOnly = true };
                 default: return _remarkHeader;
             }
@@ -406,7 +407,8 @@ namespace MechKit.UI
                 case "surface": return standard ? _standardSurfaceField : _machinedSurfaceField;
                 case "quantity": return BuildFixedCombo("统计数量");
                 case "assemblynote": return standard ? _standardAssemblyNoteField : _machinedAssemblyNoteField;
-                case "purchaselink": return BuildFixedCombo("自定义属性·购买链接");
+                case "unfinished": return BuildFixedCombo("零部件备注资产（assets）");
+                case "purchaselink": return BuildFixedCombo("零部件备注资产·购买链接");
                 default: return standard ? _standardRemarkField : _machinedRemarkField;
             }
         }

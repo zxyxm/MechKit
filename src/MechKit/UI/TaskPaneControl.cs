@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -15,6 +15,7 @@ namespace MechKit.UI
     internal sealed class TaskPaneControl : UserControl
     {
         private readonly IAddinHost _host;
+        private readonly BomNotePanel _bomNotes = new BomNotePanel();
         private readonly Label _fileValue;
         private readonly Label _typeValue;
         private readonly Label _partNumberValue;
@@ -32,6 +33,8 @@ namespace MechKit.UI
         private TabControl _tabs;
         private TabPage _propertiesPage;
         private bool _documentRefreshPending;
+        private readonly Timer _selectionTimer = new Timer { Interval = 700 };
+        private string _noteSelection;
         private readonly Dictionary<string, CustomProperty> _original =
             new Dictionary<string, CustomProperty>(StringComparer.OrdinalIgnoreCase);
 
@@ -62,6 +65,46 @@ namespace MechKit.UI
             WireEvents();
             Log.Message += OnLogMessage;
             RefreshDocument(false);
+            _selectionTimer.Tick += delegate { RefreshSelectedNotes(false); };
+            _selectionTimer.Start();
+        }
+
+        private void RefreshSelectedNotes(bool force)
+        {
+            if (IsDisposed || !Visible || (_tabs != null && _tabs.SelectedTab != _propertiesPage) || _bomNotes.Editing) return;
+            try
+            {
+                var doc = SwUtils.ActiveDoc(_host.SwApp);
+                var selected = doc == null ? null : doc.SelectionManager as SolidWorks.Interop.sldworks.SelectionMgr;
+                var component = selected == null || selected.GetSelectedObjectCount2(-1) == 0 ? null : selected.GetSelectedObjectsComponent4(1, -1) as SolidWorks.Interop.sldworks.Component2;
+                var model = component == null ? doc : component.GetModelDoc2() as SolidWorks.Interop.sldworks.ModelDoc2;
+                string path = component == null ? (doc == null ? "" : doc.GetPathName()) : component.GetPathName();
+                if (!System.IO.File.Exists(path) && model != null && System.IO.File.Exists(model.GetPathName())) path = model.GetPathName();
+                string config = component == null ? (doc == null ? "" : SwUtils.ActiveConfigurationName(doc)) : component.ReferencedConfiguration;
+                string identity = path + "|" + config;
+                if (!force && identity == _noteSelection) return;
+                var row = PartListForm.FindLoadedNoteRow(path, config);
+                if (row == null && model != null)
+                {
+                    var options = BuildOptions(); options.ReadCustomProperties = true;
+                    row = PartListService.FromPart(_host.SwApp, model, options);
+                }
+                if (row != null && !System.IO.File.Exists(row.FilePath) && System.IO.File.Exists(path))
+                {
+                    row.FilePath = path;
+                    BomNoteStore.Apply(row);
+                }
+                // Assemblies/reference items are excluded from BOM collection, but
+                // their saved documents can still own manually entered note assets.
+                if (row == null && System.IO.File.Exists(path))
+                {
+                    row = new PartListRow { FilePath = path, Configuration = config };
+                    BomNoteStore.Apply(row);
+                }
+                _bomNotes.Bind(row);
+                _noteSelection = identity;
+            }
+            catch (Exception ex) { Log.Warn("读取所选零件备注失败：" + ex.Message); }
         }
 
         /// <summary>重新读取当前文档信息；deep=true 时额外统计装配体加工件数量。</summary>
@@ -97,6 +140,7 @@ namespace MechKit.UI
 
                 if (doc == null)
                 {
+                    _bomNotes.Bind(null);
                     _fileValue.Text = "（未打开文档）";
                     _typeValue.Text = "-";
                     _partNumberValue.Text = "-";
@@ -111,6 +155,7 @@ namespace MechKit.UI
 
                     var options = BuildOptions();
                     var row = PartListService.FromPart(swApp, doc, options);
+                    RefreshSelectedNotes(true);
                     _partNumberValue.Text = row == null || string.IsNullOrEmpty(row.PartNumber) ? "-" : row.PartNumber;
                     _materialValue.Text = row == null || string.IsNullOrEmpty(row.Material) ? "-" : row.Material;
                     _quantityValue.Text = string.IsNullOrEmpty(SwUtils.ActiveConfigurationName(doc))
@@ -151,6 +196,7 @@ namespace MechKit.UI
             if (disposing)
             {
                 Log.Message -= OnLogMessage;
+                _selectionTimer.Stop(); _selectionTimer.Dispose();
             }
 
             base.Dispose(disposing);
@@ -218,25 +264,29 @@ namespace MechKit.UI
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 5,
+                RowCount = 6,
                 BackColor = Theme.Canvas
             };
+            root.AutoScroll = true;
+            root.AutoScrollMinSize = new Size(0, 826);
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 146f));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 110f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 250f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 210f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 178f));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f));
 
             root.Controls.Add(BuildHeader(), 0, 0);
             root.Controls.Add(BuildDocumentPanel(), 0, 1);
-            root.Controls.Add(BuildPropertyPanel(), 0, 2);
-            root.Controls.Add(BuildActionPanel(), 0, 3);
-            root.Controls.Add(BuildStatusBar(), 0, 4);
+            root.Controls.Add(_bomNotes, 0, 2);
+            root.Controls.Add(BuildPropertyPanel(), 0, 3);
+            root.Controls.Add(BuildActionPanel(), 0, 4);
+            root.Controls.Add(BuildStatusBar(), 0, 5);
 
             var addin = _host as MechKitAddin;
             if (addin == null) { Controls.Add(root); return; }
-            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var tabs = new TabControl { Dock = DockStyle.Fill, Multiline = true };
             var commands = new TabPage("命令面板");
             var properties = new TabPage("文档属性");
             _tabs = tabs;
@@ -245,10 +295,16 @@ namespace MechKit.UI
             commands.Controls.Add(_commandPanel);
             properties.Controls.Add(root);
             tabs.TabPages.Add(commands);
+            var quickExport = new TabPage("快捷导出");
+            quickExport.Controls.Add(new QuickExportPanel(addin) { Dock = DockStyle.Fill, AutoSize = false, AutoScroll = true });
+            tabs.TabPages.Add(quickExport);
             var library = new TabPage("快捷零件库");
             library.Controls.Add(new PartsLibraryPanel(_host));
             tabs.TabPages.Add(library);
             tabs.TabPages.Add(properties);
+            var logs = new TabPage("Log");
+            logs.Controls.Add(new LogPanel());
+            tabs.TabPages.Add(logs);
             tabs.SelectedIndexChanged += (sender, e) =>
             {
                 if (tabs.SelectedTab == properties && _documentRefreshPending)

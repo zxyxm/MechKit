@@ -651,14 +651,6 @@ namespace MechKit.UI
                 }
             }
 
-            var existing = NamingOptionsFactory.ParsePrefixes(_machinedLevel2Values.Text);
-            if (existing.Length >= AddinConstants.MaxMachinedLevel2Commands)
-            {
-                MessageBox.Show(this, "选项卡面板最多显示 12 个材料字段，请先删除一个再增加。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
             var added = AddMachinedLevel2Row(value, string.Empty, string.Empty, string.Empty, true);
             SyncMachinedLevel2();
             _newMachinedLevel2.Clear();

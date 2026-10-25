@@ -24,7 +24,9 @@ Check ($resolve.Invoke($null, @('代理-气动-浮动座', '已有备注')) -eq 
 Check ($validate.Invoke($null, @(' 代理 ')) -eq '代理') 'Marker rejected by import/save validation'
 Check (-not $isWebLink.Invoke($null, @('代理'))) 'Marker treated as web link'
 Check ($isWebLink.Invoke($null, @('https://example.com/item'))) 'Web link rejected'
-foreach ($invalid in @('javascript:alert(1)', 'file:///C:/test', 'not-a-url')) {
+Check ($validate.Invoke($null, @('淘宝')) -eq '淘宝') 'Plain purchasing text rejected'
+Check ($validate.Invoke($null, @('暂时不做')) -eq '暂时不做') 'Purchasing status rejected'
+foreach ($invalid in @('javascript:alert(1)', 'file:///C:/test')) {
     $failed = $false
     try { $validate.Invoke($null, @($invalid)) | Out-Null } catch { $failed = $true }
     Check $failed 'Invalid URL accepted'

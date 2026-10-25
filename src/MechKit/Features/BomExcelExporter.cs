@@ -31,15 +31,14 @@ namespace MechKit.Features
             PartListOptions options, Func<PartListRow, byte[]> preview)
         {
             options = options ?? new PartListOptions();
-            AppPaths.Ensure(folder);
-            var path = Path.Combine(folder, string.Format("{0}-{1:yyyyMMdd-HHmmss-fff}.xlsx",
-                string.IsNullOrEmpty(title) ? "明细汇总" : title, DateTime.Now));
+            var path = PartListService.CreateBomExportPath(folder, title, ".xlsx");
             var columns = PartListService.ParseColumnOrder(options.ColumnOrder);
             var data = new XElement(Sheet + "sheetData");
             var header = new XElement(Sheet + "row", new XAttribute("r", 1));
             header.Add(Cell("A1", "零件缩略图"));
             for (var c = 0; c < columns.Length; c++)
                 header.Add(Cell(Column(c + 2) + "1", PartListService.ColumnHeader(options, columns[c])));
+            header.Add(Cell(Column(columns.Length + 2) + "1", "关联快照"));
             data.Add(header);
             var drawing = new XElement(Drawing + "wsDr");
             var drawingRels = new XElement(Package + "Relationships");
@@ -82,7 +81,19 @@ namespace MechKit.Features
                             catch(ArgumentException) { /* Keep invalid legacy values as plain text. */ }
                         }
                     }
+                    cells.Add(Cell(Column(columns.Length + 2) + number, BomExcelLink.Snapshot(row, i + 1)));
                     data.Add(cells);
+                    var illustrationColumn = Array.IndexOf(columns, "drawing");
+                    var illustration = row.Classification == "标准件" ? BomAssets.Illustration(row.FilePath, row.Configuration) : null;
+                    if (illustrationColumn >= 0 && illustration != null)
+                    {
+                        imageId++;
+                        var bytes = PreviewPng(File.ReadAllBytes(illustration));
+                        using (var stream = zip.CreateEntry("xl/media/image" + imageId + ".png").Open())
+                            stream.Write(bytes, 0, bytes.Length);
+                        drawingRels.Add(Relationship("rId" + imageId, "image", "../media/image" + imageId + ".png"));
+                        drawing.Add(Picture(imageId, i + 1, illustrationColumn + 1));
+                    }
                     if (png == null) continue;
                     imageId++;
                     using (var stream = zip.CreateEntry("xl/media/image" + imageId + ".png").Open())
@@ -98,8 +109,9 @@ namespace MechKit.Features
                             new XAttribute("activePane", "bottomLeft"), new XAttribute("state", "frozen")))),
                     new XElement(Sheet + "cols",
                         new XElement(Sheet + "col", new XAttribute("min", 1), new XAttribute("max", 1), new XAttribute("width", 16), new XAttribute("customWidth", 1)),
-                        new XElement(Sheet + "col", new XAttribute("min", 2), new XAttribute("max", columns.Length + 1), new XAttribute("width", 22), new XAttribute("customWidth", 1))), data,
-                    new XElement(Sheet + "autoFilter", new XAttribute("ref", "A1:" + Column(columns.Length + 1) + (rows.Count + 1))),
+                        new XElement(Sheet + "col", new XAttribute("min", 2), new XAttribute("max", columns.Length + 1), new XAttribute("width", 22), new XAttribute("customWidth", 1)),
+                        new XElement(Sheet + "col", new XAttribute("min", columns.Length + 2), new XAttribute("max", columns.Length + 2), new XAttribute("hidden", 1), new XAttribute("width", 1))), data,
+                    new XElement(Sheet + "autoFilter", new XAttribute("ref", "A1:" + Column(columns.Length + 2) + (rows.Count + 1))),
                     new XElement(Sheet + "mergeCells", new XAttribute("count", 1),
                         new XElement(Sheet + "mergeCell", new XAttribute("ref", "A" + (rows.Count + 3) + ":" +
                             Column(columns.Length + 1) + (rows.Count + 3)))));
@@ -135,6 +147,13 @@ namespace MechKit.Features
             var elapsed=System.Diagnostics.Stopwatch.StartNew();
             try
             {
+                var asset = BomAssets.AssetPath(row.FilePath, row.Configuration, "缩略图", ".png");
+                var stamp = BomAssets.Stamp(row.FilePath);
+                if (BomAssets.IsCurrent(asset, stamp))
+                {
+                    var cached = File.ReadAllBytes(asset);
+                    return originalSize ? cached : PreviewPng(cached);
+                }
                 var configuration = row.Configuration;
                 if (string.IsNullOrWhiteSpace(configuration))
                 {
@@ -144,7 +163,15 @@ namespace MechKit.Features
                 }
                 if (!app.GetPreviewBitmapFile(row.FilePath, configuration, temp) || !File.Exists(temp)) return null;
                 var bytes=File.ReadAllBytes(temp);
-                return originalSize ? RepairPreviewBitmap(bytes) : PreviewPng(bytes);
+                byte[] png;
+                using (var input = new MemoryStream(RepairPreviewBitmap(bytes)))
+                using (var image = Image.FromStream(input)) png = BomAssets.Png(image);
+                if (stamp == BomAssets.Stamp(row.FilePath))
+                {
+                    BomAssets.Write(asset, png);
+                    BomAssets.MarkCurrent(asset, stamp);
+                }
+                return originalSize ? png : PreviewPng(png);
             }
             catch (Exception ex)
             {
@@ -200,10 +227,10 @@ namespace MechKit.Features
             }
         }
 
-        private static XElement Picture(int id, int row)
+        private static XElement Picture(int id, int row, int column = 0)
         {
             return new XElement(Drawing + "oneCellAnchor",
-                new XElement(Drawing + "from", new XElement(Drawing + "col", 0), new XElement(Drawing + "colOff", 38100),
+                new XElement(Drawing + "from", new XElement(Drawing + "col", column), new XElement(Drawing + "colOff", 38100),
                     new XElement(Drawing + "row", row), new XElement(Drawing + "rowOff", 38100)),
                 new XElement(Drawing + "ext", new XAttribute("cx", 990600), new XAttribute("cy", 685800)),
                 new XElement(Drawing + "pic",

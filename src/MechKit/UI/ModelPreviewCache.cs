@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -17,10 +17,11 @@ namespace MechKit.UI
             if (string.IsNullOrEmpty(path)) return null;
             var file = new FileInfo(path);
             if (!file.Exists) return null;
-            var key=file.FullName.ToUpperInvariant()+"\0"+(configuration??"")+"\0"+file.LastWriteTimeUtc.Ticks+"/"+file.Length;
+            var key=file.FullName.ToUpperInvariant()+"\0"+(configuration??"")+"\0"+MechKit.Core.BomAssets.Stamp(path);
             byte[] value;
             if(_entries.TryGetValue(key,out value)) return value;
-            value=read();
+            using (MechKit.Core.OperationTrace.Begin("SW model preview file=" + path + " config=" + configuration))
+                value=read();
             var size=value==null?0:value.Length;
             if(size>ByteLimit) return value;
             while(_order.Count>0 && (_entries.Count>=_limit || _bytes+size>ByteLimit))

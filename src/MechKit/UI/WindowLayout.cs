@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms;
@@ -18,6 +18,9 @@ namespace MechKit.UI
         private static readonly KeyboardProc KeyboardCallback = OnKeyboard;
         private static IntPtr _keyboardHook;
         private static bool _yieldingContent;
+        private static bool _tabConsumed;
+        private static readonly System.Collections.Generic.Dictionary<Form, IntPtr> HostWindows =
+            new System.Collections.Generic.Dictionary<Form, IntPtr>();
         private delegate IntPtr MouseProc(int code, IntPtr message, IntPtr data);
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint="SetWindowsHookExW")]
         private static extern IntPtr SetMouseHook(int hook, MouseProc callback, IntPtr module, uint thread);
@@ -39,6 +42,11 @@ namespace MechKit.UI
 
         private static IntPtr OnKeyboard(int code, IntPtr key, IntPtr flags)
         {
+            if (code == 0 && key.ToInt32() == (int)Keys.Tab && _tabConsumed)
+            {
+                if ((flags.ToInt64() & 0x80000000L) != 0) _tabConsumed = false;
+                return new IntPtr(1); // Consume repeats/release so SW does not interpret held Tab.
+            }
             // Thread-local hook also sees keys while SOLIDWORKS owns focus.
             // Ignore releases, autorepeat and modified keys such as Alt+Tab.
             if (code == 0 && (flags.ToInt64() & 0xC0000000L) == 0 &&
@@ -47,7 +55,7 @@ namespace MechKit.UI
             {
                 try
                 {
-                    if (HandleWindowShortcut((Keys)key.ToInt32())) return new IntPtr(1);
+                    if (HandleWindowShortcut((Keys)key.ToInt32())) { if (key.ToInt32() == (int)Keys.Tab) _tabConsumed = true; return new IntPtr(1); }
                 }
                 catch (Exception ex) { Log.Warn("窗口快捷键失败：" + ex.Message); }
             }
@@ -83,7 +91,8 @@ namespace MechKit.UI
             // Do not steal keys from a modal file picker or another dialog.
             if (Form.ActiveForm != null && !ShortcutForms.Contains(Form.ActiveForm)) return false;
             if (target == null) return false;
-            if (key == Keys.Tab && FindEditingGrid(target)!=null) return false;
+            // Tab switches the BOM even while a cell editor has focus. Do not
+            // cancel/finish the edit here: keep its draft when yielding to SW.
             if (key == Keys.Escape)
             {
                 var editor=FindEditingGrid(target);
@@ -92,6 +101,12 @@ namespace MechKit.UI
             }
             else
             {
+                IntPtr host;
+                if (target.ContainsFocus && !LoweredForms.Contains(target) && HostWindows.TryGetValue(target, out host) && host != IntPtr.Zero)
+                {
+                    LowerAfterDocumentOpened(target, host);
+                    return true;
+                }
                 if (target.WindowState == FormWindowState.Minimized)
                     target.WindowState = FormWindowState.Normal;
                 target.TopMost = false;
@@ -131,6 +146,15 @@ namespace MechKit.UI
                 SetWindowPos(form.Handle, IntPtr.Zero, 0, 0, 0, 0, 0x13);
         }
 
+        private static void PlaceBehindHost(Form form, IntPtr host)
+        {
+            form.TopMost = false;
+            if (host == IntPtr.Zero) { SetWindowPos(form.Handle, new IntPtr(1), 0, 0, 0, 0, 0x13); return; }
+            if (GetForegroundWindow() == form.Handle) SetForegroundWindow(host);
+            // Place immediately behind SW, rather than at the bottom of every desktop window.
+            SetWindowPos(form.Handle, host, 0, 0, 0, 0, 0x13);
+        }
+
         /// <summary>打开模型后让出绘图区，保留可由 Tab 唤回的窗口及编辑状态。</summary>
         public static void LowerAfterDocumentOpened(Form form, IntPtr solidWorksWindow)
         {
@@ -145,8 +169,7 @@ namespace MechKit.UI
                 _yieldingContent=true;
                 try
                 {
-                    form.TopMost = false;
-                    form.SendToBack();
+                    PlaceBehindHost(form, solidWorksWindow);
                     // A click in SW has already moved focus there. Repeating this call
                     // can re-enter SW activation/loading handlers while it is busy.
                     if (solidWorksWindow != IntPtr.Zero && GetForegroundWindow() == form.Handle) SetForegroundWindow(solidWorksWindow);
@@ -171,7 +194,7 @@ namespace MechKit.UI
                     // plugin form while moving the first one behind the host.
                     foreach(var form in windows)
                         if(!form.IsDisposed && form.Visible)
-                        { LoweredForms.Add(form); form.TopMost=false;form.SendToBack(); }
+                        { LoweredForms.Add(form); PlaceBehindHost(form, solidWorksWindow); }
                     if(solidWorksWindow!=IntPtr.Zero && windows.Exists(f=>!f.IsDisposed && f.IsHandleCreated && GetForegroundWindow()==f.Handle))
                         SetForegroundWindow(solidWorksWindow);
                 }
@@ -252,6 +275,7 @@ namespace MechKit.UI
 
         internal static void KeepAlongsideHost(Form form,IntPtr host)
         {
+            HostWindows[form] = host;
             // An unowned modeless window otherwise disappears behind all of SW as
             // soon as the user clicks the tree/task pane. Do not stay above other apps.
             var timer=new Timer {Interval=200};
@@ -293,7 +317,7 @@ namespace MechKit.UI
                 RaiseWithinHost(form,host);
             };
             form.Disposed+=(s,e)=>{
-                timer.Stop();timer.Dispose();LoweredForms.Remove(form);
+                timer.Stop();timer.Dispose();LoweredForms.Remove(form);HostWindows.Remove(form);
                 if(mouseHook!=IntPtr.Zero) {UnhookWindowsHookEx(mouseHook);mouseHook=IntPtr.Zero;}
                 GC.KeepAlive(mouseCallback);
             };
@@ -421,7 +445,7 @@ namespace MechKit.UI
         public static void SendToBackWhenGraphicsAreaClicked(Form form, IntPtr solidWorksWindow,
             Func<IntPtr> activeViewHandle)
         {
-            if (form == null || solidWorksWindow == IntPtr.Zero)
+            if (form == null || form.TopMost || solidWorksWindow == IntPtr.Zero)
             {
                 return;
             }
@@ -447,8 +471,7 @@ namespace MechKit.UI
                         if (!form.IsDisposed && form.Visible)
                         {
                             LoweredForms.Add(form);
-                            form.TopMost = false;
-                            form.SendToBack();
+                            PlaceBehindHost(form, solidWorksWindow);
                         }
                     }));
                 }
@@ -503,7 +526,8 @@ namespace MechKit.UI
             };
         }
 
-        public static void Attach(Form form, AddinSettings settings, Size defaultSize, Size minimumSize)
+        public static void Attach(Form form, AddinSettings settings, Size defaultSize, Size minimumSize,
+            bool enableWindowShortcuts = true)
         {
             // 高分屏自适应：按字体尺寸缩放整套布局。
             // 用 Font 模式（而不是 Dpi）是因为字体本身以磅为单位、会随系统缩放变大，
@@ -527,7 +551,7 @@ namespace MechKit.UI
             form.MaximizeBox = true;
             form.SizeGripStyle = SizeGripStyle.Show;
 
-            EnableEscapeToClose(form);
+            if (enableWindowShortcuts) EnableEscapeToClose(form);
 
             if (settings == null)
             {

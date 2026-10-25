@@ -24,7 +24,7 @@ try{
   $arguments[0]=$grid;$arguments[1]=$e.PSObject.BaseObject
   $t.GetMethod('OnGridCellDoubleClick',$flags).Invoke($f,$arguments)|Out-Null
   Check ($grid.IsCurrentCellInEditMode -and $grid.EditingControl -is [Windows.Forms.TextBox]) 'Double click did not begin inline edit'
-  Check ($row.Selected -and @($row.Cells|Where-Object {-not $_.Selected}).Count -eq 0) 'Editing did not highlight full row'
+  Check ($grid.SelectedCells.Count -eq 1) 'Editing unexpectedly selected full row'
   Check ([Windows.Forms.Application]::OpenForms.Count -eq $beforeForms) 'Double click opened another window'
   $grid.EditingControl.Text='Temporary edit'
   Check (-not $shortcut.Invoke($null,@([Windows.Forms.Keys]::Tab))) 'Tab was stolen from cell editor'
@@ -42,5 +42,5 @@ try{
  $grid.EndEdit()|Out-Null
  Check (-not [string]::IsNullOrEmpty($cell.ErrorText)) 'Unavailable SW save failure was not reported'
  Check ([Windows.Forms.Application]::OpenForms.Count -eq $beforeForms) 'Save failure opened a dialog'
- Write-Output 'PASS: three inline editors, full-row highlight, no dialog, Tab navigation, cancel and inline save failure'
+ Write-Output 'PASS: three inline editors, cell selection, no dialog, Tab navigation, cancel and inline save failure'
 }finally{$f.Dispose()}

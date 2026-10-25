@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -56,6 +56,7 @@ namespace MechKit
         public bool ConnectToSW(object thisSw, int cookie)
         {
             // 最先写日志：这样即使后面失败，也能确定 SOLIDWORKS 确实调用了插件
+            OperationTrace.Start();
             Log.Info("[connect] 收到 SOLIDWORKS 的加载请求。");
 
             try
@@ -88,6 +89,7 @@ namespace MechKit
             }
             catch (Exception ex)
             {
+                OperationTrace.Stop();
                 Log.Error("插件加载失败", ex);
                 MessageBox.Show("MechKit加载失败：" + ex.Message, AddinConstants.Title,
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -156,6 +158,7 @@ namespace MechKit
             }
             finally
             {
+                OperationTrace.Stop();
                 // SOLIDWORKS 要求插件在这里彻底释放托管引用
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -326,6 +329,13 @@ namespace MechKit
         /// </summary>
         public void GenerateBom()
         {
+            GenerateBom(false);
+        }
+
+        public void OnQuickExportBom() { GenerateBom(true); }
+
+        private void GenerateBom(bool quickExport)
+        {
             try
             {
                 var doc = SwUtils.ActiveDoc(_swApp);
@@ -366,6 +376,7 @@ namespace MechKit
                     return;
                 }
 
+                if (quickExport) rows.RemoveAll(row => !QuickExport.MatchesSelection(row.FilePath, options.Naming));
                 if (rows.Count == 0)
                 {
                     MessageBox.Show("没有可汇总的零件。", AddinConstants.Title,
@@ -373,7 +384,7 @@ namespace MechKit
                     return;
                 }
 
-                var folder = ResolveBomFolder(doc);
+                var folder = quickExport ? QuickExport.Folder : ResolveBomFolder(doc);
                 var path = BomExcelExporter.Export(_swApp, rows, folder, title, options);
                 var summary = PartListService.BuildSummary(rows);
 
@@ -1119,61 +1130,88 @@ namespace MechKit
 
         public void OnGenerateBom()
         {
-            GenerateBom();
+            using (OperationTrace.Begin("MechKitAddin.OnGenerateBom"))
+            {
+                GenerateBom();
+            }
         }
 
         public void OnSettings()
         {
-            ShowSettingsDialog();
+            using (OperationTrace.Begin("MechKitAddin.OnSettings"))
+            {
+                ShowSettingsDialog();
+            }
         }
 
         public void OnPartNamingRule()
         {
-            ShowNamingRuleDialog(0);
+            using (OperationTrace.Begin("MechKitAddin.OnPartNamingRule"))
+            {
+                ShowNamingRuleDialog(0);
+            }
         }
 
         public void OnStandardPrefix()
         {
-            ShowNamingRuleDialog(1);
+            using (OperationTrace.Begin("MechKitAddin.OnStandardPrefix"))
+            {
+                ShowNamingRuleDialog(1);
+            }
         }
 
         public void OnStockPartCommand()
         {
-            var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes);
-            if (prefixes.Length == 0) ShowNamingRuleDialog(3);
-            else ApplyPrefix(prefixes[0], false);
+            using (OperationTrace.Begin("MechKitAddin.OnStockPartCommand"))
+            {
+                var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes);
+                if (prefixes.Length == 0) ShowNamingRuleDialog(3);
+                else ApplyPrefix(prefixes[0], false);
+            }
         }
 
         public void OnSparePartCommand()
         {
-            var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes);
-            if (prefixes.Length == 0) ShowNamingRuleDialog(4);
-            else ApplyPrefix(prefixes[0], false);
+            using (OperationTrace.Begin("MechKitAddin.OnSparePartCommand"))
+            {
+                var prefixes = NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes);
+                if (prefixes.Length == 0) ShowNamingRuleDialog(4);
+                else ApplyPrefix(prefixes[0], false);
+            }
         }
 
-        public void OnExternalDrawingCommand() { ShowNamingRuleDialog(2); }
-
-        /// <summary>参考件快捷按钮：增加“参考-”前缀，并替换已有标准件/参考件前缀。</summary>
-        public void OnReferencePartCommand()
+        public void OnExternalDrawingCommand()
         {
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnExternalDrawingCommand"))
             {
-                var known = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
-                known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes));
-                known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes));
-                known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.ExternalDrawingPrefixes));
-                if (!known.Contains("参考"))
-                {
-                    known.Add("参考");
-                }
-                RenameSelectedComponentFiles(delegate(string name)
-                {
-                    return AddPrefix(name, "参考", known.ToArray());
-                }, "参考件命名");
+                ShowNamingRuleDialog(2);
             }
-            catch (Exception ex)
+            }
+
+            /// <summary>参考件快捷按钮：增加“参考-”前缀，并替换已有标准件/参考件前缀。</summary>
+            public void OnReferencePartCommand()
             {
-                Log.Error("参考件命名失败", ex);
+            using (OperationTrace.Begin("MechKitAddin.OnReferencePartCommand"))
+            {
+                try
+            {
+                    var known = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
+                    known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.StockPrefixes));
+                    known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.SparePrefixes));
+                    known.AddRange(NamingOptionsFactory.ParsePrefixes(_settings.ExternalDrawingPrefixes));
+                    if (!known.Contains("参考"))
+                    {
+                        known.Add("参考");
+                    }
+                    RenameSelectedComponentFiles(delegate(string name)
+                    {
+                        return AddPrefix(name, "参考", known.ToArray());
+                    }, "参考件命名");
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("参考件命名失败", ex);
+                }
             }
         }
 
@@ -1183,74 +1221,86 @@ namespace MechKit
         /// </summary>
         public void OnPrefixCommand(string data)
         {
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnPrefixCommand"))
             {
-                int index;
-                if (!int.TryParse(data, out index))
-                {
-                    return;
-                }
-
-                var prefixes = BuildPrefixButtonList();
-                if (index < 0 || index >= prefixes.Count)
-                {
-                    return;
-                }
-
-                var prefix = prefixes[index];
-
-                // 点到的前缀如果还没在规则列表里，顺手加进去，保证它会被 BOM 认可
-                var configured = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
-                if (!configured.Contains(prefix))
-                {
-                    configured.Add(prefix);
-                    _settings.BomPrefixes = NamingOptionsFactory.SerializePrefixes(configured);
-                    _settings.Save();
-                }
-
-                ApplyPrefix(prefix, false);
-            }
-            catch (Exception ex)
+                try
             {
-                Log.Error("前缀按钮回调失败", ex);
+                    int index;
+                    if (!int.TryParse(data, out index))
+                    {
+                        return;
+                    }
+
+                    var prefixes = BuildPrefixButtonList();
+                    if (index < 0 || index >= prefixes.Count)
+                    {
+                        return;
+                    }
+
+                    var prefix = prefixes[index];
+
+                    // 点到的前缀如果还没在规则列表里，顺手加进去，保证它会被 BOM 认可
+                    var configured = new List<string>(NamingOptionsFactory.ParsePrefixes(_settings.BomPrefixes));
+                    if (!configured.Contains(prefix))
+                    {
+                        configured.Add(prefix);
+                        _settings.BomPrefixes = NamingOptionsFactory.SerializePrefixes(configured);
+                        _settings.Save();
+                    }
+
+                    ApplyPrefix(prefix, false);
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("前缀按钮回调失败", ex);
+                }
             }
         }
 
         /// <summary>标准件中文中间名按钮回调，参数是中间名在配置列表中的序号。</summary>
         public void OnMiddleNameCommand(string data)
         {
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnMiddleNameCommand"))
             {
-                int index;
-                if (!int.TryParse(data, out index))
-                {
-                    return;
-                }
-
-                var names = BuildMiddleNameButtonList();
-                if (index < 0 || index >= names.Count)
-                {
-                    return;
-                }
-
-                ApplyMiddleName(names[index], false);
-            }
-            catch (Exception ex)
+                try
             {
-                Log.Error("中间名按钮回调失败", ex);
+                    int index;
+                    if (!int.TryParse(data, out index))
+                    {
+                        return;
+                    }
+
+                    var names = BuildMiddleNameButtonList();
+                    if (index < 0 || index >= names.Count)
+                    {
+                        return;
+                    }
+
+                    ApplyMiddleName(names[index], false);
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("中间名按钮回调失败", ex);
+                }
             }
         }
 
         public void OnMachinedLevel2Command(string data)
         {
-            ApplyMachinedLevelCommand(data, BuildMachinedLevel2ButtonList(),
-                MachinedSegmentKind.Material, "加工件二级字段");
+            using (OperationTrace.Begin("MechKitAddin.OnMachinedLevel2Command"))
+            {
+                ApplyMachinedLevelCommand(data, BuildMachinedLevel2ButtonList(),
+                    MachinedSegmentKind.Material, "加工件二级字段");
+            }
         }
 
         public void OnMachinedLevel3Command(string data)
         {
-            ApplyMachinedLevelCommand(data, BuildMachinedLevel3ButtonList(),
-                MachinedSegmentKind.Name, "加工件三级字段");
+            using (OperationTrace.Begin("MechKitAddin.OnMachinedLevel3Command"))
+            {
+                ApplyMachinedLevelCommand(data, BuildMachinedLevel3ButtonList(),
+                    MachinedSegmentKind.Name, "加工件三级字段");
+            }
         }
 
         private void ApplyMachinedLevelCommand(string data, IList<string> values,
@@ -1288,164 +1338,329 @@ namespace MechKit
         /// <summary>加工件快捷按钮：把当天日期写到文件名首段。</summary>
         public void OnMachinedDateCommand()
         {
-            var today = DateTime.Now.ToString("yyyyMMdd");
-            RenameSelectedComponentFiles(delegate(string name)
+            using (OperationTrace.Begin("MechKitAddin.OnMachinedDateCommand"))
             {
-                return NamingOptions.SetLeadingDate(name, today);
-            }, "写入加工件时间");
+                var today = DateTime.Now.ToString("yyyyMMdd");
+                RenameSelectedComponentFiles(delegate(string name)
+            {
+                    return NamingOptions.SetLeadingDate(name, today);
+                }, "写入加工件时间");
+            }
         }
 
         /// <summary>加工件快捷按钮：在日期段之后加入参考材料 6061。</summary>
         public void OnMachinedSeparatorCommand()
         {
-            RenameSelectedComponentFiles(delegate(string name)
+            using (OperationTrace.Begin("MechKitAddin.OnMachinedSeparatorCommand"))
             {
-                return NamingOptions.InsertReferenceMaterialAfterDate(name, "6061");
-            }, "加入参考材料 6061");
+                RenameSelectedComponentFiles(delegate(string name)
+            {
+                    return NamingOptions.InsertReferenceMaterialAfterDate(name, "6061");
+                }, "加入参考材料 6061");
+            }
         }
 
         /// <summary>一键把选中零件或子装配体文件名里的下划线全部改为短横线。</summary>
         public void OnConvertUnderscoresCommand()
         {
-            RenameSelectedComponentFiles(delegate(string name)
+            using (OperationTrace.Begin("MechKitAddin.OnConvertUnderscoresCommand"))
             {
-                return (name ?? string.Empty).Replace('_', '-');
-            }, "下划线转换为短横线");
+                RenameSelectedComponentFiles(delegate(string name)
+            {
+                    return (name ?? string.Empty).Replace('_', '-');
+                }, "下划线转换为短横线");
+            }
         }
 
         /// <summary>装配快捷按钮：有日期时插在日期后，否则插到文件名最前面。</summary>
         public void OnAssemblyNameCommand()
         {
-            RenameSelectedComponentFiles(delegate(string name)
+            using (OperationTrace.Begin("MechKitAddin.OnAssemblyNameCommand"))
             {
-                return NamingOptions.InsertTokenAfterDateOrStart(name, "装配");
-            }, "装配命名");
+                RenameSelectedComponentFiles(delegate(string name)
+            {
+                    return NamingOptions.InsertTokenAfterDateOrStart(name, "装配");
+                }, "装配命名");
+            }
         }
 
         /// <summary>组件快捷按钮：有日期时插在日期后，否则插到文件名最前面。</summary>
         public void OnComponentNameCommand()
         {
-            RenameSelectedComponentFiles(delegate(string name)
+            using (OperationTrace.Begin("MechKitAddin.OnComponentNameCommand"))
             {
-                return NamingOptions.InsertTokenAfterDateOrStart(name, "组件");
-            }, "组件命名");
+                RenameSelectedComponentFiles(delegate(string name)
+            {
+                    return NamingOptions.InsertTokenAfterDateOrStart(name, "组件");
+                }, "组件命名");
+            }
         }
 
         /// <summary>撤回最近一次由 MechKit 快捷按钮执行的命名操作。</summary>
         public void OnMachinedUndoCommand()
         {
-            Form bomWindow;
-            if (_openForms.TryGetValue("part-list", out bomWindow) && bomWindow is PartListForm bom &&
-                !bom.IsDisposed && bom.Visible && bom.UndoQuickNamingPreview()) return;
-            var doc = SwUtils.ActiveDoc(_swApp);
-            if (doc == null || string.IsNullOrEmpty(_lastNamingUndoDocument))
+            using (OperationTrace.Begin("MechKitAddin.OnMachinedUndoCommand"))
             {
-                MessageBox.Show("当前没有可撤回的 MechKit 快捷命名。", AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var currentDocument = doc.GetPathName() ?? doc.GetTitle();
-            if (!string.Equals(currentDocument, _lastNamingUndoDocument,
-                    StringComparison.OrdinalIgnoreCase))
+                Form bomWindow;
+                if (_openForms.TryGetValue("part-list", out bomWindow) && bomWindow is PartListForm bom &&
+                    !bom.IsDisposed && bom.Visible && bom.UndoQuickNamingPreview()) return;
+                var doc = SwUtils.ActiveDoc(_swApp);
+                if (doc == null || string.IsNullOrEmpty(_lastNamingUndoDocument))
             {
-                MessageBox.Show("最近一次快捷命名不属于当前文档，无法在这里撤回。",
-                    AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            try
-            {
-                doc.EditUndo2(1);
-                doc.EditRebuild3();
-                int errors = 0;
-                int warnings = 0;
-                doc.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref errors, ref warnings);
-
-                var message = "已撤回最近一次 MechKit 快捷命名。";
-                if (_lastNamingUndoCreatedFile)
-                {
-                    message += "\r\n\r\n装配体引用已经恢复；“先使之独立”生成的新文件仍保留在磁盘中，避免误删数据。";
+                    MessageBox.Show("当前没有可撤回的 MechKit 快捷命名。", AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
-                _lastNamingUndoDocument = null;
-                _lastNamingUndoCreatedFile = false;
-                MessageBox.Show(message, AddinConstants.Title, MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
+
+                var currentDocument = doc.GetPathName() ?? doc.GetTitle();
+                if (!string.Equals(currentDocument, _lastNamingUndoDocument,
+                        StringComparison.OrdinalIgnoreCase))
             {
-                Log.Error("撤回快捷命名失败", ex);
-                MessageBox.Show("撤回失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("最近一次快捷命名不属于当前文档，无法在这里撤回。",
+                        AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                try
+            {
+                    doc.EditUndo2(1);
+                    doc.EditRebuild3();
+                    int errors = 0;
+                    int warnings = 0;
+                    doc.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref errors, ref warnings);
+
+                    var message = "已撤回最近一次 MechKit 快捷命名。";
+                    if (_lastNamingUndoCreatedFile)
+                    {
+                        message += "\r\n\r\n装配体引用已经恢复；“先使之独立”生成的新文件仍保留在磁盘中，避免误删数据。";
+                    }
+                    _lastNamingUndoDocument = null;
+                    _lastNamingUndoCreatedFile = false;
+                    MessageBox.Show(message, AddinConstants.Title, MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("撤回快捷命名失败", ex);
+                    MessageBox.Show("撤回失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
         public void OnPartList()
         {
-            ShowPartListDialog();
+            using (OperationTrace.Begin("MechKitAddin.OnPartList"))
+            {
+                ShowPartListDialog();
+            }
+        }
+
+        private bool _copyingP6061;
+        private bool _savingVirtualAssembly;
+        public void OnSaveVirtualAssembly()
+        {
+            if (_savingVirtualAssembly) return;
+            _savingVirtualAssembly = true;
+            using (OperationTrace.Begin("另存虚拟装配体"))
+            try
+            {
+                var doc = SwUtils.ActiveDoc(_swApp);
+                if (doc == null || doc.GetType() != SwUtils.DocAssembly)
+                    throw new InvalidOperationException("请在所属装配体中选中一个虚拟装配体。");
+                var selection = doc.SelectionManager as SelectionMgr;
+                var selected = new List<Component2>();
+                if (selection != null)
+                    for (int i = 1; i <= selection.GetSelectedObjectCount2(-1); i++)
+                    {
+                        var item = selection.GetSelectedObjectsComponent4(i, -1) as Component2;
+                        if (item != null && !selected.Contains(item)) selected.Add(item);
+                    }
+                if (selected.Count != 1) throw new InvalidOperationException("请在所属装配体的设计树中选中一个虚拟装配体，再点击此按钮。");
+                var component = selected[0];
+                var model = component.GetModelDoc2() as ModelDoc2;
+                if (!component.IsVirtual || model == null || model.GetType() != SwUtils.DocAssembly)
+                    throw new InvalidOperationException("所选对象不是已解析的虚拟装配体。");
+                var ownerPath = doc.GetPathName();
+                if (string.IsNullOrEmpty(ownerPath) || !File.Exists(ownerPath))
+                    throw new InvalidOperationException("请先保存所属装配体，再另存虚拟装配体。");
+                if ((File.GetAttributes(ownerPath) & FileAttributes.ReadOnly) != 0)
+                    throw new InvalidOperationException("所属装配体为只读，无法保存引用关系。");
+                var target = TemporaryAssemblyPath(Path.GetDirectoryName(ownerPath));
+                PartListService.SaveVirtualComponentExternal(doc, component, target);
+                _taskPane?.RefreshDocument(false);
+                Log.Info("虚拟装配体已另存并更新引用：" + target);
+                MessageBox.Show("已另存并保存装配引用：\r\n" + target, "另存虚拟装配体");
+            }
+            catch (Exception ex) { Log.Error("另存虚拟装配体失败", ex); MessageBox.Show(ex.Message, "另存虚拟装配体失败"); }
+            finally { _savingVirtualAssembly = false; }
+        }
+        internal static string TemporaryAssemblyPath(string directory)
+        {
+            var date = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow, "China Standard Time").ToString("yyyyMMdd");
+            for (int i = 1; ; i++)
+            {
+                var path = Path.Combine(directory, date + "-装配-装配体" + i + ".SLDASM");
+                if (!File.Exists(path)) return path;
+            }
+        }
+        private bool _quickExporting;
+        public void OnQuickExportFolder()
+        {
+            var folder = FolderPicker.Show(MainWindowHandle, "选择 BOM、STP 和 PDF 的共同输出文件夹", QuickExport.Folder);
+            if (!string.IsNullOrEmpty(folder)) QuickExport.SetFolder(folder);
+        }
+        public void OnQuickExportReset()
+        {
+            QuickExport.SetFolder(null);
+            MessageBox.Show("默认导出目录：\r\n" + QuickExport.Folder, "快捷导出");
+        }
+        public void OnQuickExport()
+        {
+            if (_quickExporting) return;
+            _quickExporting = true;
+            using (OperationTrace.Begin("快捷导出 STP 和 PDF"))
+            try
+            {
+                var doc = SwUtils.ActiveDoc(_swApp);
+                if (doc == null) throw new InvalidOperationException("请先打开零件或装配体。");
+                var paths = QuickExport.CollectFiles(doc, Log.Info);
+                if (paths.Count == 0)
+                {
+                    MessageBox.Show("当前装配体没有符合筛选条件的零件。请检查大类、二级筛选和“仅有工程图”选项。压缩组件不参与导出。", "快捷导出 STP＋PDF");
+                    return;
+                }
+                foreach (var path in paths)
+                    if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path)) throw new InvalidOperationException("请先保存当前文档。");
+                var options = new BatchExportOptions { OutputFolder = QuickExport.Folder, AutoPair = true, KeepTree = false, Overwrite = QuickExport.Overwrite, CreateReport = true };
+                options.Files.AddRange(paths); options.Formats.Add(ExportFormats.Step); options.Formats.Add(ExportFormats.Pdf);
+                var missing = new List<string>();
+                foreach (var path in paths)
+                    if (SwUtils.DocTypeFromPath(path) != SwUtils.DocDrawing && !System.IO.File.Exists(System.IO.Path.ChangeExtension(path, ".slddrw")))
+                        missing.Add(System.IO.Path.GetFileName(path));
+                var report = ExportService.Run(_swApp, options, Log.Info, () => false);
+                var message = report.Summary() + "\r\n目录：" + options.OutputFolder;
+                message += "\r\n范围：当前打开的整个装配体；大类：" + QuickExport.CategoryFilter + "；二级：" + (string.IsNullOrWhiteSpace(QuickExport.FieldFilter) ? "全部" : QuickExport.FieldFilter);
+                if (report.Skipped > 0) message += "\r\n已有同名输出文件被保留；勾选“覆盖已有 STP/PDF”可重新导出。";
+                if (!string.IsNullOrEmpty(report.ReportPath)) message += "\r\n详细结果：" + report.ReportPath;
+                if (missing.Count > 0) message += "\r\n缺少同名工程图，未导出 PDF：\r\n" + string.Join("\r\n", missing);
+                Log.Info(message);
+                MessageBox.Show(message, "快捷导出 STP＋PDF", MessageBoxButtons.OK, report.Failed > 0 || missing.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+            catch (Exception ex) { Log.Error("快捷导出失败", ex); MessageBox.Show(ex.Message, "快捷导出失败"); }
+            finally { _quickExporting = false; }
+        }
+        public async void OnCopyP6061()
+        {
+            if (_copyingP6061) return;
+            _copyingP6061 = true;
+            using (OperationTrace.Begin("复制 p6061 零件及工程图"))
+            try
+            {
+                var doc = SwUtils.ActiveDoc(_swApp);
+                if (doc == null) { MessageBox.Show("请先打开装配体或 p6061 零件。", AddinConstants.Title); return; }
+                using (var picker = new FolderBrowserDialog { Description = "选择 p6061 零件及工程图的目标文件夹（复制已保存文件，不覆盖同名文件）", ShowNewFolderButton = true })
+                {
+                    if (picker.ShowDialog() != DialogResult.OK) return;
+                    var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (doc.GetType() == SwUtils.DocPart)
+                    {
+                        if (P6061CopyService.Matches(doc.GetPathName())) paths.Add(doc.GetPathName());
+                    }
+                    else if (doc.GetType() == SwUtils.DocAssembly)
+                    {
+                        var components = ((AssemblyDoc)doc).GetComponents(false) as object[];
+                        if (components != null)
+                            foreach (var value in components)
+                            {
+                                var component = value as Component2;
+                                if (component == null) continue;
+                                var path = component.GetPathName();
+                                if (!string.IsNullOrEmpty(path) && P6061CopyService.Matches(path)) paths.Add(path);
+                            }
+                    }
+                    if (paths.Count == 0) { MessageBox.Show("当前文档中没有文件名第二段为 p6061 的零件。", AddinConstants.Title); return; }
+                    var destination = picker.SelectedPath;
+                    Log.Info("开始复制 p6061：" + paths.Count + " 个零件 → " + destination);
+                    var result = await System.Threading.Tasks.Task.Run(() => P6061CopyService.Copy(paths, destination));
+                    Log.Info(result);
+                    MessageBox.Show(result, "p6061 复制完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex) { Log.Error("复制 p6061 失败", ex); MessageBox.Show(ex.Message, "复制失败"); }
+            finally { _copyingP6061 = false; }
         }
 
         public void OnLaserDxf()
         {
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnLaserDxf"))
             {
-                var path=LaserDxfService.Export(_swApp==null?null:_swApp.IActiveDoc2);
-                MessageBox.Show("已导出最大平面的轮廓（非钣金展开）：\r\n"+path,
-                    AddinConstants.Title,MessageBoxButtons.OK,MessageBoxIcon.Information);
-            }
-            catch(Exception ex)
+                try
             {
-                Log.Error("激光切割 DXF 导出失败",ex);
-                MessageBox.Show(ex.Message,AddinConstants.Title,MessageBoxButtons.OK,MessageBoxIcon.Warning);
+                    var path=LaserDxfService.Export(_swApp==null?null:_swApp.IActiveDoc2);
+                    MessageBox.Show("已导出最大平面的轮廓（非钣金展开）：\r\n"+path,
+                        AddinConstants.Title,MessageBoxButtons.OK,MessageBoxIcon.Information);
+                }
+                catch(Exception ex)
+            {
+                    Log.Error("激光切割 DXF 导出失败",ex);
+                    MessageBox.Show(ex.Message,AddinConstants.Title,MessageBoxButtons.OK,MessageBoxIcon.Warning);
+                }
             }
         }
 
         public void OnOpenDocumentFolder()
         {
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnOpenDocumentFolder"))
             {
-                var model = _swApp == null ? null : _swApp.IActiveDoc2;
-                if (model == null)
-                {
-                    MessageBox.Show("请先打开零件或装配体。", AddinConstants.Title,
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
+                try
+            {
+                    var model = _swApp == null ? null : _swApp.IActiveDoc2;
+                    if (model == null)
+                    {
+                        MessageBox.Show("请先打开零件或装配体。", AddinConstants.Title,
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    object ownerPaths, ownerTitles;
+                    if (model.GetType() != SwUtils.DocDrawing &&
+                        model.Extension.IsVirtualComponent3(out ownerPaths, out ownerTitles))
+                    {
+                        MessageBox.Show("当前是虚拟组件，请先保存为外部文件，再打开所在文件夹。", AddinConstants.Title,
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    var path = model.GetPathName();
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        MessageBox.Show("当前文档尚未保存，请先保存文件。", AddinConstants.Title,
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    if (!File.Exists(path))
+                    {
+                        MessageBox.Show("找不到当前文件，请先确认文件已保存：\r\n" + path, AddinConstants.Title,
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"")
+                        { UseShellExecute = true });
                 }
-                object ownerPaths, ownerTitles;
-                if (model.GetType() != SwUtils.DocDrawing &&
-                    model.Extension.IsVirtualComponent3(out ownerPaths, out ownerTitles))
-                {
-                    MessageBox.Show("当前是虚拟组件，请先保存为外部文件，再打开所在文件夹。", AddinConstants.Title,
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-                var path = model.GetPathName();
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    MessageBox.Show("当前文档尚未保存，请先保存文件。", AddinConstants.Title,
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-                if (!File.Exists(path))
-                {
-                    MessageBox.Show("找不到当前文件，请先确认文件已保存：\r\n" + path, AddinConstants.Title,
+                catch (Exception ex)
+            {
+                    Log.Error("打开所在文件夹失败", ex);
+                    MessageBox.Show("打开所在文件夹失败：" + ex.Message, AddinConstants.Title,
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
                 }
-                WindowLayout.OpenExternal(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"")
-                    { UseShellExecute = true });
-            }
-            catch (Exception ex)
-            {
-                Log.Error("打开所在文件夹失败", ex);
-                MessageBox.Show("打开所在文件夹失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
         public void OnBatchExport()
         {
-            ShowBatchExportDialog();
+            using (OperationTrace.Begin("MechKitAddin.OnBatchExport"))
+            {
+                ShowBatchExportDialog();
+            }
         }
 
         public int OnPlateDrawingEnable()
@@ -1457,84 +1672,105 @@ namespace MechKit
 
         public void OnPlateDrawing()
         {
-            if (OnPlateDrawingEnable() == 0) return;
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnPlateDrawing"))
             {
-                using (var form = new PlateDrawingForm(_swApp, _settings))
-                    form.ShowDialog(new SwWindow(MainWindowHandle));
-            }
-            catch (Exception ex)
+                if (OnPlateDrawingEnable() == 0) return;
+                try
             {
-                Log.Error("打开板件出图窗口失败", ex);
-                MessageBox.Show(ex.Message, AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    using (var form = new PlateDrawingForm(_swApp, _settings))
+                        form.ShowDialog(new SwWindow(MainWindowHandle));
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("打开板件出图窗口失败", ex);
+                    MessageBox.Show(ex.Message, AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
         public void OnMachiningDrawing()
         {
-            if (OnPlateDrawingEnable() == 0) return;
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnMachiningDrawing"))
             {
-                using (var form = new PlateDrawingForm(_swApp, _settings, true))
-                    form.ShowDialog(new SwWindow(MainWindowHandle));
-            }
-            catch (Exception ex)
+                if (OnPlateDrawingEnable() == 0) return;
+                try
             {
-                Log.Error("打开车铣件出图窗口失败", ex);
-                MessageBox.Show(ex.Message, AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    using (var form = new PlateDrawingForm(_swApp, _settings, true))
+                        form.ShowDialog(new SwWindow(MainWindowHandle));
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("打开车铣件出图窗口失败", ex);
+                    MessageBox.Show(ex.Message, AddinConstants.Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
         public void OnQuickAnnotation()
         {
-            ShowModeless("quick-annotation", delegate { return new QuickAnnotationForm(this); });
+            using (OperationTrace.Begin("MechKitAddin.OnQuickAnnotation"))
+            {
+                ShowModeless("quick-annotation", delegate { return new QuickAnnotationForm(this); });
+            }
         }
 
         public void OnPropertyTool()
         {
-            ShowPropertyToolDialog();
+            using (OperationTrace.Begin("MechKitAddin.OnPropertyTool"))
+            {
+                ShowPropertyToolDialog();
+            }
         }
 
         public void OnToggleTaskPane()
         {
-            ToggleTaskPane();
+            using (OperationTrace.Begin("MechKitAddin.OnToggleTaskPane"))
+            {
+                ToggleTaskPane();
+            }
         }
 
         public void OnExportConfiguration()
         {
-            try
+            using (OperationTrace.Begin("MechKitAddin.OnExportConfiguration"))
             {
-                _settings.Save();
-
-                string targetFile;
-                string message;
-                var ok = _settings.ExportPortableToDesktop(out targetFile, out message);
-                if (ok)
-                {
-                    Log.Info(message);
-                    message += System.Environment.NewLine + System.Environment.NewLine +
-                               "换电脑使用：把该文件复制到 MechKit.dll 所在目录，重启 SOLIDWORKS 即可。";
-                }
-                else
-                {
-                    Log.Warn(message);
-                }
-
-                MessageBox.Show(message, AddinConstants.Title,
-                    MessageBoxButtons.OK,
-                    ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
-            }
-            catch (Exception ex)
+                try
             {
-                Log.Error("导出桌面配置失败", ex);
-                MessageBox.Show("导出 MechKit 配置失败：" + ex.Message, AddinConstants.Title,
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _settings.Save();
+
+                    string targetFile;
+                    string message;
+                    var ok = _settings.ExportPortableToDesktop(out targetFile, out message);
+                    if (ok)
+                    {
+                        Log.Info(message);
+                        message += System.Environment.NewLine + System.Environment.NewLine +
+                                   "换电脑使用：把该文件复制到 MechKit.dll 所在目录，重启 SOLIDWORKS 即可。";
+                    }
+                    else
+                    {
+                        Log.Warn(message);
+                    }
+
+                    MessageBox.Show(message, AddinConstants.Title,
+                        MessageBoxButtons.OK,
+                        ok ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                }
+                catch (Exception ex)
+            {
+                    Log.Error("导出桌面配置失败", ex);
+                    MessageBox.Show("导出 MechKit 配置失败：" + ex.Message, AddinConstants.Title,
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
         public void OnAbout()
         {
-            ShowAboutDialog();
+            using (OperationTrace.Begin("MechKitAddin.OnAbout"))
+            {
+                ShowAboutDialog();
+            }
         }
 
         /// <summary>启用方法返回值：1 = 可用。</summary>
@@ -1733,9 +1969,9 @@ namespace MechKit
             };
             for (var level2Index = 0; level2Index < machinedLevel2Buttons.Count; level2Index++)
             {
-                expectedIds.Add(AddinConstants.MachinedLevel2CommandUserIdBase +
+                expectedIds.Add(AddinConstants.MachinedLevel2CommandId(
                     FindConfiguredValueIndex(_settings.MachinedLevel2Values,
-                        machinedLevel2Buttons[level2Index]));
+                        machinedLevel2Buttons[level2Index])));
             }
             for (var level3Index = 0; level3Index < machinedLevel3Buttons.Count; level3Index++)
             {
@@ -1878,8 +2114,8 @@ namespace MechKit
             // 命令 ID 已变化并刷新缓存，而不是沿用同数量的旧按钮文字。
             for (var i = 0; i < machinedLevel2Buttons.Count; i++)
             {
-                var userId = AddinConstants.MachinedLevel2CommandUserIdBase +
-                    FindConfiguredValueIndex(_settings.MachinedLevel2Values, machinedLevel2Buttons[i]);
+                var userId = AddinConstants.MachinedLevel2CommandId(
+                    FindConfiguredValueIndex(_settings.MachinedLevel2Values, machinedLevel2Buttons[i]));
                 machinedLevel2Indices.Add(group.AddCommandItem2(machinedLevel2Buttons[i], -1,
                     "把选中加工件的材料字段设置为 " + machinedLevel2Buttons[i],
                     "加工件材料：" + machinedLevel2Buttons[i], 24,
@@ -2611,6 +2847,11 @@ namespace MechKit
                 if (_events != null)
                 {
                     _events.ActiveDocChangeNotify += OnActiveDocChangeNotify;
+                    _events.FileCloseNotify += TraceFileClose;
+                    _events.FileOpenPostNotify += TraceFileOpenPost;
+                    _events.FileOpenPreNotify += TraceFileOpenPre;
+                    _events.CommandCloseNotify += TraceCommandClose;
+                    _events.CommandOpenPreNotify += TraceCommandOpen;
                 }
             }
             catch (Exception ex)
@@ -2626,6 +2867,11 @@ namespace MechKit
                 if (_events != null)
                 {
                     _events.ActiveDocChangeNotify -= OnActiveDocChangeNotify;
+                    _events.FileCloseNotify -= TraceFileClose;
+                    _events.FileOpenPostNotify -= TraceFileOpenPost;
+                    _events.FileOpenPreNotify -= TraceFileOpenPre;
+                    _events.CommandCloseNotify -= TraceCommandClose;
+                    _events.CommandOpenPreNotify -= TraceCommandOpen;
                 }
             }
             catch
@@ -2638,8 +2884,15 @@ namespace MechKit
             }
         }
 
+        private int TraceCommandOpen(int command, int userCommand) { OperationTrace.Event("SW COMMAND OPEN id=" + command + " user=" + userCommand); return 0; }
+        private int TraceCommandClose(int command, int reason) { OperationTrace.Event("SW COMMAND CLOSE id=" + command + " reason=" + reason); return 0; }
+        private int TraceFileOpenPre(string file) { OperationTrace.Event("SW FILE OPEN BEGIN " + file); return 0; }
+        private int TraceFileOpenPost(string file) { OperationTrace.Event("SW FILE OPEN END " + file); return 0; }
+        private int TraceFileClose(string file, int reason) { OperationTrace.Event("SW FILE CLOSE " + file + " reason=" + reason); return 0; }
+
         private int OnActiveDocChangeNotify()
         {
+            OperationTrace.Event("SW ActiveDocChangeNotify");
             try
             {
                 EnsureActiveDocumentCommandTab();

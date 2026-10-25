@@ -51,13 +51,13 @@ namespace MechKit.UI
                 _images.Clear();
                 AddGroup("常用工具", Color.White, new[] { "预览和导出 BOM", "属性批量写入", "大类管理", "打开所在文件夹" },
                     new Action[] { _addin.OnPartList, _addin.OnPropertyTool, _addin.OnExternalDrawingCommand, _addin.OnOpenDocumentFolder }, 10);
-                AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "车铣件出图", "标注助手", "激光切割 DXF" },
-                    new Action[] { _addin.OnPlateDrawing, _addin.OnMachiningDrawing, _addin.OnQuickAnnotation, _addin.OnLaserDxf }, 7);
+                AddGroup("工程图", Color.FromArgb(238,230,250), new[] { "板件一键出图", "车铣件出图", "标注助手", "激光切割 DXF", "一键拷贝 p6061" },
+                    new Action[] { _addin.OnPlateDrawing, _addin.OnMachiningDrawing, _addin.OnQuickAnnotation, _addin.OnLaserDxf, _addin.OnCopyP6061 }, 7);
                 AddGroup("命名工具", Theme.Canvas, new[] { "下划线转短横线", "撤回命名" },
                     new Action[] { _addin.OnConvertUnderscoresCommand, _addin.OnMachinedUndoCommand }, 10);
                 AddGroup("日期 / 装配 / 组件", Color.FromArgb(238,230,250),
-                    new[] { "写入当天日期", "写入装配", "写入组件" },
-                    new Action[] { _addin.OnMachinedDateCommand, _addin.OnAssemblyNameCommand, _addin.OnComponentNameCommand }, 10);
+                    new[] { "写入当天日期", "写入装配", "写入组件", "另存虚拟装配体" },
+                    new Action[] { _addin.OnMachinedDateCommand, _addin.OnAssemblyNameCommand, _addin.OnComponentNameCommand, _addin.OnSaveVirtualAssembly }, 10);
                 var labels = new List<string> { "命名规则" };
                 var actions = new List<Action> { _addin.OnPartNamingRule };
                 Append(labels, actions, _addin.BuildMachinedLevel2ButtonList(), "", _addin.OnMachinedLevel2Command);

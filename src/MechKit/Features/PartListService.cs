@@ -107,7 +107,10 @@ namespace MechKit.Features
     /// <summary>明细表中的一行（同一零件 + 同一配置合并计数）。</summary>
     internal sealed class PartListRow
     {
+        // Actual instance ancestry, nearest first; independent of displayed location text.
+        public List<PartListRow> ParentAssemblies { get; set; } = new List<PartListRow>();
         public string AssemblyNote { get; set; }
+        public string Unfinished { get; set; }
 
         public string Location { get; set; }
 
@@ -129,6 +132,14 @@ namespace MechKit.Features
         public string SurfaceTreatment { get; set; }
 
         public string Remark { get; set; }
+        public string DesignNote
+        {
+            get
+            {
+                try { return DesignNoteStore.Load(FilePath).Text; }
+                catch (Exception ex) { Log.Warn("读取设计备注失败：" + ex.Message); return "（设计备注读取失败）"; }
+            }
+        }
         public string PurchaseLink { get; set; }
 
         public int Quantity { get; set; }
@@ -289,7 +300,7 @@ namespace MechKit.Features
         internal static class PartListService
     {
         public const string DefaultColumnOrder =
-            "sequence,location,fullname,drawing,classification,name,material,process,surface,quantity,assemblynote,remark,purchaselink";
+            "sequence,location,fullname,drawing,classification,name,material,process,surface,quantity,assemblynote,remark,purchaselink,unfinished";
 
         /// <summary>不符合命名规则的组件在“属性”列里的显示名（表格最后一行区、标红）。</summary>
         internal const string UnmatchedClassification = "命名不规范";
@@ -378,6 +389,7 @@ namespace MechKit.Features
 
             // 当前打开的总装也可能是整机采购件，不能绕过子装配体的识别规则。
             var model = assembly as ModelDoc2;
+            context.SourceAssembly = model;
             var rootName = model == null ? string.Empty : model.GetPathName();
             if (string.IsNullOrEmpty(rootName) && model != null) rootName = model.GetTitle();
             var rootKind = options.Naming.RecognizeDesignNode(rootName);
@@ -451,6 +463,7 @@ namespace MechKit.Features
             PartListOptions options, Action<string> log)
         {
             var context = new CollectContext(swApp, options, log);
+            context.SourceAssembly = SwUtils.ActiveDoc(swApp);
             if (root == null)
             {
                 return new List<PartListRow>();
@@ -615,6 +628,7 @@ namespace MechKit.Features
                 row.Name = options.Naming.ResolveName(path, name => Lookup(properties, name));
             }
             ApplyConfiguredFields(row, path, properties, options);
+            try { BomNoteStore.Apply(row); } catch (Exception ex) { Log.Warn("备注资产读取或保存失败：" + ex.Message); }
 
             treeItem.Rows.Add(row);
             return row;
@@ -667,6 +681,7 @@ namespace MechKit.Features
                     row.Name = options.Naming.ResolveName(path, name => Lookup(properties, name));
                 }
                 ApplyConfiguredFields(row, path, properties, options);
+            try { BomNoteStore.Apply(row); } catch (Exception ex) { Log.Warn("备注资产读取或保存失败：" + ex.Message); }
                 rows.Add(row);
             }
 
@@ -735,6 +750,7 @@ namespace MechKit.Features
                     SurfaceTreatment=MergeExportText(group.Select(r=>r.SurfaceTreatment)),
                     Classification=MergeExportText(group.Select(r=>r.Classification)),
                     Remark=MergeExportText(group.Select(r=>r.Remark)),
+                    Unfinished=MergeExportText(group.Select(r=>r.Unfinished)),
                     PurchaseLink=MergeExportText(group.Select(r=>r.PurchaseLink))
                 });
             }
@@ -744,14 +760,22 @@ namespace MechKit.Features
         private static string MergeExportText(IEnumerable<string> values)
         { return string.Join("；",values.Where(v=>!string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.Ordinal)); }
 
+        /// <summary>未指定目录时，在桌面创建与导出文件同名（不含扩展名）的目录。</summary>
+        internal static string CreateBomExportPath(string folder, string title, string extension)
+        {
+            var fileName = string.Format("{0}-{1:yyyyMMdd-HHmmss-fff}",
+                string.IsNullOrEmpty(title) ? "明细汇总" : title, DateTime.Now);
+            if (string.IsNullOrWhiteSpace(folder))
+                folder = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.DesktopDirectory), fileName);
+            AppPaths.Ensure(folder);
+            return Path.Combine(folder, fileName + extension);
+        }
+
         public static string ExportCsv(IList<PartListRow> rows, string folder, string title,
             PartListOptions options)
         {
             options = options ?? new PartListOptions();
-            AppPaths.Ensure(folder);
-            var fileName = string.Format("{0}-{1:yyyyMMdd-HHmmss}.csv",
-                string.IsNullOrEmpty(title) ? "明细汇总" : title, DateTime.Now);
-            var path = Path.Combine(folder, fileName);
+            var path = CreateBomExportPath(folder, title, ".csv");
 
             var builder = new StringBuilder();
             var columns = ParseColumnOrder(options.ColumnOrder);
@@ -802,6 +826,7 @@ namespace MechKit.Features
                 case "quantity": return Header(options.QuantityHeader, "数量");
                 case "assemblynote": return Header(options.AssemblyNoteHeader, "安装说明");
                 case "remark": return Header(options.RemarkHeader, "备注");
+                case "unfinished": return "未尽事宜";
                 case "purchaselink": return "购买链接";
                 default: return key ?? string.Empty;
             }
@@ -824,6 +849,13 @@ namespace MechKit.Features
         internal static string DrawingCellText(PartListRow row)
         {
             if (row == null) return string.Empty;
+            if (row.Classification == "标准件")
+            {
+                var manual = BomAssets.ManualName(row.FilePath);
+                if (manual != null) return "说明书：" + manual;
+                var illustration = BomAssets.Illustration(row.FilePath, row.Configuration);
+                if (illustration != null) return Path.GetFileName(illustration);
+            }
             if (!string.IsNullOrEmpty(row.DrawingPath)) return Path.GetFileName(row.DrawingPath);
             return IsSheetMetalWithoutDrawing(row) ? "钣金" : string.Empty;
         }
@@ -845,6 +877,7 @@ namespace MechKit.Features
                 case "quantity": return row.Quantity.ToString();
                 case "assemblynote": return row.AssemblyNote;
                 case "remark": return row.Remark;
+                case "unfinished": return row.Unfinished;
                 case "purchaselink": return row.PurchaseLink;
                 default: return string.Empty;
             }
@@ -1206,6 +1239,9 @@ namespace MechKit.Features
                         continue;
                     }
 
+                    if ((row.Remark ?? "") != (row.OriginalRemark ?? "")) BomNoteStore.Save(row.FilePath, "remark", row.Remark);
+                    if ((row.AssemblyNote ?? "") != (row.OriginalAssemblyNote ?? "")) BomNoteStore.Save(row.FilePath, "assemblynote", row.AssemblyNote);
+                    if ((row.PurchaseLink ?? "") != (row.OriginalPurchaseLink ?? "")) BomNoteStore.Save(row.FilePath, "purchaselink", row.PurchaseLink);
                     row.MarkBomClean();
                     updated++;
                     log("✓ 已应用：" + row.FileName);
@@ -1326,6 +1362,8 @@ namespace MechKit.Features
                 {
                     var sourcePath = target.Key;
                     var desired = target.Value;
+                    if (desired.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || desired.EndsWith(".") || desired == "." || desired == "..")
+                        throw new IOException("新名称包含非法字符或结尾句点，未执行改名。");
                     var currentBase = NamingOptions.GetFileNameWithoutExtension(sourcePath);
                     var isVirtual = component.IsVirtual;
                     if (!isVirtual && string.Equals(currentBase, desired, StringComparison.OrdinalIgnoreCase))
@@ -1438,7 +1476,7 @@ namespace MechKit.Features
                 (type == SwUtils.DocAssembly ? ".SLDASM" : ".SLDPRT"));
         }
 
-        private static void SaveVirtualComponentExternal(ModelDoc2 assembly, Component2 component, string target)
+        internal static void SaveVirtualComponentExternal(ModelDoc2 assembly, Component2 component, string target)
         {
             if (File.Exists(target)) throw new IOException("目标文件已存在，未覆盖：" + target);
             // Use the component API, not SaveAsCopy: it changes the assembly's live reference as well.
@@ -1471,6 +1509,11 @@ namespace MechKit.Features
         private static void RenameWithDrawing(ISldWorks sw, ModelDoc2 assembly, Component2 component,
             string source, string target, string desired, Action<string> log)
         {
+            if ((File.GetAttributes(source) & FileAttributes.ReadOnly) != 0)
+                throw new IOException("模型文件为只读，未执行改名：" + source);
+            var assemblyPath = assembly.GetPathName();
+            if (string.IsNullOrEmpty(assemblyPath) || (File.Exists(assemblyPath) && (File.GetAttributes(assemblyPath) & FileAttributes.ReadOnly) != 0))
+                throw new IOException("请先保存来源装配体，并确保装配体可写。");
             var drawingPath = FindDrawingFor(source);
             var targetDrawing = string.IsNullOrEmpty(drawingPath) ? null :
                 Path.Combine(Path.GetDirectoryName(drawingPath), desired + Path.GetExtension(drawingPath));
@@ -1562,11 +1605,13 @@ namespace MechKit.Features
             }
             if (string.Equals(row.Classification, "标准件", StringComparison.Ordinal))
             {
-                var fields = new List<string>();
-                AddNameField(fields, row.Process);
-                AddNameField(fields, row.Name);
-                AddNameField(fields, row.Material);
-                return SanitizeComponentName(string.Join("-", fields.ToArray()));
+                var source = NamingOptions.GetFileNameWithoutExtension(row.FilePath ?? row.FullName ?? "");
+                var first = source.IndexOfAny(new[] { '-', '_' });
+                var second = first < 0 ? -1 : source.IndexOfAny(new[] { '-', '_' }, first + 1);
+                if (second >= 0)
+                    return SanitizeComponentName(source.Substring(0, first) + "-" +
+                        source.Substring(first + 1, second - first - 1) + "-" + row.Name + row.Material);
+                return SanitizeComponentName(source);
             }
 
             if (string.Equals(row.Classification, "加工件", StringComparison.Ordinal))
@@ -1823,6 +1868,7 @@ namespace MechKit.Features
             }
 
             public ISldWorks App { get; private set; }
+            public ModelDoc2 SourceAssembly { get; set; }
 
             public PartListOptions Options { get; private set; }
 
@@ -2050,6 +2096,7 @@ namespace MechKit.Features
                 Configuration = configuration
             };
 
+            row.ParentAssemblies = ReadParentAssemblies(component, context.SourceAssembly);
             ApplyMachinedFields(row, displayPath, context.Options.Naming);
             ApplyStandardFields(row, displayPath, context.Options.Naming);
             if (string.IsNullOrEmpty(row.Name))
@@ -2057,10 +2104,30 @@ namespace MechKit.Features
                 row.Name = context.Options.Naming.ResolveName(displayPath, name => Lookup(properties, name));
             }
             ApplyConfiguredFields(row, displayPath, properties, context.Options);
+            try { BomNoteStore.Apply(row); } catch (Exception ex) { Log.Warn("备注资产读取或保存失败：" + ex.Message); }
 
             context.Rows[key] = row;
             context.DesignOrderRows.Add(row);
             if (nodeRows != null) nodeRows.Add(row);
+        }
+
+        private static List<PartListRow> ReadParentAssemblies(Component2 component, ModelDoc2 source)
+        {
+            var result = new List<PartListRow>();
+            try
+            {
+                var parent = component.GetParent();
+                while (parent != null && result.Count < 2)
+                {
+                    if (parent.IsRoot()) break;
+                    result.Add(new PartListRow { FilePath = parent.GetPathName(), Configuration = parent.ReferencedConfiguration });
+                    parent = parent.GetParent();
+                }
+                if (result.Count < 2 && source != null && source.GetType() == SwUtils.DocAssembly)
+                    result.Add(new PartListRow { FilePath = source.GetPathName(), Configuration = SwUtils.ActiveConfigurationName(source) });
+            }
+            catch (Exception ex) { Log.Warn("读取父装配体失败：" + ex.Message); }
+            return result;
         }
 
         private static string ResolveFullName(string value)
@@ -2286,7 +2353,28 @@ namespace MechKit.Features
             row.Remark = ResolveConfiguredFieldWithNaming(
                 standard ? options.StandardRemarkField : options.MachinedRemarkField,
                 row.Remark, sourceName, properties, standard, options.Naming);
+            if (standard) SplitStandardNameAndModel(row, sourceName);
             ApplyAutomaticRemarks(row);
+        }
+
+        internal static void SplitStandardNameAndModel(PartListRow row, string sourceName)
+        {
+            var stem = NamingOptions.GetFileNameWithoutExtension(sourceName ?? "").Trim();
+            var first = stem.IndexOfAny(new[] { '-', '_' });
+            var second = first < 0 ? -1 : stem.IndexOfAny(new[] { '-', '_' }, first + 1);
+            if (second < 0) return;
+            var text = stem.Substring(second + 1).Trim();
+            var split = text.Length;
+            // “7型”属于名称前缀，型号从其后的首个字母或数字开始。
+            var start = text.StartsWith("7型", StringComparison.Ordinal) ? 2 : 0;
+            for (int i = start; i < text.Length; i++)
+            {
+                char c = text[i];
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+                { split = i; break; }
+            }
+            row.Name = text.Substring(0, split).TrimEnd(' ', '-', '_');
+            row.Material = text.Substring(split);
         }
 
         internal static void ApplyAutomaticRemarks(PartListRow row)

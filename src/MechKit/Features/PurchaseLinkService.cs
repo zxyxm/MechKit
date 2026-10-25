@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using MechKit.Core;
@@ -30,9 +30,12 @@ namespace MechKit.Features
         public static string Validate(string value)
         {
             value = (value ?? string.Empty).Trim();
-            if (value.Length == 0 || value == AgentMarker) return value;
-            if (!IsWebLink(value))
-                throw new ArgumentException("请输入完整的 http:// 或 https:// 购买网址，或填写“代理”；留空可清除属性，代理件刷新后仍默认显示“代理”。");
+            // Purchasing notes may be plain text; only http/https values are opened as links.
+            if (value.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("file:", StringComparison.OrdinalIgnoreCase) ||
+                value.StartsWith("vbscript:", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("购买信息不支持脚本或本地文件链接。");
             return value;
         }
 
