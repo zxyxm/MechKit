@@ -35,6 +35,18 @@ try {
     $missing = $resolve.Invoke($null, @([string[]]@($orphan), $true, $log))
     Assert ($missing.Count -eq 1) 'Missing companion was fabricated.'
     $quickExport = $assembly.GetType('MechKit.Features.QuickExport', $true)
+    $currentPart = $quickExport.GetMethod('CurrentPartFiles', [Reflection.BindingFlags]'NonPublic,Static')
+    $currentFiles = $currentPart.Invoke($null, @(1, [string]$part))
+    Assert ($currentFiles.Count -eq 1 -and $currentFiles[0] -eq $part) 'Current part export must include exactly the active part.'
+    $currentPair = $resolve.Invoke($null, @([string[]]$currentFiles.ToArray(), $true, $log))
+    Assert ($currentPair.Count -eq 2) 'Current part must pair with its drawing.'
+    $orphanCurrent = $currentPart.Invoke($null, @(1, [string]$orphan))
+    Assert ($orphanCurrent.Count -eq 1) 'Missing drawing must still allow current part STEP export.'
+    foreach ($invalid in @(@(2, $assemblyFile), @(3, $drawing), @(1, ''), @(1, (Join-Path $fixture 'missing.sldprt')))) {
+        $rejected = $false
+        try { $null = $currentPart.Invoke($null, $invalid) } catch { $rejected = $true }
+        Assert $rejected 'Assembly, drawing or unsaved part must be rejected by current-part export.'
+    }
     $matchField = $quickExport.GetMethod('MatchesFilter', [Reflection.BindingFlags]'NonPublic,Static')
     $naming = [Activator]::CreateInstance($assembly.GetType('MechKit.Core.NamingOptions'), $true)
     $naming.UseNameSegments = $true

@@ -18,6 +18,7 @@ try {
  $exportType=$a.GetType('MechKit.UI.QuickExportPanel')
  $exportPanel=[Activator]::CreateInstance($exportType,[Reflection.BindingFlags]'Instance,NonPublic',$null,@($addin),$null)
  try {
+  if($exportPanel.Controls.Find('exportCurrentPart', $true).Count -ne 1) { throw 'Current-part export button missing' }
   $filters=@($exportPanel.Controls | Where-Object {$_ -is [Windows.Forms.ComboBox]})
   if($filters.Count -ne 2 -or $filters[1].Enabled) { throw 'Two-level filters or initial all-category state incorrect' }
   $filters[0].SelectedIndex=1

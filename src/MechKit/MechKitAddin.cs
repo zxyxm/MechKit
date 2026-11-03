@@ -1515,7 +1515,23 @@ namespace MechKit
             QuickExport.SetFolder(null);
             MessageBox.Show("默认导出目录：\r\n" + QuickExport.Folder, "快捷导出");
         }
+        public void OnTechnicalRequirements()
+        {
+            try { ShowModeless("technical-requirements", () => new TechnicalRequirementsForm(this)); }
+            catch (Exception ex) { Log.Error("打开技术要求失败", ex); MessageBox.Show(ex.Message, "技术要求"); }
+        }
+
         public void OnQuickExport()
+        {
+            RunQuickExport(false);
+        }
+
+        public void OnQuickExportCurrentPart()
+        {
+            RunQuickExport(true);
+        }
+
+        private void RunQuickExport(bool currentPartOnly)
         {
             if (_quickExporting) return;
             _quickExporting = true;
@@ -1524,7 +1540,9 @@ namespace MechKit
             {
                 var doc = SwUtils.ActiveDoc(_swApp);
                 if (doc == null) throw new InvalidOperationException("请先打开零件或装配体。");
-                var paths = QuickExport.CollectFiles(doc, Log.Info);
+                var paths = currentPartOnly
+                    ? QuickExport.CurrentPartFiles(doc.GetType(), doc.GetPathName())
+                    : QuickExport.CollectFiles(doc, Log.Info);
                 if (paths.Count == 0)
                 {
                     MessageBox.Show("当前装配体没有符合筛选条件的零件。请检查大类、二级筛选和“仅有工程图”选项。压缩组件不参与导出。", "快捷导出 STP＋PDF");
@@ -1540,7 +1558,8 @@ namespace MechKit
                         missing.Add(System.IO.Path.GetFileName(path));
                 var report = ExportService.Run(_swApp, options, Log.Info, () => false);
                 var message = report.Summary() + "\r\n目录：" + options.OutputFolder;
-                message += "\r\n范围：当前打开的整个装配体；大类：" + QuickExport.CategoryFilter + "；二级：" + (string.IsNullOrWhiteSpace(QuickExport.FieldFilter) ? "全部" : QuickExport.FieldFilter);
+                message += currentPartOnly ? "\r\n范围：当前零件（不使用装配体筛选条件）"
+                    : "\r\n范围：当前打开的整个装配体；大类：" + QuickExport.CategoryFilter + "；二级：" + (string.IsNullOrWhiteSpace(QuickExport.FieldFilter) ? "全部" : QuickExport.FieldFilter);
                 if (report.Skipped > 0) message += "\r\n已有同名输出文件被保留；勾选“覆盖已有 STP/PDF”可重新导出。";
                 if (!string.IsNullOrEmpty(report.ReportPath)) message += "\r\n详细结果：" + report.ReportPath;
                 if (missing.Count > 0) message += "\r\n缺少同名工程图，未导出 PDF：\r\n" + string.Join("\r\n", missing);

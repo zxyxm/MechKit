@@ -13,6 +13,15 @@ namespace MechKit.Features
         internal static bool OnlyWithDrawing = false;
         internal static bool Overwrite = true;
 
+        internal static List<string> CurrentPartFiles(int docType, string path)
+        {
+            if (docType != SwUtils.DocPart)
+                throw new InvalidOperationException("请先打开需要导出的零件文档，再点击“导出当前零件”。");
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                throw new InvalidOperationException("请先保存当前零件，再导出 STP 和 PDF。");
+            return new List<string> { Path.GetFullPath(path) };
+        }
+
         internal static string ProcessField(string path, NamingOptions naming)
         {
             if (string.IsNullOrWhiteSpace(path)) return "";
